@@ -31,3 +31,7 @@ docs/
 - BattleUI.ts：Cocos绘制辅助；BattlePreview.ts：展示与按钮交互。
 - tests/battle.test.mjs：Node内置测试，无Cocos依赖。
 - SPEC.md：实现与验收状态主文件。
+
+## Demo 0.4装备模块
+
+ProgressStore扩展纯TypeScript的掉落、容量、去重、穿戴唯一性、升级与迁移规则。InventoryPanel.ts单独处理背包UI，BattleConfig将穿戴属性注入新战斗。测试覆盖规则与存档，不依赖Cocos运行时。

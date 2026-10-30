@@ -5,6 +5,8 @@ import {
 import { BattleEngine } from './battle/BattleEngine';
 import type { BattleEvent, Unit } from './battle/BattleEngine';
 import { ProgressStore } from './battle/ProgressStore';
+import { RARITY_NAMES } from './battle/ProgressStore';
+import { InventoryPanel } from './battle/InventoryPanel';
 import { bar, button, makeNode, panel, text } from './battle/BattleUI';
 import type { UIButton } from './battle/BattleUI';
 import { createBattleOptions, STAGE_NAMES } from './data/BattleConfig';
@@ -50,6 +52,8 @@ export class BattlePreview extends Component {
     private autoButton!: UIButton;
     private trainButton!: UIButton;
     private activeLevel = 1;
+    private inventory: InventoryPanel | null = null;
+    private inventoryButton!: UIButton;
 
     start(): void {
         view.setDesignResolutionSize(720, 1280, ResolutionPolicy.SHOW_ALL);
@@ -60,7 +64,7 @@ export class BattlePreview extends Component {
         panel(this.root, 'Background', 0, 0, 720, 1280, '#111E30', 0);
         panel(this.root, 'Accent', 0, 632, 720, 16, '#DCB977', 0);
         text(this.root, 'Title', '呆脑三国', -130, 558, 48, '#F2E1BC', 390);
-        text(this.root, 'Version', 'DEMO 0.3 · 推关养成', 195, 562, 20, '#C0A773', 270);
+        text(this.root, 'Version', 'DEMO 0.4 · 刷宝养成', 195, 562, 20, '#C0A773', 270);
         this.title = text(this.root, 'Stage', '', 0, 492, 30);
         this.wallet = text(this.root, 'Wallet', '', -120, 447, 20, '#B9C5D4', 400);
         this.trainButton = button(this.root, 'TrainButton', '升级全队', 216, 447, 220, 46, '#5E5540', () => {
@@ -109,8 +113,9 @@ export class BattlePreview extends Component {
             this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1;
             this.refresh();
         });
-        text(this.root, 'Help', '青龙斩：攻击全体敌人；刘备在场时为存活队友回复生命', 0, -570, 18, '#92A4BA');
-        text(this.root, 'DemoNotice', '升级全队下局生效 · 进度仅保存于本机', 0, -605, 17, '#667D99');
+        this.inventoryButton = button(this.root, 'InventoryButton', '装备背包', -222, -565, 200, 48, '#544B64', () => this.openInventory());
+        text(this.root, 'Help', '青龙斩群攻 · 刘备在场可回复生命', 104, -564, 17, '#92A4BA', 430);
+        text(this.root, 'DemoNotice', '升级和穿戴下局生效 · 进度仅保存于本机', 0, -610, 17, '#667D99');
         this.begin(this.stage);
     }
 
@@ -136,7 +141,7 @@ export class BattlePreview extends Component {
         this.battleSequence += 1;
         this.battleId = `${Date.now()}-${this.battleSequence}`;
         this.activeLevel = this.store.progress.heroLevel;
-        this.engine = new BattleEngine(createBattleOptions(stage, 20261030, this.activeLevel));
+        this.engine = new BattleEngine(createBattleOptions(stage, 20261030, this.activeLevel, this.store.getEquipmentBonuses()));
         this.engine.autoSkill = this.autoSkill;
         this.resultShown = false;
         if (this.modal) { this.modal.destroy(); this.modal = null; }
@@ -190,7 +195,8 @@ export class BattlePreview extends Component {
 
     private showEvent(event: BattleEvent): void {
         if (event.type === 'wave') {
-            [...this.views.entries()].forEach(([id, visual]) => {
+            // Cocos发布的loose转译不展开Map迭代器，使用原生forEach。
+            this.views.forEach((visual, id) => {
                 if (id.indexOf('enemy-') === 0) { visual.node.destroy(); this.views.delete(id); }
             });
             this.engine.enemies.forEach((unit, index) => this.createUnitView(unit, index));
@@ -226,6 +232,7 @@ export class BattlePreview extends Component {
         this.wallet.string = `铜钱 ${progress.coins} · 已过 ${progress.highestCleared} 关${this.store.storageAvailable ? '' : ' · 未保存'}`;
         this.trainButton.label.string = progress.heroLevel >= 99 ? '全队 Lv.99 · 已满级'
             : `全队 Lv.${progress.heroLevel} · 升级 ${this.store.upgradeCost}`;
+        this.inventoryButton.label.string = `装备背包 ${progress.inventory.length}/40`;
         const phase = this.engine.status === 'won' ? '战斗胜利' : this.engine.status === 'lost' ? '战斗结束'
             : this.engine.paused ? '已暂停' : this.engine.transitioning ? '准备下一波' : '自动战斗';
         this.wave.string = `${phase} · ${this.engine.waveIndex + 1}/${this.engine.waveCount} 波 · ${Math.floor(this.engine.elapsed)} 秒 · 本局 Lv.${this.activeLevel}`;
@@ -253,11 +260,29 @@ export class BattlePreview extends Component {
         text(this.modal, 'ResultTitle', won ? '大 获 全 胜' : '暂 时 撤 退', 0, 138, 48, won ? '#E8C580' : '#E5A393', 540);
         text(this.modal, 'ResultReward', won ? `铜钱 +${settlement!.coins}` : '本局未获得通关奖励', 0, 66, 31, '#C7DACE', 540);
         text(this.modal, 'ResultDetail', `用时 ${this.engine.elapsed.toFixed(1)} 秒 · 释放青龙斩 ${this.engine.skillCount} 次`, 0, 12, 22, '#A9BBD0', 540);
-        const storageNote = settlement && !settlement.saved ? '存储不可用：奖励仅保留在当前会话' : won ? '奖励已结算 · 可继续挑战或重打本关' : '可重试本关，或回到第一关熟悉战斗';
+        const storageNote = settlement && !settlement.saved ? '存储不可用：奖励仅保留在当前会话'
+            : settlement && settlement.equipment ? `掉落：${RARITY_NAMES[settlement.equipment.rarity - 1]} ${settlement.equipment.name}（背包穿戴）`
+                : settlement && settlement.convertedCoins ? `背包已满，本次装备转为${settlement.convertedCoins}铜钱`
+                    : won ? '奖励已结算 · 可继续挑战或重打本关' : '可重试本关，或回到第一关熟悉战斗';
         text(this.modal, 'ResultNote', storageNote, 0, -34, 19, '#829AB4', 550);
         button(this.modal, 'NextStageButton', won ? this.stage < 99 ? '下一关' : 'Demo 已全部通关 · 再战' : '重新挑战', 0, -103, 470, 64,
             won ? '#426D59' : '#795B50', () => this.begin(won ? Math.min(99, this.stage + 1) : this.stage));
         button(this.modal, 'ReplayButton', won ? '重打本关' : '回到第一关', 0, -176, 470, 52, '#30465E', () => this.begin(won ? this.stage : 1));
         this.statusLine.string = won ? '三波敌人已清除 · 本局奖励仅结算一次' : '队伍已撤退 · 调整节奏后再次挑战';
+    }
+
+    private openInventory(): void {
+        if (this.inventory) return;
+        const wasPaused = this.engine.paused;
+        this.engine.paused = true;
+        this.inventory = new InventoryPanel(this.root, this.store, () => {
+            this.inventory = null;
+            this.engine.paused = wasPaused;
+            this.statusLine.string = this.engine.status === 'fighting'
+                ? wasPaused ? '已暂停 · 穿戴属性在下一局生效' : '自动战斗中 · 新穿戴装备下局生效'
+                : '战斗已结束 · 新穿戴装备下局生效';
+            this.refresh();
+        });
+        this.refresh();
     }
 }

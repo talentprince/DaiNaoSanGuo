@@ -10,7 +10,8 @@ export const HEROES: UnitConfig[] = [
 
 export const STAGE_NAMES = ['黄巾初阵', '山道伏兵', '营寨突围', '荒野追击', '黄巾大营'];
 
-export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 1): BattleOptions {
+export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 1,
+    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}): BattleOptions {
     if (!Number.isInteger(stage) || stage < 1 || stage > 99) throw new Error('Demo 关卡范围为 1–99');
     if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为 1–99');
     const factor = Math.pow(1.17, stage - 1);
@@ -35,8 +36,13 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
         }
         waves.push(units);
     }
-    return { heroes: HEROES.map(hero => ({ ...hero,
-        maxHp: Math.round(hero.maxHp * heroFactor), attack: Math.round(hero.attack * heroFactor),
-        defense: Math.round(hero.defense * heroFactor),
-    })), waves, seed, timeLimit: 120 };
+    return { heroes: HEROES.map(hero => {
+        const bonus = equipment[hero.id] || { attack: 0, defense: 0, maxHp: 0 };
+        if (![bonus.attack, bonus.defense, bonus.maxHp].every(value => Number.isSafeInteger(value) && value >= 0)) {
+            throw new Error('装备加成无效');
+        }
+        return { ...hero, maxHp: Math.round(hero.maxHp * heroFactor) + bonus.maxHp,
+            attack: Math.round(hero.attack * heroFactor) + bonus.attack,
+            defense: Math.round(hero.defense * heroFactor) + bonus.defense };
+    }), waves, seed, timeLimit: 120 };
 }

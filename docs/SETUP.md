@@ -29,3 +29,7 @@
 系统 /usr/bin/git 因 Xcode 许可未接受而不能运行。当前仓库使用 Codex 自带的独立 Git 完成初始化；未代用户接受 Xcode 许可。
 
 本机 codesign 对新下载的 Dashboard 和已有的 Visual Studio Code 都报告签名错误，spctl 报告签名子系统内部错误，因此无法用该检查确认签名有效。未修改系统安全设置、移除隔离属性或重签名；Dashboard 已通过正常应用启动流程打开。文件校验和运行观察不等于代码签名验证通过。
+
+## 最新实现状态
+
+Demo 0.4已完成自动战斗、技能、推关升级和装备刷宝。Web Mobile与微信离线构建通过，实际验证及边界见根目录SPEC.md和docs/BUILD_REPORT.md。早期安装条目保留为历史记录。

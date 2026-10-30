@@ -1,0 +1,8 @@
+{
+  "name": "DaiNaoSanGuo",
+  "platform": "web-mobile",
+  "debug": false,
+  "outputName": "web-mobile",
+  "buildPath": "project://build",
+  "startScene": "d64f40fc-4805-4288-afd1-21af53d053c4"
+}
