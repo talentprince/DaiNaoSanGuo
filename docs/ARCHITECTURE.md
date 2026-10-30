@@ -22,3 +22,12 @@ docs/
 ```
 
 已使用官方 Empty (2D) 模板并建立空 assets 目录。资源 .meta 由编辑器导入时生成并保留。测试运行器和检查命令在首次打开工程后确定。
+
+## Demo 0.3实际模块
+
+- BattleEngine.ts：纯TypeScript战斗规则、固定步长与事件。
+- BattleConfig.ts：单位、波次、关卡与等级缩放。
+- ProgressStore.ts：本地奖励、去重、升级和迁移。
+- BattleUI.ts：Cocos绘制辅助；BattlePreview.ts：展示与按钮交互。
+- tests/battle.test.mjs：Node内置测试，无Cocos依赖。
+- SPEC.md：实现与验收状态主文件。

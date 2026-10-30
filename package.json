@@ -3,5 +3,12 @@
   "uuid": "8f83588d-29ca-49e8-afd2-06afef7943f3",
   "creator": {
     "version": "3.8.8"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "typecheck": "node scripts/typecheck.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }
