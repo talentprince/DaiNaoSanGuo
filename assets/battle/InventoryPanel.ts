@@ -1,5 +1,5 @@
 import { Node } from 'cc';
-import { HEROES } from '../data/BattleConfig';
+import { getHero } from '../data/HeroCatalog';
 import { equipmentScore, HERO_IDS, ProgressStore, RARITY_COLORS, RARITY_NAMES } from './ProgressStore';
 import type { HeroId } from './ProgressStore';
 import { button, panel, text } from './BattleUI';
@@ -7,13 +7,15 @@ import { button, panel, text } from './BattleUI';
 /** 只处理背包展示，所有穿戴规则和存档由 ProgressStore 管理。 */
 export class InventoryPanel {
     readonly node: Node;
-    private selected: HeroId = 'guanyu';
+    private selected: HeroId = 'guanhai';
+    private heroPage = 0;
     private page = 0;
     private note = '每人可穿戴一件武器，属性在下一场战斗生效';
     private store: ProgressStore;
 
     constructor(parent: Node, store: ProgressStore, onClose: () => void) {
         this.store = store;
+        this.selected = store.progress.owned[0];
         this.node = panel(parent, 'InventoryOverlay', 0, 0, 720, 1280, '#0B1626F4', 0);
         // 整屏拦截输入，避免点击到背包后方的战斗控制。
         this.node.on(Node.EventType.TOUCH_END, () => {});
@@ -23,14 +25,18 @@ export class InventoryPanel {
 
     private onClose: () => void;
 
-    private heroName(id: HeroId): string { return HEROES.find(hero => hero.id === id)!.name; }
+    private heroName(id: HeroId): string { return getHero(id)!.name; }
 
     private render(): void {
         this.node.destroyAllChildren();
         const progress = this.store.progress;
         text(this.node, 'InventoryTitle', `装备背包  ${progress.inventory.length}/40`, 0, 558, 42, '#E8CE99');
         text(this.node, 'InventorySubtitle', '选择武将，穿戴战利品', 0, 503, 22, '#9EB2CB');
-        HERO_IDS.forEach((id, index) => button(this.node, `HeroTab-${id}`, this.heroName(id), (index - 2) * 124, 440,
+        const owned = progress.owned;
+        const heroPages = Math.ceil(owned.length / 5);
+        button(this.node, 'PrevHero', '‹', -285, 503, 56, 42, '#293C54', () => { this.heroPage = (this.heroPage + heroPages - 1) % heroPages; this.render(); });
+        button(this.node, 'NextHero', '›', 285, 503, 56, 42, '#293C54', () => { this.heroPage = (this.heroPage + 1) % heroPages; this.render(); });
+        owned.slice(this.heroPage * 5, this.heroPage * 5 + 5).forEach((id, index) => button(this.node, `HeroTab-${id}`, this.heroName(id), (index - 2) * 124, 440,
             112, 56, id === this.selected ? '#62745B' : '#293C54', () => { this.selected = id; this.page = 0; this.render(); }));
         const equipped = progress.inventory.find(item => item.id === progress.equipped[this.selected]);
         const summary = panel(this.node, 'EquippedSummary', 0, 350, 620, 100, '#21354A');

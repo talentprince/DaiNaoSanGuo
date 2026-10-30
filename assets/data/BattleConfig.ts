@@ -1,21 +1,19 @@
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
 
-export const HEROES: UnitConfig[] = [
-    { id: 'guanyu', name: '关羽', role: '青龙斩 · 输出', maxHp: 1150, attack: 90, defense: 22, interval: 1.1, priority: 2, color: '#58A686' },
-    { id: 'zhangfei', name: '张飞', role: '先锋 · 坦克', maxHp: 2600, attack: 65, defense: 42, interval: 1.4, priority: 0, color: '#BF8467' },
-    { id: 'zhaoyun', name: '赵云', role: '龙胆 · 输出', maxHp: 1100, attack: 75, defense: 20, interval: 0.8, priority: 1, color: '#78ABD1' },
-    { id: 'zhugeliang', name: '诸葛亮', role: '军师 · 输出', maxHp: 850, attack: 100, defense: 12, interval: 1.5, priority: 4, color: '#AB93D1' },
-    { id: 'liubei', name: '刘备', role: '仁德 · 治疗', maxHp: 1000, attack: 45, defense: 18, interval: 1.5, priority: 3, color: '#CBB069' },
-];
+import { getHero, LEGACY_PARTY } from './HeroCatalog';
+import type { HeroId } from './HeroCatalog';
+
+export const HEROES: UnitConfig[] = LEGACY_PARTY.map(id => ({ ...getHero(id)! }));
 
 export const STAGE_NAMES = ['黄巾初阵', '山道伏兵', '营寨突围', '荒野追击', '黄巾大营'];
 
 export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 1,
-    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}): BattleOptions {
+    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {},
+    party: readonly HeroId[] = LEGACY_PARTY): BattleOptions {
     if (!Number.isInteger(stage) || stage < 1 || stage > 99) throw new Error('Demo 关卡范围为 1–99');
     if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为 1–99');
     const factor = Math.pow(1.17, stage - 1);
-    const heroFactor = Math.pow(1.18, heroLevel - 1);
+
     const waves: UnitConfig[][] = [];
     for (let wave = 0; wave < 3; wave += 1) {
         const count = wave === 2 ? 4 : 3;
@@ -36,13 +34,45 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
         }
         waves.push(units);
     }
-    return { heroes: HEROES.map(hero => {
-        const bonus = equipment[hero.id] || { attack: 0, defense: 0, maxHp: 0 };
-        if (![bonus.attack, bonus.defense, bonus.maxHp].every(value => Number.isSafeInteger(value) && value >= 0)) {
-            throw new Error('装备加成无效');
-        }
-        return { ...hero, maxHp: Math.round(hero.maxHp * heroFactor) + bonus.maxHp,
-            attack: Math.round(hero.attack * heroFactor) + bonus.attack,
-            defense: Math.round(hero.defense * heroFactor) + bonus.defense };
-    }), waves, seed, timeLimit: 120 };
+    return { heroes: createHeroes(party, heroLevel, equipment), waves, seed, timeLimit: 120 };
+}
+
+export function createHeroes(party: readonly HeroId[], heroLevel = 1,
+    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}): UnitConfig[] {
+    if (!party.length || party.length > 5 || new Set(party).size !== party.length || party.some(id => !getHero(id))) throw new Error('阵容无效');
+    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为1–99');
+    const factor = Math.pow(1.18, heroLevel - 1);
+    return party.map(id => {
+        const hero = getHero(id)!;
+        const bonus = equipment[id] || { attack: 0, defense: 0, maxHp: 0 };
+        if (![bonus.attack, bonus.defense, bonus.maxHp].every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error('装备加成无效');
+        return { ...hero, maxHp: Math.round(hero.maxHp * factor) + bonus.maxHp,
+            attack: Math.round(hero.attack * factor) + bonus.attack, defense: Math.round(hero.defense * factor) + bonus.defense };
+    });
+}
+
+export type SoldierType = 'mixed' | 'sword' | 'spear' | 'bow';
+export function withSoldiers(heroes: UnitConfig[], size: number, level = 1, type: SoldierType = 'mixed', prefix = 'ally'): UnitConfig[] {
+    const result = heroes.map(h => ({ ...h }));
+    const factor = Math.pow(1.18, level - 1);
+    const types = ['sword', 'spear', 'bow'] as const;
+    while (result.length < size) {
+        const i = result.length;
+        const weapon = type === 'mixed' ? types[(i - heroes.length) % 3] : type;
+        const stats = weapon === 'sword' ? [850, 43, 26, 1.35] : weapon === 'spear' ? [620, 59, 15, 1.15] : [430, 54, 9, 0.95];
+        result.push({ id: `${prefix}-soldier-${i}`, name: weapon === 'sword' ? '刀盾兵' : weapon === 'spear' ? '长枪兵' : '弓箭兵',
+            role: '补位小兵', kind: 'soldier', weapon, maxHp: Math.round(stats[0] * factor), attack: Math.round(stats[1] * factor),
+            defense: Math.round(stats[2] * factor), interval: stats[3], priority: weapon === 'sword' ? 0 : weapon === 'spear' ? 2 : 4,
+            color: weapon === 'sword' ? '#7B9384' : weapon === 'spear' ? '#7F96A3' : '#B19771' });
+    }
+    return result;
+}
+
+export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
+    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {},
+    party: readonly HeroId[] = LEGACY_PARTY, troopType: SoldierType = 'mixed'): BattleOptions {
+    const base = createBattleOptions(stage, seed, level, equipment, party);
+    const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: '黄巾魔将' };
+    return { ...base, heroes: withSoldiers(base.heroes, 5, level, troopType), waves: base.waves.slice(0, 2),
+        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150 };
 }

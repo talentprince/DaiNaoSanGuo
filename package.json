@@ -5,7 +5,7 @@
     "version": "3.8.8"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test": "node --experimental-strip-types --import ./scripts/test-support.mjs --test tests/*.test.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "build:web": "node scripts/build.mjs web-mobile",
     "build:wechat": "node scripts/build.mjs wechatgame"

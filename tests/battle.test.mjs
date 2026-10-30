@@ -289,11 +289,11 @@ test('穿戴只接受存在的装备与合法武将；转交装备不会让两�
     const store = new ProgressStore(memoryStorage());
     const item = store.settleVictory('equip', 1).equipment;
     assert.equal(store.equip('unknown', item.id), false);
-    assert.equal(store.equip('guanyu', 'missing'), false);
-    assert.equal(store.equip('guanyu', item.id), true);
-    assert.equal(store.equip('zhaoyun', item.id), true);
-    assert.equal(store.progress.equipped.guanyu, undefined);
-    assert.equal(store.progress.equipped.zhaoyun, item.id);
+    assert.equal(store.equip('guanhai', 'missing'), false);
+    assert.equal(store.equip('guanhai', item.id), true);
+    assert.equal(store.equip('liaohua', item.id), true);
+    assert.equal(store.progress.equipped.guanhai, undefined);
+    assert.equal(store.progress.equipped.liaohua, item.id);
     assert.equal(store.progress.inventory.length, 1);
 });
 
@@ -301,11 +301,11 @@ test('穿戴、卸下和加成可持久化，卸下不删除装备', () => {
     const storage = memoryStorage();
     const store = new ProgressStore(storage);
     const item = store.settleVictory('equipment', 3).equipment;
-    store.equip('guanyu', item.id);
+    store.equip('guanhai', item.id);
     const restored = new ProgressStore(storage);
-    assert.deepEqual(restored.getEquipmentBonuses().guanyu, { attack: item.attack, defense: item.defense, maxHp: item.maxHp });
-    assert.equal(restored.unequip('guanyu'), true);
-    assert.equal(restored.unequip('guanyu'), false);
+    assert.deepEqual(restored.getEquipmentBonuses().guanhai, { attack: item.attack, defense: item.defense, maxHp: item.maxHp });
+    assert.equal(restored.unequip('guanhai'), true);
+    assert.equal(restored.unequip('guanhai'), false);
     assert.equal(restored.unequip('unknown'), false);
     assert.equal(restored.progress.inventory.length, 1);
     assert.deepEqual(new ProgressStore(storage).getEquipmentBonuses(), {});
@@ -313,13 +313,13 @@ test('穿戴、卸下和加成可持久化，卸下不删除装备', () => {
 
 test('一键最强选择可用最高评分，不抢其他武将正在使用的装备', () => {
     const store = new ProgressStore(memoryStorage());
-    assert.equal(store.equipBest('guanyu'), false);
+    assert.equal(store.equipBest('guanhai'), false);
     for (let i = 0; i < 5; i++) store.settleVictory(`best-${i}`, i + 1);
     const ranked = store.progress.inventory.sort((a, b) => equipmentScore(b) - equipmentScore(a) || a.id.localeCompare(b.id));
-    store.equip('zhangfei', ranked[0].id);
-    assert.equal(store.equipBest('guanyu'), true);
-    assert.equal(store.progress.equipped.guanyu, ranked[1].id);
-    assert.equal(store.progress.equipped.zhangfei, ranked[0].id);
+    store.equip('zhoucang', ranked[0].id);
+    assert.equal(store.equipBest('guanhai'), true);
+    assert.equal(store.progress.equipped.guanhai, ranked[1].id);
+    assert.equal(store.progress.equipped.zhoucang, ranked[0].id);
 });
 
 test('装备加成只作用于指定武将的新战斗，不回写旧战斗或配置', () => {
@@ -341,28 +341,28 @@ test('旧存档无背包时兼容；无效装备和悬空/重复穿戴被清理'
     assert.deepEqual(migrated.progress.equipped, {});
     const invalid = new ProgressStore(memoryStorage(JSON.stringify({ ...old,
         inventory: [null, item, item, { ...item, id: 'bad', attack: -1 }],
-        equipped: { guanyu: item.id, zhaoyun: item.id, liubei: 'missing' },
+        equipped: { guanhai: item.id, liaohua: item.id, liubei: 'missing' },
     })));
     assert.equal(invalid.progress.inventory.length, 1);
-    assert.deepEqual(invalid.progress.equipped, { guanyu: item.id });
+    assert.deepEqual(invalid.progress.equipped, { liaohua: item.id });
 });
 
 test('背包与穿戴的外部副本不可改写内部存档', () => {
     const store = new ProgressStore(memoryStorage());
     const item = store.settleVictory('immutable', 1).equipment;
-    store.equip('guanyu', item.id);
+    store.equip('guanhai', item.id);
     const copy = store.progress;
     copy.inventory[0].attack = 999999;
-    delete copy.equipped.guanyu;
+    delete copy.equipped.guanhai;
     assert.equal(store.progress.inventory[0].attack, item.attack);
-    assert.equal(store.progress.equipped.guanyu, item.id);
+    assert.equal(store.progress.equipped.guanhai, item.id);
 });
 
 test('穿戴保存失败时保留本次会话装备并标记未保存', () => {
     const item = createEquipment(1, 'storagefail');
     const data = { version: 1, coins: 0, highestCleared: 0, heroLevel: 1, settled: [], inventory: [item], equipped: {} };
     const store = new ProgressStore({ getItem: () => JSON.stringify(data), setItem: () => { throw new Error('denied'); } });
-    assert.equal(store.equip('guanyu', item.id), true);
+    assert.equal(store.equip('guanhai', item.id), true);
     assert.equal(store.storageAvailable, false);
-    assert.equal(store.progress.equipped.guanyu, item.id);
+    assert.equal(store.progress.equipped.guanhai, item.id);
 });
