@@ -1,0 +1,26 @@
+# Cocos 生成目录；保留 assets、settings 和资源 .meta
+/library/
+/temp/
+/local/
+/build/
+/build-templates/.cache/
+
+# 开发依赖及测试产物
+node_modules/
+coverage/
+*.log
+*.tsbuildinfo
+
+# 本地环境与凭据
+.env
+.env.*
+!.env.example
+
+# 系统文件
+.DS_Store
+
+# 官方模板建议忽略的本地编辑器状态
+/profiles/
+/.vscode/
+/.idea/
+/native/engine/android/**/*/assets
