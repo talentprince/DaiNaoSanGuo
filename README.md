@@ -14,6 +14,7 @@ Demo 0.4 已实现五武将自动战斗、三波黄巾军、血条与伤害、�
 
 - Dashboard：`/Applications/CocosDashboard.app`
 - Creator：`/Applications/Cocos/Creator/3.8.8/CocosCreator.app`
+- 微信开发者工具：`/Applications/wechatwebdevtools.app`（2.02.2609240 Stable）
 - 项目：`~/Workspace/DaiNaoSanGuo`
 
 ## 打开与预览
@@ -35,11 +36,11 @@ npm run typecheck
 
 需要Node >=22.18；无需npm install。类型检查依赖编辑器首次打开生成的temp声明，使用已安装Creator的TypeScript。其他安装位置通过COCOS_CREATOR_PATH指定。
 
-30项自动化测试与严格类型检查已通过；实际验证战斗、按钮、升级与读档。Web Mobile和微信离线包已构建；未进行微信开发者工具或真机验证。
+30项自动化测试与严格类型检查已通过；实际验证战斗、按钮、升级与读档。Web Mobile和微信离线包已构建；微信开发者工具游客模式已实际通关、掉落并重载读档，用户手动确认“下一关”有效。微信内全部按钮和真机尚未逐项验证。
 
 ## 下一项任务
 
-微信开发者工具/真机验证、羁绊与正式美术，见SPEC.md。
+微信交互与真机验证、羁绊与正式美术，见SPEC.md。
 
 ## 协作
 
@@ -61,4 +62,4 @@ npm run build:web
 npm run build:wechat
 ```
 
-输出在build/web-mobile和build/wechatgame，日志在temp/build-平台.log。微信配置使用官方测试AppID，仅用于离线测试；正式使用需配置自己的小游戏AppID。详细验证与限制见docs/BUILD_REPORT.md。
+输出在build/web-mobile和build/wechatgame，日志在temp/build-平台.log。微信配置使用官方测试AppID，仅用于离线测试；正式使用需配置自己的小游戏AppID。打开微信开发者工具，选择小游戏，导入build/wechatgame；本机已通过游客模式运行。正式AppID、真机和发布尚未完成。详细验证与限制见docs/BUILD_REPORT.md。
