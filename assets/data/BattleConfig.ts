@@ -82,7 +82,7 @@ export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
     const base = createBattleOptions(stage, seed, level, equipment, party);
     const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: '黄巾魔将' };
     return { ...base, heroes: layout ? createLineup(layout, level, equipment) : withSoldiers(base.heroes, 5, level, troopType), waves: base.waves.slice(0, 2),
-        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150, energyRate: 4.5 };
+        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150, energyRate: .8 };
 }
 
 export function createLineup(entries: readonly FormationEntry[], level: number,

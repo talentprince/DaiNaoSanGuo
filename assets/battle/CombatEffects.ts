@@ -120,6 +120,17 @@ export class CombatEffects {
         const node = text(this.parent, 'Announcement', message, 0, 218, 32, '#FFD792', 630).node;
         this.effects.push({ node, opacity: node.addComponent(UIOpacity), left: 1.3, total: 1.3 });
     }
+    bossFinale(actor:UnitActor,name:string):void{
+        this.weather.clear();this.weather.cast(actor.unit.element||'wind');actor.attack();
+        const title=panel(this.parent,'BossFinaleTitle',0,230,650,130,'#29172CED',18);text(title,'BossFinaleName',name,0,22,49,'#FFE3A0',620);text(title,'BossFinaleWarning','魔王蓄势 · 伤害已锁定',0,-36,23,'#EDB9BB',610);
+        this.effects.push({node:title,opacity:title.addComponent(UIOpacity),left:2.8,total:2.8});
+        let sigil:Node;const effect=this.add('BossFinaleSigil',0,20,2.8,p=>{sigil.angle=p*100;sigil.setScale(.6+p*1.8,.6+p*1.8,1);});sigil=effect.node;
+        const g=effect.graphics;g.strokeColor=new Color(actor.unit.element==='fire'?'#FFD26E':actor.unit.element==='lightning'?'#C4EDFF':'#DBC996');g.lineWidth=8;g.circle(0,0,100);g.circle(0,0,125);g.stroke();for(let i=0;i<8;i++){const a=i*Math.PI/4;g.moveTo(Math.cos(a)*88,Math.sin(a)*88);g.lineTo(Math.cos(a)*140,Math.sin(a)*140);g.stroke();}
+    }
+    finaleImpact():void{
+        const {graphics:g}=this.add('FinaleImpactFlash',0,0,.5);g.fillColor=new Color('#FFF3C8D0');g.rect(-352,-554,704,1108);g.fill();
+        let wave:Node;const effect=this.add('FinaleShockwave',0,-50,.95,p=>wave.setScale(1+p*9,1+p*9,1));wave=effect.node;effect.graphics.strokeColor=new Color('#FFF0B2');effect.graphics.lineWidth=10;effect.graphics.circle(0,0,65);effect.graphics.stroke();
+    }
     wallBreak(x: number, y: number): void {
         for (let i = 0; i < 16; i++) {
             const dx = (i % 5 - 2) * 32; const startY = y + Math.floor(i / 5) * 40;

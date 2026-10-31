@@ -1,3 +1,6 @@
+import { bossRotation,WORLD_BOSSES } from '../data/WorldBossConfig';
+import type { WorldBossId } from '../data/WorldBossConfig';
+import { cleanEnergy } from '../data/EnergyConfig';
 import { MAX_STAGE, MAX_LEVEL, MAX_STARS, XP_DAILY_MS, MEDAL_DAILY_CAP, SIGNATURE_COST, STAR_COSTS, xpRequired, xpPerMinute, expeditionBand, bossGrade, stageFactor } from '../data/GrowthConfig';
 import { canWear, signatureFor, slotOf, SLOT_ORDER } from '../data/EquipmentConfig';
 import type { Equipment, EquipmentSlot } from '../data/EquipmentConfig';
@@ -15,6 +18,8 @@ export type { HeroId } from '../data/HeroCatalog';
 export interface StorageAdapter { getItem(key: string): string | null; setItem(key: string, value: string): void; }
 export interface DailyState { day: number; cityUsed: number; boatUsed: number; bossBest: number; bossDaibi: number; bossPoints: number; medalEarned: number; xpUsedMs: number; soulEarned: number; modes: string[]; bonusClaimed: boolean; bossBand: number; }
 export interface Progress {
+    trialEnergy: {stage:number;heroes:Record<string,number>}|null;
+    mainlineEnergy: {stage:number;heroes:Record<string,number>}|null;
     growthVersion: 1; experience: number; xpAt: number; xpRemainder: number;
     stars: Partial<Record<HeroId, number>>; fragments: Partial<Record<HeroId, number>>; souls: number;
     loadouts: Partial<Record<HeroId, Partial<Record<EquipmentSlot, string>>>>;
@@ -36,7 +41,7 @@ export function chinaDay(now: number): number { return Math.floor((now + 8 * 360
 const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0, bossBest: 0, bossDaibi: 0, bossPoints: 0, medalEarned: 0, xpUsedMs: 0, soulEarned: 0, modes: [], bonusClaimed: false, bossBand: 1 });
 const nonnegative = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const emptyProgress = (now: number): Progress => ({ growthVersion: 1, experience: 0, xpAt: now, xpRemainder: 0, stars: {}, fragments: {}, souls: 0, loadouts: {}, version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
+const emptyProgress = (now: number): Progress => ({ trialEnergy:null,mainlineEnergy:null,growthVersion: 1, experience: 0, xpAt: now, xpRemainder: 0, stars: {}, fragments: {}, souls: 0, loadouts: {}, version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
     settled: [], inventory: [], equipped: {}, formations: { main: arrangeParty(STARTER_PARTY, 'main'), trial: arrangeParty(STARTER_PARTY.slice(0, 3), 'trial'), defense: arrangeParty(STARTER_PARTY, 'defense', 'mixed', STARTER_PARTY.slice(0, 2)) }, troopType: 'mixed', wallHeroes: STARTER_PARTY.slice(0, 2), metaVersion: 2, daibi: 0, points: 0, owned: [...STARTER_PARTY], formation: [...STARTER_PARTY],
     trialParty: STARTER_PARTY.slice(0, 3), defense: [...STARTER_PARTY], firstCleared: [], trialHighest: 0,
     pity: 0, drawCount: 0, idleAt: now, idleRemainder: 0, daily: dailyState(chinaDay(now)), runSerial: 0, pending: null });
@@ -127,6 +132,8 @@ export class ProgressStore {
                     trialHighest: nonnegative(data.trialHighest, 99) ? data.trialHighest : 0,
                     idleAt: nonnegative(data.idleAt) ? data.idleAt : now, idleRemainder: nonnegative(data.idleRemainder, DAY_MS - 1) ? data.idleRemainder : 0,
                     daily, runSerial: nonnegative(data.runSerial) ? data.runSerial : 0, pending: null };
+                const trial=data.trialEnergy;if(trial&&Number.isInteger(trial.stage)&&trial.stage===this.state.trialHighest+1&&trial.stage<=99)this.state.trialEnergy={stage:trial.stage,heroes:cleanEnergy(trial.heroes)};
+                const carry=data.mainlineEnergy;if(carry&&Number.isInteger(carry.stage)&&carry.stage===this.state.highestCleared+1&&carry.stage<=MAX_STAGE)this.state.mainlineEnergy={stage:carry.stage,heroes:cleanEnergy(carry.heroes)};
                 this.state.experience = nonnegative(data.experience) ? data.experience : 0;
                 this.state.xpAt = nonnegative(data.xpAt) ? data.xpAt : now;
                 this.state.xpRemainder = nonnegative(data.xpRemainder, 1199999) ? data.xpRemainder : 0;
@@ -174,6 +181,7 @@ export class ProgressStore {
     private validRun(run: ActivityRun | null): run is ActivityRun {
         return !!run && typeof run.id === 'string' && run.id.length > 0 && ['city', 'boss', 'trial', 'boat'].indexOf(run.mode) >= 0
             && Number.isInteger(run.stage) && run.stage > 0 && run.stage <= 99 && nonnegative(run.day)
+            && (run.worldBoss===undefined||WORLD_BOSSES.some(b=>b.id===run.worldBoss)) && (run.bossWeek===undefined||Number.isSafeInteger(run.bossWeek))
             && (run.band === undefined || (nonnegative(run.band,20) && run.band > 0))
             && Number.isInteger(run.level) && run.level > 0 && run.level <= MAX_LEVEL && Array.isArray(run.party)
             && (run.layout ? !validateFormation(run.layout, this.state.owned, run.mode === 'trial' ? 'trial' : 'main') : !validateParty(run.party, this.state.owned, run.mode === 'trial' ? 'trial' : 'main'))
@@ -187,6 +195,7 @@ export class ProgressStore {
             && Array.isArray(run.choices) && run.choices.every(c => ['wind', 'guard', 'repair'].indexOf(c) >= 0)
             && (run.mode !== 'boat' || run.choices.length === 3);
     }
+    get currentBoss(){return bossRotation(this.now());}
     get progress(): Progress { this.refreshDay(); return copy(this.state); }
     get experienceCost(): number { return xpRequired(this.state.heroLevel); }
     get upgradeCost(): number { return 80 + this.state.heroLevel * 40; }
@@ -310,7 +319,11 @@ export class ProgressStore {
         if (party.some(h => (this.state.fragments[h] || 0) + this.state.souls >= (STAR_COSTS[(this.state.stars[h] || 1) - 1] || Infinity))) return '有武将可以升星，前往武将页提升';
         return this.state.daily.xpUsedMs >= XP_DAILY_MS ? '今日经验已满4小时，挑战副本攒脑勋，明日再突破' : '暂遇瓶颈：换阵型/治疗将，或等待挂机经验';
     }
-    settleVictory(battleId: string, stage: number): Settlement {
+    trialEnergyFor(stage:number):Record<string,number>{return this.state.trialEnergy?.stage===stage?cleanEnergy(this.state.trialEnergy.heroes):{};}
+    clearTrialEnergy():void{if(this.state.trialEnergy){this.state.trialEnergy=null;this.save();}}
+    mainlineEnergyFor(stage:number):Record<string,number>{return this.state.mainlineEnergy?.stage===stage?cleanEnergy(this.state.mainlineEnergy.heroes):{};}
+    clearMainlineEnergy():void{if(this.state.mainlineEnergy){this.state.mainlineEnergy=null;this.save();}}
+    settleVictory(battleId: string, stage: number,energy?:Record<string,number>): Settlement {
         if (!battleId || !Number.isInteger(stage) || stage < 1 || stage > MAX_STAGE) throw new Error('奖励结算参数无效');
         if (this.state.settled.indexOf(battleId) >= 0) return { granted: false, coins: 0, saved: this.storageAvailable };
         this.claimExperience();
@@ -324,6 +337,7 @@ export class ProgressStore {
         if (this.state.highestCleared === 0) { this.state.idleAt = this.now(); this.state.xpAt = this.now(); }
         this.state.coins += coins; this.state.daibi += daibi;
         this.state.highestCleared = Math.max(this.state.highestCleared, stage);
+        if(energy&&stage===this.state.highestCleared&&stage<MAX_STAGE)this.state.mainlineEnergy={stage:stage+1,heroes:cleanEnergy(energy)};
         this.state.settled = [...this.state.settled, battleId].slice(-128);
         if (equipment) this.state.inventory.push(equipment);
         if (first) this.state.firstCleared.push(stage);
@@ -377,8 +391,9 @@ export class ProgressStore {
         if (this.state.points < cost) return `脑勋不足，需要${cost}`;
         this.state.points -= cost; this.state.owned.push(hero); this.save(); return null;
     }
-    startActivity(mode: ActivityMode, choices: BoatChoice[] = []): ActivityRun {
+    startActivity(mode: ActivityMode, choices: BoatChoice[] = [],bossOverride?:WorldBossId): ActivityRun {
         this.refreshDay();
+        if(bossOverride&&(!this.developerMode||mode!=='boss'||!WORLD_BOSSES.some(b=>b.id===bossOverride)))throw new Error('轮值预览仅限本地开发档');
         if (this.state.pending) throw new Error('有未完成的副本，请先继续或放弃');
         if (['city', 'boss', 'trial', 'boat'].indexOf(mode) < 0) throw new Error('副本无效');
         if (mode === 'city' && this.state.daily.cityUsed >= 3) throw new Error('今天的3次攻城演练已用完');
@@ -394,22 +409,25 @@ export class ProgressStore {
         if (mode === 'boss' && this.state.daily.bossDaibi === 0) this.state.daily.bossBand = expeditionBand(this.state.highestCleared);
         this.state.runSerial += 1;
         const run: ActivityRun = { id: `run-${this.now()}-${this.state.runSerial}`, mode, day: this.state.daily.day,
+            worldBoss:mode==='boss'?bossOverride||this.currentBoss.boss.id:undefined,bossWeek:mode==='boss'?this.currentBoss.week:undefined,
             stage: mode === 'trial' ? this.state.trialHighest + 1 : 1, party: [...party], level: this.state.heroLevel,
             band: mode === 'boss' ? this.state.daily.bossBand : expeditionBand(this.state.highestCleared), equipment: this.getEquipmentBonuses(), choices: [...choices], troopType: this.state.troopType,
             defenders: [...this.state.defense], wallHeroes: [...this.state.wallHeroes], layout: copy(layout), defenseLayout: copy(this.state.formations.defense) };
         this.state.pending = run; this.save(); return copy(run);
     }
     abandonActivity(): void { this.state.pending = null; this.save(); }
-    settleActivity(id: string, won: boolean, damage = 0): { granted: boolean; daibi: number; points: number; saved: boolean } {
+    settleActivity(id: string, won: boolean, damage = 0,energy?:Record<string,number>): { granted: boolean; daibi: number; points: number; saved: boolean } {
         if (!nonnegative(damage)) throw new Error('伤害记录无效');
         this.refreshDay();
         const run = this.state.pending;
         if (!run || run.id !== id) return { granted: false, daibi: 0, points: 0, saved: this.storageAvailable };
         let daibi = 0; let points = 0;
+        if(run.mode==='trial'&&!won)this.state.trialEnergy=null;
         if (run.mode === 'city') { daibi = won ? 180 : 90; points = won ? 12 : 8; }
         if (run.mode === 'boat') { daibi = won ? 260 : 130; points = won ? 12 : 8; }
         if (run.mode === 'trial' && won && run.stage === this.state.trialHighest + 1) {
             daibi = 100; points = 10; this.state.trialHighest = run.stage;
+            this.state.trialEnergy=energy&&run.stage<99?{stage:run.stage+1,heroes:cleanEnergy(energy)}:null;
         }
         if (run.mode === 'boss') {
             const d = this.state.daily;

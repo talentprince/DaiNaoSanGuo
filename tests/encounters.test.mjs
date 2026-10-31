@@ -30,7 +30,7 @@ test('新主线配置可以完成首关秘境；不足5武将自动补兵，怒�
     e.advance(150); assert.equal(e.status, 'won'); assert.equal(e.riftEnergy, 100); assert.equal(e.bossActive, true);
     const small = createMainlineOptions(1, 42, 1, {}, ['guanhai']);
     assert.equal(small.heroes.length, 5); assert.equal(small.heroes.filter(h => h.kind === 'soldier').length, 4);
-    const first = new BattleEngine(small); assert.equal(first.energy, 45); assert.equal(first.riftEnergy, 0);
+    const first = new BattleEngine(small); assert.equal(first.energy, 0); assert.equal(first.riftEnergy, 0);
 });
 test('接敌阶段不会隔空攻击或放技能，暂停也停止接敌计时', () => {
     const e = new BattleEngine({ heroes: [unit('guanyu')], waves: [[unit('enemy')]], seed: 1, approachTime: 1.1 });

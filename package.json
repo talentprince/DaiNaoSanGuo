@@ -9,7 +9,9 @@
     "typecheck": "node scripts/typecheck.mjs",
     "build:web": "node scripts/build.mjs web-mobile",
     "build:wechat": "node scripts/build.mjs wechatgame",
-    "balance": "node --experimental-strip-types --import ./scripts/test-support.mjs scripts/balance-report.mjs"
+    "check:wechat": "node scripts/preflight-wechat.mjs",
+    "balance": "node --experimental-strip-types --import ./scripts/test-support.mjs scripts/balance-report.mjs",
+    "backend:dev": "node --experimental-strip-types --import ./scripts/test-support.mjs server/dev-server.mjs"
   },
   "engines": {
     "node": ">=22.18.0"

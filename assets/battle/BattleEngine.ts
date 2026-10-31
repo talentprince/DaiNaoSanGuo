@@ -1,3 +1,5 @@
+import { bossVulnerability } from '../data/WorldBossConfig';
+import { ENERGY_RULES,cleanEnergy } from '../data/EnergyConfig';
 import type { SkillElement } from '../data/HeroIdentity';
 export type Team = 'hero' | 'enemy';
 export type BattleStatus = 'fighting' | 'won' | 'lost' | 'scored';
@@ -20,6 +22,7 @@ export interface UnitConfig {
     visualId?: string;
     heroTier?: number;
     element?: SkillElement;
+    weakElement?:SkillElement; weakTactic?:'cleave'|'pierce'|'volley'|'guard'|'heal';
     bondIds?: string[];
     bondEnergy?: number;
     bondHealing?: number;
@@ -55,13 +58,15 @@ export interface BattleOptions {
     enemyRegen?: number;
     heroDrain?: number;
     energyRate?: number;
+    initialEnergy?: Record<string,number>;
+    bossFinale?:{name:string;element:SkillElement;duration:number};
     riftGoal?: number;
     bossWave?: UnitConfig[];
     approachTime?: number;
 }
 
 export interface BattleEvent {
-    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break' | 'buff' | 'shield' | 'debuff';
+    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break' | 'buff' | 'shield' | 'debuff' | 'finale' | 'finale-impact';
     source?: string;
     target?: string;
     amount?: number;
@@ -69,6 +74,7 @@ export interface BattleEvent {
     wave?: number;
     status?: BattleStatus;
     targets?: string[];
+    skillName?:string;
     buff?: 'shield' | 'attack' | 'slow' | 'burn' | 'poison';
 }
 
@@ -102,6 +108,9 @@ export class BattleEngine {
     riftEnergy = 0;
     bossActive = false;
     approachRemaining = 0;
+    finisherActive=false;finisherRemaining=0;
+    private finisherHit=false;
+    private readonly bossFinale?:BattleOptions['bossFinale'];
     private accumulator = 0;
     private waveDelay = 0;
     private randomState: number;
@@ -132,10 +141,10 @@ export class BattleEngine {
         });
         this.timeLimit = options.timeLimit === undefined ? 120 : options.timeLimit;
         if (!Number.isFinite(this.timeLimit) || this.timeLimit <= 0) throw new Error('时间上限无效');
-        this.scoreMode = !!options.scoreMode;
+        this.scoreMode = !!options.scoreMode;this.bossFinale=options.bossFinale;if(this.bossFinale&&(!this.scoreMode||!Number.isFinite(this.bossFinale.duration)||this.bossFinale.duration<1))throw new Error('魔王终结参数无效');
         this.enemyRegen = options.enemyRegen || 0;
         this.heroDrain = options.heroDrain || 0;
-        this.energyRate = options.energyRate === undefined ? 7 : options.energyRate;
+        this.energyRate = options.energyRate === undefined ? (options.scoreMode ? ENERGY_RULES.bossPerSecond : ENERGY_RULES.passivePerSecond) : options.energyRate;
         if (![this.enemyRegen, this.heroDrain, this.energyRate].every(n => Number.isFinite(n) && n >= 0)) throw new Error('战斗特性无效');
         this.riftGoal = options.riftGoal || 0;
         this.bossWave = (options.bossWave || []).map(u => ({ ...u }));
@@ -145,6 +154,7 @@ export class BattleEngine {
         this.randomState = (options.seed >>> 0) || 1;
         this.waves = options.waves.map(wave => wave.map(unit => ({ ...unit })));
         this.heroes = options.heroes.map((unit, index) => this.createUnit(unit, 'hero', index));
+        const initial=cleanEnergy(options.initialEnergy);this.heroes.forEach(u=>{const n=initial[u.visualId||u.id];if(n!==undefined&&u.kind!=='soldier'&&u.kind!=='wall')u.energy=n;});
         this.spawnWave();
     }
 
@@ -158,7 +168,7 @@ export class BattleEngine {
     get canCastSkill(): boolean { return !!this.primaryHero && this.canCastUnit(this.primaryHero); }
     canCastHeroSkill(id: string): boolean { const unit = this.heroes.find(u => u.id === id); return !!unit && this.canCastUnit(unit); }
     private canCastUnit(unit: Unit): boolean {
-        return this.status === 'fighting' && !this.paused && !this.transitioning && this.approachRemaining <= 0
+        return this.status === 'fighting' && !this.paused && !this.finisherActive && !this.transitioning && this.approachRemaining <= 0
             && unit.hp > 0 && (unit.tactic !== 'heal' || (unit.heroTier || 1) >= 2) && unit.kind !== 'soldier' && unit.kind !== 'wall' && unit.energy >= 100
             && (unit.team === 'hero' ? this.enemies : this.heroes).some(u => u.hp > 0);
     }
@@ -209,7 +219,7 @@ export class BattleEngine {
     private createUnit(config: UnitConfig, team: Team, index: number): Unit {
         return { ...config, team, hp: config.maxHp, cooldown: 0.35 + index * 0.13,
             shield: 0, shieldRemaining: 0, attackBuff: 0, attackBuffRemaining: 0, healGlowRemaining: 0, slow: 0, slowRemaining: 0, burnRemaining: 0, burnPower: 0, burnTick: 0, burnSource: '', poisonRemaining: 0, poisonPower: 0, poisonTick: 0, poisonSource: '',
-            energy: config.kind === 'soldier' || config.kind === 'wall' ? 0 : team === 'hero' ? Math.max(0, 45 - index * 11) : config.kind === 'boss' || config.kind === 'hero' ? Math.max(0, 25 - index * 4) : 0 };
+            energy: config.kind === 'soldier' || config.kind === 'wall' ? 0 : team === 'hero' ? 0 : config.kind === 'boss' || config.kind === 'hero' ? Math.max(0, 25 - index * 4) : 0 };
     }
 
     private spawnWave(): void {
@@ -229,6 +239,14 @@ export class BattleEngine {
     }
 
     private tick(dt: number): void {
+        if(this.finisherActive){
+            this.finisherRemaining=Math.max(0,this.finisherRemaining-dt);
+            if(!this.finisherHit&&this.finisherRemaining<=this.bossFinale!.duration*.38){
+                this.finisherHit=true;const boss=this.enemies.find(u=>u.kind==='boss');this.events.push({type:'finale-impact',source:boss?.id});
+                this.heroes.filter(u=>u.hp>0).forEach(u=>{const hp=u.hp;u.hp=0;u.shield=0;this.events.push({type:'damage',source:boss?.id,target:u.id,amount:hp});this.events.push({type:'death',target:u.id});});
+            }
+            if(this.finisherRemaining<=1e-8)this.finish('scored');return;
+        }
         [...this.heroes, ...this.enemies].forEach(unit => {
             unit.healGlowRemaining = Math.max(0,unit.healGlowRemaining-dt);
             unit.slowRemaining = Math.max(0,unit.slowRemaining-dt);if(!unit.slowRemaining)unit.slow=0;
@@ -245,11 +263,11 @@ export class BattleEngine {
             if (!unit.attackBuffRemaining) unit.attackBuff = 0;
         });
         this.elapsed += dt;
-        if (this.elapsed + 1e-9 >= this.timeLimit) { this.finish(this.scoreMode ? 'scored' : 'lost'); return; }
+        if (this.elapsed + 1e-9 >= this.timeLimit) { this.elapsed=this.timeLimit;if(this.bossFinale){this.finisherActive=true;this.finisherRemaining=this.bossFinale.duration;const boss=this.enemies.find(u=>u.kind==='boss');this.events.push({type:'finale',source:boss?.id,targets:this.heroes.filter(u=>u.hp>0).map(u=>u.id),skillName:this.bossFinale.name});}else this.finish(this.scoreMode ? 'scored' : 'lost'); return; }
         if (this.approachRemaining > 0) { this.approachRemaining = Math.max(0, this.approachRemaining - dt); return; }
         [...this.heroes, ...this.enemies].forEach(unit => {
             const eligible = unit.kind !== 'soldier' && unit.kind !== 'wall' && (unit.team === 'hero' || unit.kind === 'boss' || unit.kind === 'hero');
-            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate * ((unit.stars || 1) >= 3 ? 1.1 : 1) * (1 + (unit.bondEnergy || 0)));
+            if (eligible && unit.hp > 0) this.gainEnergy(unit,dt*this.energyRate);
         });
         if (this.enemyRegen) this.enemies.filter(u => u.hp > 0).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * this.enemyRegen * dt); });
         if (this.heroDrain) this.heroes.filter(u => u.hp > 0).forEach(u => {
@@ -286,15 +304,21 @@ export class BattleEngine {
             this.events.push({ type: 'attack', source: unit.id, target: target.id });
             const critical = this.random() < 0.15;
             this.damage(unit, target, calculateDamage(unit.attack * (1 + unit.attackBuff), target.defense, this.random(), critical), critical);
+            this.gainEnergy(unit,ENERGY_RULES.hit);
             this.checkProgress();
             if (this.status !== 'fighting' || this.transitioning || this.approachRemaining > 0) break;
         }
     }
 
+    private gainEnergy(unit:Unit,amount:number):void{
+        if(unit.hp<=0||unit.kind==='soldier'||unit.kind==='wall')return;
+        unit.energy=Math.min(ENERGY_RULES.maximum,unit.energy+amount*((unit.stars||1)>=3?1.1:1)*(1+(unit.bondEnergy||0)));
+    }
+
     private damage(source: Unit, target: Unit, requested: number, critical: boolean, ongoing=false): void {
         if ((!ongoing && source.hp <= 0) || target.hp <= 0) return;
         const protection = target.onWall && this.wallAlive ? 0.4 : 1;
-        const incoming = Math.max(1, Math.floor(requested * protection));
+        const incoming = Math.max(1, Math.floor(requested * protection * bossVulnerability(source,target)));
         const absorbed = Math.min(target.shield, incoming);
         target.shield -= absorbed;
         if (absorbed > 0) this.events.push({ type: 'shield', source: source.id, target: target.id, amount: absorbed });
@@ -305,6 +329,7 @@ export class BattleEngine {
         if (this.scoreMode && target.team === 'enemy') target.hp = target.maxHp;
         if (amount > 0) this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
         if (target.hp === 0) {
+            if(target.kind!=='wall'){const team=source.team==='hero'?this.heroes:this.enemies;team.forEach(u=>this.gainEnergy(u,ENERGY_RULES.teamKill+(u.id===source.id?ENERGY_RULES.killerBonus:0)));}
             if (target.team === 'enemy' && this.riftGoal && !this.bossActive) this.riftEnergy = Math.min(this.riftGoal, this.riftEnergy + 10);
             this.events.push({ type: 'death', target: target.id });
             if (target.kind === 'wall') this.events.push({ type: 'wall-break', target: target.id });

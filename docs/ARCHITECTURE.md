@@ -1,4 +1,4 @@
-# Demo 0.10 技术结构
+# Demo 0.11 技术结构
 
 Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留，UI运行时生成。
 
@@ -31,3 +31,18 @@ Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留�
 - resources/battle-art：4幅600×900 JPG，BattleStage异步加载并缓存Texture/SpriteFrame，失败保留程序地景；背景和裁剪层分离。
 
 常规存档键不变，开发档另键；不通过URL种子注入，不打包浏览器存档。
+
+## 0.11模块
+
+EnergyConfig统一命中/击杀/基础能量、清洗和身份快照；BattleEngine接受initialEnergy并负责击杀去重/全队回能。ProgressStore的mainlineEnergy/trialEnergy分别携带next-stage和武将能量，成功结算时保存，重复结算不变，失败/重战清空；UI不依据飘字算能量。
+
+WeaponPresentation统一人物基础兵器与本人专武外观标记；普通装备appearance仅用于背包物品，不改变人物持有兵器；卡牌使用实际穿戴，招募海报注明展示专武。WeatherEffects加强对比和场中覆盖，生命周期4.5秒，背景与浮动导航扩展至704×1108战场。
+
+preflight-wechat.mjs只读本地微信构建，检查AppID/入口/portrait/保守体积预算；不能校验平台账号或代替合规/真机验收。
+
+## 0.11追加模块
+
+- WorldBossConfig定义轮换、三魔王与弱点；ActivityRun保存id/周次快照；BattleEngine锁分后先finisher事件再impact全灭，演出结束才settle。
+- AudioDirector是独立平台音频策略，GameAudio接微信/HTML音频与生命周期；构建模板复制根audio文件，不扩引擎音频包。
+- LocalSession集中本地档入口并检查RuntimeConfig；cloud在创建Store前拒绝，不能fallback到本地资源。当前仍是同步本地业务，不声称完整异步云Provider。
+- server/app.mjs与dev-server.mjs为loopback只读配置原型，BackendContract记录响应。与游戏可独立运行，当前客户端不请求/应用其配置。后续异步服务层、登录、云档、幂等账本和可信重演见BACKEND_PLAN。

@@ -153,7 +153,7 @@ test('三将关卡确实产生不同战斗特性，首通才能递增关卡和�
     for (let i = 0; i < 5; i++) { const r = s.startActivity('trial'); opts.push(createActivityOptions(r)); s.settleActivity(r.id, true); }
     assert.equal(new Set([1, 2, 3, 4, 5].map(n => trialTrait(n)[0])).size, 5);
     assert.ok(opts[0].waves[0][0].defense > opts[1].waves[0][0].defense);
-    assert.equal(opts[2].enemyRegen, 0.025); assert.equal(opts[3].energyRate, 3.5); assert.equal(opts[4].heroDrain, 0.012);
+    assert.equal(opts[2].enemyRegen, 0.025); assert.equal(opts[3].energyRate, .35); assert.equal(opts[4].heroDrain, 0.012);
     assert.ok(opts.every(o => o.heroes.length === 3 && o.waves[0].length === 5));
     assert.equal(s.progress.trialHighest, 5);
     const failed = s.startActivity('trial'); assert.equal(s.settleActivity(failed.id, false).daibi, 0);

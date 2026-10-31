@@ -1,61 +1,42 @@
-# Demo 0.10「群英入画」构建与验收
+# Demo 0.11「蓄势破阵」构建与验收
 
-日期：2026-10-31（Asia/Shanghai）。Creator3.8.8 / Node26.8.2。
+2026-10-31（Asia/Shanghai），Creator3.8.8 / Node26.8.2。实际工程DaiNaoSanGuo，上传开发版本0.11.0；未公开发布。
 
-| 检查 | 结果 |
+| 检查 | 最终结果 |
 | --- | --- |
-| npm test | 115通过、0失败（新增15项，原100回归） |
-| npm run typecheck | 严格类型检查通过 |
-| npm run balance | 当前引擎自动战斗边界与30天成长投影，BALANCE_0.10.md |
-| Web Mobile | 构建成功；41文件、4,264,264字节；14个生成JS语法通过 |
-| 微信 | 构建成功；45文件、3,780,488字节；18个生成JS语法通过 |
-| 微信配置 | portrait、game.js入口、官方测试AppID wx6ac3f5090a6b99c5通过；交付包不含私有配置 |
+| 规则回归 | 137通过/0失败；原115＋能量/外观8＋Boss6＋音频4＋本地服务边界4 |
+| 严格类型 | npm run typecheck通过 |
+| Web Mobile | Creator退出码36；55文件/4,465,512字节，14个生成JS语法通过 |
+| 微信 | Creator退出码36；59文件/3,981,736字节，18个生成JS语法通过 |
+| 本地只读预检 | readyForUpload=true；自有AppID、入口、portrait、保守4,000,000字节预算通过；不代核验主体资质 |
+| 音频 | 14MP3/177,532字节均可解码；Web两首BGM HTTP200、audio/mpeg；用户确认手机音乐和大招音效都有 |
+| 本机后端 | /health和/v1/bootstrap HTTP200；当前配置版本0.11.1；账号/云档/经济/榜单能力全false，客户端未应用远程配置 |
 
-## 实际验收
+文件统计排除.DS_Store与project.private.config.json；不同于平台压缩/上传统计。微信工具预览代码包显示3871KB，最终以平台接受结果为准。当前包体余量较少，后续立绘/音乐扩展应先评估分包。
 
-- 武将卡牌：44/44全部6星；关羽详情Lv300、当前专武、桃园3/3与五虎2/2；卡牌/头像和战斗共享头部，修复头像上缘、专武扇型光效与文字遮挡。
-- 招募：关羽/吕布/小乔组图；手动十连显示5×2人物卡，点击可查看详情；概率与80抽保底明示。测试招募只消耗开发档资源。
-- 名将坊：卡牌分页；切常规旧档查看未拥有小乔，显示Lv1/1星属性、全场减速4秒、羁绊与2100脑勋确认按钮。点击卡片仅预览。
-- 存档：开发脑铢/呆币/脑勋100万；切回常规后脑勋315/呆币1140、旧武将星级保留；恢复开发满级档。没有用开发资源覆盖正常账本。开发参数保存/重置与失败降级由规则测试覆盖。
-- 持续技能：讨董测试手动小乔与大乔，约3秒时仍有全场雪花/风线与5人治疗环；暂停保持，恢复至约5秒后消退。冰缓、火毒伤害/盾/抑疗由引擎测试验证。
-- 场景：实际载入4张漫画资源；Boss巨大在上方、我方面朝上；城门接近/破城、月下三将、草船3筹谋后船舱战斗均实际打开。city截图为已破城状态；完整城门站位沿用0.9验证。
-- 微信开发者工具2.02.2609240：自动编译载入0.10，显示测试档、999关、4羁绊、新头像与漫画背景、紧凑导航；实际观察自动通关。Devtools错误0/警告0。GitLens找不到系统Git是工具通知，不是游戏错误。
-- 浏览器游戏error/warn日志为空。
+## 真实操作记录
 
-## 截图
+- Web实际观察：背景延伸到导航下，半透明悬浮菜单；小乔暴雪、赵云粗雷、周瑜火柱、贾诩毒雾、华佗随身治疗光环，4.5秒持续且暂停冻结；满能技能圈与施法后暗圈区分。
+- 主线/三将余能、失败清除、技能/持续伤害击杀、阵亡与封顶去重、普装不改外观由引擎/Store回归覆盖。
+- 浏览器三Boss模型分别预览；董卓实际等到30秒后蓄势/终结/倒地/结算；另两位终结的精确人工计时尚未完成。
+- 关羽专武详情卡重新排版，1.55倍专武与刃沿光效；普装/卡牌真实穿戴由回归验证。
+- 最终Web声音开/关实点切换，error/warn日志为空。没有据此声称所有浏览器/设备声音策略均通过。
+- 自有AppID wx6ac3f5090a6b99c5，用户扫码登录开发工具；新目录build/wechatgame-owned导入（canonical build/wechatgame复制，排除私有配置以摆脱旧游客身份缓存）。
+- 最终微信模拟器载入场景，错误0/警告1（HarmonyOS基础库提示）。早期首次缓存缺失/工具worker提示已保留为历史，不列为最终零错误记录；GitLens系统Git缺失属于工具扩展通知。
+- Preview二维码生成，10/31 23:42过期，开发预览上传耗时7299ms。**用户明确确认真实手机扫码进入游戏、音乐和大招音效都有。** 机型/系统未记录，不扩写成双端全部触摸验收。
+- 0.11.0开发版本上传，更新说明明确单机内测、云档/真实攻城/全服榜单未开放；工具显示Upload completed（5151ms）。没有点击提审或公开发布。
+- 基本信息仍审核中并未阻止这次预览/代码上传；后台是否允许设体验版尚未确认。朋友无权限，待添加微信号a designated tester；后台访问此前被浏览器安全检查阻止，未绕过，也未声称添加成功。
 
-截图为实际本地运行；资源与全满级状态属于独立开发档，exchange-preview-normal属于正常旧档。
+## 截图证据
 
-- 独立测试台 (local QA image omitted)
+- 暴雪与悬浮菜单 (local QA image omitted) · 赵云雷霆 (local QA image omitted) · 周瑜火柱 (local QA image omitted) · 毒雾/治疗 (local QA image omitted)
+- 董卓 (local QA image omitted) · 张角 (local QA image omitted) · 孟获 (local QA image omitted)
+- 30秒终结蓄势 (local QA image omitted) · 终结后倒地与结算 (local QA image omitted)
+- 专武刃部与卡牌 (local QA image omitted)
+- 手机预览二维码（历史临时码） (local QA image omitted) · 开发版本上传完成 (local QA image omitted)
 
-- 群英卡牌 (local QA image omitted)
+## 下一步与限制
 
-- 关羽属性与羁绊 (local QA image omitted)
+后台将0.11.0设体验版、添加a designated tester、确认朋友扫码；Android/iOS完整触摸/安全区/性能和后台恢复，先闭合手机反馈。前端战斗、美术、界面与经济继续迭代。后端并行从登录/云存档推进，当前只读配置原型不等于可用云端账号和结算。详见WECHAT_TESTING.md、BACKEND_PLAN.md。
 
-- 神将招募组图 (local QA image omitted)
-
-- 十连结果 (local QA image omitted)
-
-- 名将坊 (local QA image omitted)
-
-- 正常档小乔兑换预览 (local QA image omitted)
-
-- Boss冰雪与治疗持续效果 (local QA image omitted)
-
-- 城门环境与破城 (local QA image omitted)
-
-- 月下三将 (local QA image omitted)
-
-- 江上草船 (local QA image omitted)
-
-- 微信模拟器载入 (local QA image omitted)
-
-## 验收边界
-
-微信新卡牌/拖拽/全部技能的触摸和Android/iOS真机仍需逐项验收；浏览器通过不代替真机。真实PvP、全服榜单、服务端账本、自有AppID、上传发布尚未完成。999数值关卡未逐关人工测试；新羁绊/火冰毒与7/14天成长需要实际玩家校准。当前角色是原创程序化漫画模型，未交付最终骨骼/音效。
-
-## 复现与交付
-
-保存并关闭同工程Creator再运行npm test、npm run typecheck、npm run balance、npm run build:web、npm run build:wechat。成功码36由构建脚本归一为0。构建后已恢复Creator编辑器。
-
-交付含源码/Web/微信ZIP及delivery-manifest.json，列提交、字节、SHA256与验证范围；不打包账号、浏览器存档、临时QA种子、私有配置或本机环境。
+交付源码/Web/微信ZIP与delivery-manifest.json记录提交、字节与SHA256，不含私有配置、登录状态或浏览器存档。二维码只作为内测过程证据，过期需重新预览；上传完成不等于已设体验版、已审核或公开上线。

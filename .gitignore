@@ -24,3 +24,8 @@ coverage/
 /.vscode/
 /.idea/
 /native/engine/android/**/*/assets
+
+# Generated audio intermediates and build copies
+/audio-source/
+/build-templates/web-mobile/audio/
+/build-templates/wechatgame/audio/

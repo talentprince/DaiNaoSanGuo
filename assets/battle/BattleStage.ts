@@ -6,9 +6,9 @@ export class BattleStage {
     readonly node:Node;private image:Node|null=null;private time=0;private fallback:Node;
     constructor(parent:Node,private style:StageStyle){
         this.node=makeNode('BattleScenery',parent);this.fallback=makeNode('FallbackTerrain',this.node);
-        const g=this.fallback.addComponent(Graphics);g.fillColor=new Color(style==='boss'?'#332641':style==='boat'?'#23586B':'#74624D');g.rect(-352,-470,704,940);g.fill();
-        g.strokeColor=new Color('#B6A98255');g.lineWidth=2;for(let y=-450;y<470;y+=60){g.moveTo(-352,y);g.lineTo(352,y+35);g.stroke();}
-        const draw=(frame:SpriteFrame)=>{if(!isValid(this.node))return;this.fallback.active=false;const n=makeNode(`ComicBackground-${style}`,this.node);const sprite=n.addComponent(Sprite);sprite.spriteFrame=frame;sprite.sizeMode=Sprite.SizeMode.CUSTOM;n.getComponent(UITransform)!.setContentSize(740,988);this.image=n;};
+        const g=this.fallback.addComponent(Graphics);g.fillColor=new Color(style==='boss'?'#332641':style==='boat'?'#23586B':'#74624D');g.rect(-352,-554,704,1108);g.fill();
+        g.strokeColor=new Color('#B6A98255');g.lineWidth=2;for(let y=-530;y<554;y+=60){g.moveTo(-352,y);g.lineTo(352,y+35);g.stroke();}
+        const draw=(frame:SpriteFrame)=>{if(!isValid(this.node))return;this.fallback.active=false;const n=makeNode(`ComicBackground-${style}`,this.node);const sprite=n.addComponent(Sprite);sprite.spriteFrame=frame;sprite.sizeMode=Sprite.SizeMode.CUSTOM;n.getComponent(UITransform)!.setContentSize(740,1164);this.image=n;};
         const saved=cache[style];if(saved)draw(saved);else resources.load(`battle-art/${style==='rift'?'city':style}`,ImageAsset,(error,image)=>{
             if(error||!image)return;const texture=new Texture2D();texture.image=image;const frame=new SpriteFrame();frame.texture=texture;cache[style]=frame;draw(frame);
         });

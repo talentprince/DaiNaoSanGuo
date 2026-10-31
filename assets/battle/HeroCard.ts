@@ -20,7 +20,7 @@ export function heroCard(parent:Node,store:ProgressStore,id:HeroId,x:number,y:nu
     const node=panel(parent,`HeroCard-${id}`,x,y,width,height,h.tier===4?'#3D2D37':h.tier===3?'#2E2944':'#223950',13);
     const g=makeNode('CardInk',node).addComponent(Graphics);g.strokeColor=new Color(color);g.lineWidth=h.tier===4?4:2;g.roundRect(-width/2+3,-height/2+3,width-6,height-6,11);g.stroke();
     g.fillColor=new Color(color+'22');g.moveTo(-width/2+6,-height/2+45);g.lineTo(width/2-6,height/2-45);g.lineTo(width/2-6,-height/2+45);g.close();g.fill();
-    const art=heroArtwork(node,id,-9,17,width/190*.92,h.tier===4);if(!owned)art.addComponent(UIOpacity).opacity=175;
+    const exclusive=owned&&p.loadouts[id]?.weapon===`signature-${id}`;const art=heroArtwork(node,id,-9,exclusive?3:17,width/190*(exclusive?.8:.92),exclusive);if(!owned)art.addComponent(UIOpacity).opacity=175;
     const header=panel(node,'TierBand',0,height/2-24,width-10,31,'#172236E8',6);text(header,'CardTier',TIER_NAMES[h.tier-1],0,0,17,color,width-15);
     text(node,'CardName',h.name,0,-height/2+85,25,'#F4E1B8',width-14);
     text(node,'CardStars',owned?'★'.repeat(p.stars[id]||1):h.role,0,-height/2+55,16,color,width-14);
@@ -33,7 +33,7 @@ export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,mode:'rost
     const config=createHeroes([id],p.heroLevel,owned?store.getEquipmentBonuses():{})[0];
     text(overlay,'HeroDetailTitle',`${h.name} · ${TIER_NAMES[h.tier-1]}`,0,552,38,TIER_COLORS[h.tier-1]);
     button(overlay,'CloseDetail','×',306,553,60,54,'#35445A',()=>overlay.destroy());
-    const art=panel(overlay,'DetailArt',0,315,626,365,'#233449',20);heroArtwork(art,id,-10,-25,1.75,!!config.signature);
+    const art=panel(overlay,'DetailArt',0,315,626,365,'#233449',20);heroArtwork(art,id,-10,-86,1.5,!!config.signature);
     text(art,'ArtStars','★'.repeat(stars),0,-151,24,'#F0CC77');
     text(overlay,'PreviewLevel',`Lv.${p.heroLevel} · ${owned?'当前穿戴与星级':'1星属性预览'}`,0,92,21,'#AAC4D5');
     const attributes=[['攻击',config.attack],['防御',config.defense],['生命',config.maxHp]] as const;

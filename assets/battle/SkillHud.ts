@@ -29,11 +29,11 @@ export class SkillHud {
         this.entries.forEach(({ unit, ring, number, opacity }) => {
             ring.clear(); ring.strokeColor = new Color('#31485B'); ring.lineWidth = 4; ring.circle(0, 0, 29); ring.stroke();
             const ready = unit.energy >= 100 && unit.hp > 0;
-            ring.strokeColor = new Color(ready ? '#FFE29A' : '#88BDB0'); ring.lineWidth = ready ? 5 : 3;
+            ring.strokeColor = new Color(ready ? '#FFE29A' : '#718594'); ring.lineWidth = ready ? 5 : 3;
             if (unit.energy > 0) { ring.arc(0, 0, 29, Math.PI / 2, Math.PI / 2 + Math.PI * 2 * unit.energy / 100, false); ring.stroke(); }
-            if (ready) { ring.circle(0, 0, 33 + Math.sin(this.clock * 7) * 2); ring.stroke(); }
+            if (ready) { ring.fillColor=new Color('#FFE29A66');ring.circle(0,0,34);ring.fill();ring.strokeColor=new Color('#FFF5C6');ring.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4+this.clock*.7;ring.moveTo(Math.cos(a)*34,Math.sin(a)*34);ring.lineTo(Math.cos(a)*39,Math.sin(a)*39);ring.stroke();} ring.circle(0, 0, 33 + Math.sin(this.clock * 7) * 2); ring.stroke(); }
             number.string = unit.hp <= 0 ? '退场' : ready ? '点击释放' : `${Math.floor(unit.energy)}%`;
-            opacity.opacity = unit.hp <= 0 ? 80 : ready ? Math.round(218 + Math.sin(this.clock * 7) * 37) : 255;
+            opacity.opacity = unit.hp <= 0 ? 70 : ready ? Math.round(218 + Math.sin(this.clock * 7) * 37) : 185;
         });
     }
     destroy(): void { this.node.destroy(); }

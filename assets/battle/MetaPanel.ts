@@ -84,8 +84,9 @@ export class MetaPanel {
         const rays=makeNode('RecruitRays',banner).addComponent(Graphics);rays.fillColor=new Color('#E7C57224');
         for(let i=0;i<13;i++){const a=i*.5;const end=(v:number)=>[Math.max(-310,Math.min(310,Math.cos(v)*340)),Math.max(-170,Math.min(170,Math.sin(v)*340-115))];const p=end(a),q=end(a+.12);rays.moveTo(0,-115);rays.lineTo(p[0],p[1]);rays.lineTo(q[0],q[1]);rays.close();rays.fill();}
         heroArtwork(banner,'guanyu',-192,-7,1.52,true);heroArtwork(banner,'lvbu',0,-7,1.60,true);heroArtwork(banner,'xiaoqiao',192,-7,1.55,true);
-        const titleBand=panel(banner,'RecruitTitleBand',0,160,600,44,'#2A233BEF',8);text(titleBand,'RecruitBannerTitle','神 将 · 破 阵 而 来',0,0,28,'#FFE0A1',590);
+        const titleBand=panel(banner,'RecruitTitleBand',0,160,600,44,'#2A233BEF',8);text(titleBand,'RecruitBannerTitle','神 将 · 专 武 风 采',0,0,28,'#FFE0A1',590);
         ['关羽 · 青龙风暴','吕布 · 无双乱舞','小乔 · 霜华漫天'].forEach((name,i)=>text(banner,'DivineName',name,(i-1)*207,-146,19,'#F4D7A2',204));
+        text(banner,'SignaturePreviewNote','专武外观展示 · 招募获得基础武将，专武另行兑换',0,-176,15,'#BDB1CA',610);
         text(this.node,'DrawOdds','普通60% · 骁将30% · 名将9% · 神将1%',0,-33,21,'#AFC5DA');
         text(this.node,'DrawPity',`十连至少骁将 · 最迟80抽神将 · 当前${p.pity}/80`,0,-77,20,'#D7BFDE');
         button(this.node,'SingleRecruit','单抽 · 100呆币',-160,-153,300,76,'#456C5C',()=>this.performDraw(1));
@@ -138,9 +139,10 @@ export class MetaPanel {
             return;
         }
         if (this.boat) { this.boatRoute(); return; }
+        const boss=this.store.currentBoss.boss;text(this.node,'WeeklyBoss',`本周${boss.name} · ${boss.attribute} · 周一0点轮换`,0,405,20,'#D6C5E5',650);
         const cards: [ActivityMode, string, string, string][] = [
             ['city', '本地守军演练 · 可选2名城上守将', `今日 ${p.daily.cityUsed}/3次 · 胜180呆币/12脑勋，败90/8`, '演练攻城'],
-            ['boss', '30秒冲伤害 · 无限挑战 · 当日只取最高', `今日最高${p.daily.bossBest} · 全服排名待联机`, '挑战董卓'],
+            ['boss', `${boss.name}·${boss.title} · 弱${boss.weakness}`, `30秒终结清场 · 今日最高${p.daily.bossBest} · 排名待联机`, '挑战魔王'],
             ['trial', `3v5 · 最多1神将2名将 · 缺位补兵 · 下一关${Math.min(99, p.trialHighest + 1)}`, `${trialTrait(Math.min(99, p.trialHighest + 1)).join('：')}`, '三将出战'],
             ['boat', '三次筹谋再护船 · 东风/稳船/修缮自由搭配', `今日 ${p.daily.boatUsed}/2次 · 胜260呆币/12脑勋，败130/8`, '筹谋借宝'],
         ];

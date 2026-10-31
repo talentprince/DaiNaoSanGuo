@@ -52,6 +52,9 @@ export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=fals
         if(['zhaoyun','machao','zhangliao','sunce'].indexOf(id)>=0){poly([[-5,28],[-15,49],[-3,57],[12,52],[9,34]],new Color(id==='sunce'?'#E3733B':'#F5F2DC'));}
     }
     if(!rear&&['zhangfei','caocao','huangzhong','huatuo'].indexOf(id)>=0){poly([[-14,-11],[14,-11],[9,-27],[0,-34],[-10,-26]],new Color(id==='huangzhong'||id==='huatuo'?'#E5E4CE':'#273239'));}
+    if(id==='world-dongzhuo'){poly([[-22,-8],[-18,-36],[0,-43],[21,-31],[23,-8],[8,-21],[-8,-21]],new Color('#422B26'));poly([[-26,20],[-23,35],[-9,29],[0,41],[11,29],[24,35],[26,20]],new Color('#E1B147'));}
+    if(id==='world-zhangjiao'){poly([[-19,23],[-12,51],[0,58],[13,49],[20,23]],new Color('#DDBF56'));g.strokeColor=new Color('#C6DFFF');g.lineWidth=3;g.moveTo(-8,29);g.lineTo(4,44);g.lineTo(-1,38);g.lineTo(9,48);g.stroke();poly([[-8,-17],[-6,-42],[0,-51],[7,-39],[8,-17]],new Color('#DAD6C3'));}
+    if(id==='world-menghuo'){poly([[-28,17],[-40,38],[-19,31],[0,48],[19,31],[41,39],[27,16]],new Color('#8FC177'));g.fillColor=new Color('#E8DBB3');g.moveTo(-20,-13);g.lineTo(-28,0);g.lineTo(-12,-9);g.moveTo(20,-13);g.lineTo(28,0);g.lineTo(12,-9);g.fill();}
     if(boss){g.fillColor=new Color('#DDB34D');g.moveTo(-20,23);g.lineTo(-34,42);g.lineTo(-9,29);g.moveTo(20,23);g.lineTo(34,42);g.lineTo(9,29);g.fill();}
     return node;
 }

@@ -1,3 +1,4 @@
+import { weaponPresentation } from '../data/WeaponPresentation';
 import { comicHead } from './ComicHead';
 import { heroColor, isFemaleHero } from '../data/HeroIdentity';
 import { Color, Graphics, Node, UIOpacity, UITransform } from 'cc';
@@ -24,6 +25,7 @@ export class UnitActor {
     private buffIcons: Graphics;
     private statusAura:Graphics;
     private clock = 0;
+    private weaponGlow:UIOpacity|null=null;
     private action = 0;
     private hit = 0;
     private dying = false;
@@ -62,14 +64,14 @@ export class UnitActor {
     setGoal(x: number, y: number): void { this.goalX = x; this.goalY = y; }
     fallTo(x: number, y: number): void { this.goalX = x; this.goalY = y; this.fallSpeed = 20; }
     get moving(): boolean { return Math.abs(this.node.position.x - this.goalX) + Math.abs(this.node.position.y - this.goalY) > 2; }
-    get weapon(): WeaponKind { return this.unit.weapon || 'sword'; }
+    get weapon(): WeaponKind { return weaponPresentation(this.unit).weapon; }
     attack(): void { this.action = 0.42; }
     hurt(): void { this.hit = 0.15; }
     die(): void { this.dying = true; }
     breakWall(): void { this.rubble = true; }
 
     update(dt: number, march: boolean): void {
-        this.clock += dt;
+        this.clock += dt;if(this.weaponGlow)this.weaponGlow.opacity=Math.round(155+100*(.5+.5*Math.sin(this.clock*4)));
         this.drawStatus();
         const badge = this.buffIcons; badge.clear();
         if (this.unit.shield > 0) { badge.fillColor = new Color('#8BD4DF'); badge.moveTo(-7, 7); badge.lineTo(7, 7); badge.lineTo(6, -5); badge.lineTo(0, -11); badge.lineTo(-6, -5); badge.close(); badge.fill(); }
@@ -115,11 +117,11 @@ export class UnitActor {
     private drawStatus():void {
         const g=this.statusAura;g.clear();const u=this.unit;if(u.hp<=0)return;
         const t=this.clock;
-        const ring=(color:string,r:number)=>{g.strokeColor=new Color(color);g.lineWidth=3;g.ellipse(0,0,r*this.scale,12*this.scale);g.stroke();};
-        if(u.healGlowRemaining>0){ring('#79F0B1',35+Math.sin(t*5)*4);g.strokeColor=new Color('#BAFFD1');g.lineWidth=3;for(let i=0;i<4;i++){const x=Math.sin(t*2+i*1.57)*25;const y=12+(t*18+i*17)%65;g.moveTo(x-4,y);g.lineTo(x+4,y);g.moveTo(x,y-4);g.lineTo(x,y+4);g.stroke();}}
+        const ring=(color:string,r:number)=>{g.strokeColor=new Color(color);g.lineWidth=5;g.ellipse(0,0,r*this.scale,12*this.scale);g.stroke();};
+        if(u.healGlowRemaining>0){g.fillColor=new Color('#55DC8B30');g.ellipse(0,45*this.scale,42*this.scale,70*this.scale);g.fill();g.strokeColor=new Color('#8DFFB9CC');g.lineWidth=5;g.ellipse(0,45*this.scale,42*this.scale,70*this.scale);g.stroke();ring('#79F0B1',35+Math.sin(t*5)*4);g.strokeColor=new Color('#BAFFD1');g.lineWidth=5;for(let i=0;i<6;i++){const x=Math.sin(t*2+i*1.57)*30;const y=12+(t*18+i*17)%65;g.moveTo(x-4,y);g.lineTo(x+4,y);g.moveTo(x,y-4);g.lineTo(x,y+4);g.stroke();}}
         if(u.shield>0){ring('#79D6F0',39);g.strokeColor=new Color('#B4EBFF99');g.lineWidth=2;g.ellipse(0,37*this.scale,37*this.scale,58*this.scale);g.stroke();}
         if(u.attackBuff>0)ring('#FFD06E',42);
-        if(u.slowRemaining>0){ring('#9DE8FF',36);g.strokeColor=new Color('#D1F4FF');g.lineWidth=2;for(let i=0;i<4;i++){const x=-26+i*17;g.moveTo(x,-2);g.lineTo(x+3,13);g.lineTo(x+9,-2);g.stroke();}}
+        if(u.slowRemaining>0){g.fillColor=new Color('#75C5F04D');g.ellipse(0,35*this.scale,38*this.scale,55*this.scale);g.fill();ring('#9DE8FF',40);g.strokeColor=new Color('#D1F4FF');g.lineWidth=2;for(let i=0;i<4;i++){const x=-26+i*17;g.moveTo(x,-2);g.lineTo(x+3,13);g.lineTo(x+9,-2);g.stroke();}}
         if(u.burnRemaining>0){g.fillColor=new Color('#F59E4499');for(let i=0;i<5;i++){const x=-30+i*14;const h=20+Math.sin(t*7+i)*9;g.moveTo(x,0);g.quadraticCurveTo(x-6,h,x+3,h+10);g.quadraticCurveTo(x+16,h,x+9,0);g.close();g.fill();}}
         if(u.poisonRemaining>0){ring('#A5D66F',38);g.strokeColor=new Color('#C495DD');g.lineWidth=2;for(let i=0;i<4;i++)g.circle(Math.sin(t*2+i)*24,15+(t*15+i*19)%60,4);g.stroke();}
     }
@@ -168,20 +170,31 @@ export class UnitActor {
             shield.fillColor = new Color('#4D6774'); shield.roundRect(-12, -16, 24, 32, 9); shield.fill();
             shield.strokeColor = new Color('#D6BC83'); shield.lineWidth = 3; shield.roundRect(-12, -16, 24, 32, 9); shield.stroke();
         }
+        if(id==='world-dongzhuo'){g.fillColor=new Color('#D9A26A');g.ellipse(0,-2,24,24);g.fill();g.strokeColor=new Color('#8B4936');g.lineWidth=3;g.arc(0,0,17,3.5,5.9,false);g.stroke();}
+        if(id==='world-zhangjiao'){g.fillColor=new Color('#D6B74E');g.moveTo(0,24);g.lineTo(-18,-22);g.lineTo(18,-22);g.close();g.fill();g.strokeColor=new Color('#574579');g.lineWidth=3;g.moveTo(0,13);g.lineTo(-7,-2);g.lineTo(5,-5);g.lineTo(-2,-20);g.stroke();}
+        if(id==='world-menghuo'){g.fillColor=new Color('#E7D6A9');for(let i=0;i<5;i++){g.moveTo(-22+i*11,17);g.lineTo(-18+i*11,5);g.lineTo(-14+i*11,17);g.close();g.fill();}}
         this.head = comicHead(this.body,id,this.unit.color,tier,this.rear,boss);
         if(isFemaleHero(id)){this.torso.setScale(.86,1,1);}
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);
-        this.weaponNode.setScale(this.unit.signature?1.32:soldier?1:1.12,this.unit.signature?1.32:soldier?1:1.12,1);
-        if(this.unit.signature){
-            const glow=makeNode('ExclusiveWeaponGlow',this.weaponNode).addComponent(Graphics);glow.strokeColor=new Color('#FFD65377');glow.lineWidth=6;
-            if(this.weapon==='fan'){glow.ellipse(0,24,26,22);}
-            else if(this.weapon==='bow'){glow.arc(7,15,32,-1.2,1.2,false);}
-            else if(this.weapon==='staff'){glow.circle(0,62,16);}
-            else if(this.weapon==='ribbon'){glow.moveTo(0,-5);glow.bezierCurveTo(63,12,-20,76,45,57);}
-            else if(this.weapon==='qin'){glow.roundRect(-14,-8,36,62,9);}
-            else if(['spear','glaive','serpent','halberd','axe'].indexOf(this.weapon)>=0){glow.moveTo(4,-16);glow.lineTo(4,79);}
-            else{glow.moveTo(3,1);glow.lineTo(3,52);}
-            glow.stroke();
+        const presentation=weaponPresentation(this.unit);this.weaponNode.setScale(presentation.scale,presentation.scale,1);
+        if(presentation.exclusive){
+            const glowNode=makeNode('ExclusiveBladeHalo',this.weaponNode);this.weaponGlow=glowNode.addComponent(UIOpacity);const glow=glowNode.addComponent(Graphics);
+            const glowColor=this.unit.element==='lightning'?'#83DBFFC0':this.unit.element==='blizzard'?'#B4EEFFC0':this.unit.element==='fire'?'#FFAA56C0':this.unit.element==='poison'?'#C5E98AC0':'#BDFFD2C0';
+            const edge=(g:Graphics)=>{
+                if(this.weapon==='glaive'){g.moveTo(5,50);g.quadraticCurveTo(40,53,25,91);g.quadraticCurveTo(18,66,5,72);}
+                else if(this.weapon==='serpent'){g.moveTo(4,69);g.bezierCurveTo(-11,77,16,87,4,101);}
+                else if(this.weapon==='spear'){g.moveTo(-3,75);g.lineTo(4,98);g.lineTo(11,75);}
+                else if(this.weapon==='halberd'){g.moveTo(-3,75);g.lineTo(4,98);g.lineTo(11,75);g.arc(-7,68,14,-1.3,1.3,false);g.moveTo(15,54);g.arc(15,68,14,1.8,4.5,false);}
+                else if(this.weapon==='axe'){g.moveTo(28,74);g.quadraticCurveTo(45,45,27,30);}
+                else if(this.weapon==='fan'){for(let i=0;i<5;i++){const x=-19+i*10;g.moveTo(x-4,36);g.quadraticCurveTo(x,49,x+5,38);}}
+                else if(this.weapon==='bow'){g.arc(7,15,id==='huangzhong'?35:29,-1.2,1.2,false);}
+                else if(this.weapon==='staff'){g.circle(0,62,12);}
+                else if(this.weapon==='ribbon'){g.moveTo(18,55);g.quadraticCurveTo(31,64,45,57);g.moveTo(-26,42);g.lineTo(-43,46);}
+                else if(this.weapon==='qin'){[-5,1,7,13].forEach(x=>{g.moveTo(x,7);g.lineTo(x,46);});}
+                else{const h=id==='caocao'?64:55;g.moveTo(-5,12);g.lineTo(-6,h-12);g.lineTo(2,h);g.lineTo(10,h-12);if(this.weapon==='dual'){g.moveTo(-24,11);g.lineTo(-25,32);g.lineTo(-17,44);g.lineTo(-9,32);}}
+            };
+            glow.strokeColor=new Color(glowColor);glow.lineWidth=10;edge(glow);glow.stroke();
+            const edgeNode=makeNode('ExclusiveBladeCore',this.weaponNode);const core=edgeNode.addComponent(Graphics);core.strokeColor=new Color('#EDFFF3');core.lineWidth=2;edge(core);core.stroke();
             const sig=makeNode('SignatureSeal',this.body,0,-45).addComponent(Graphics);sig.strokeColor=new Color('#FFD474');sig.lineWidth=3;sig.ellipse(0,0,46,15);sig.stroke();sig.moveTo(-44,0);sig.lineTo(-57,0);sig.moveTo(44,0);sig.lineTo(57,0);sig.stroke();
         }
         const w = this.weaponNode.addComponent(Graphics); w.fillColor = new Color('#DFEAE8'); w.strokeColor = new Color('#D9E5E3'); w.lineWidth = 3;
@@ -221,6 +234,13 @@ export class UnitActor {
             blade(0, id === 'caocao' ? 64 : 55); if (this.weapon === 'dual') blade(-19, 44);
             w.fillColor = new Color('#CDAA65'); w.roundRect(-10, -2, 24, 6, 2); w.fill();
             if (id === 'zhouyu' || id === 'luxun') { w.strokeColor = new Color('#EDAD6E'); w.lineWidth = 3; w.moveTo(3, 4); w.lineTo(3, 55); w.stroke(); }
+        }
+        if(presentation.exclusive){
+            const detail=makeNode('ExclusiveWeaponEngraving',this.weaponNode).addComponent(Graphics);detail.strokeColor=new Color('#708B9D');detail.lineWidth=1.4;
+            if(['spear','glaive','serpent','halberd'].indexOf(this.weapon)>=0){[14,34,55].forEach(y=>{detail.moveTo(0,y);detail.lineTo(8,y);detail.stroke();});if(this.weapon==='glaive'){detail.moveTo(11,62);detail.quadraticCurveTo(27,61,25,80);detail.stroke();}}
+            else if(this.weapon==='sword'||this.weapon==='dual'){detail.moveTo(2,10);detail.lineTo(2,43);detail.stroke();}
+            detail.fillColor=new Color('#E5BA61');detail.circle(3,1,7);detail.fill();detail.fillColor=new Color('#5AA8B6');detail.circle(3,1,3.5);detail.fill();
+            this.weaponNode.getChildByName('ExclusiveBladeCore')!.setSiblingIndex(this.weaponNode.children.length-1);
         }
     }
 

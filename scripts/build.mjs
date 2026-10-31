@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -15,6 +15,7 @@ if (!existsSync(executable)) {
     console.error('未找到 Creator 3.8.8，请设置 COCOS_CREATOR_PATH。');
     process.exit(1);
 }
+const audioPath=join(root,'audio');const audioTarget=join(root,'build-templates',platform,'audio');mkdirSync(audioTarget,{recursive:true});for(const file of readdirSync(audioPath)){if(file.endsWith('.mp3'))copyFileSync(join(audioPath,file),join(audioTarget,file));}
 mkdirSync(join(root, 'temp'), { recursive: true });
 const log = join(root, 'temp', `build-${platform}.log`);
 const handle = openSync(log, 'w');
@@ -30,4 +31,4 @@ if (result.status !== 36 || files.some(file => !existsSync(join(root, 'build', p
     process.exit(1);
 }
 console.log(`构建成功：${join(root, 'build', platform)}（Creator退出码36）`);
-if (platform === 'wechatgame') console.log('当前使用官方测试AppID，未执行上传、发布、开发者工具或真机验证。');
+if(platform==='wechatgame'){const appid=JSON.parse(readFileSync(join(root,'build/wechatgame/project.config.json'),'utf8')).appid;console.log(appid==='wx6ac3f5090a6b99c5'?'当前使用官方测试AppID；未上传或发布。':`已使用项目AppID ${appid}；仅完成构建，未上传或发布。`);}

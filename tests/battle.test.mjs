@@ -43,7 +43,7 @@ test('暂停期间不累积时间、怒气、攻击或待补帧时间', () => {
     engine.paused = true;
     engine.advance(500);
     assert.equal(engine.elapsed, 0);
-    assert.equal(engine.energy, 45);
+    assert.equal(engine.energy, 0);
     assert.equal(engine.enemies[0].hp, 100);
     assert.deepEqual(engine.drainEvents(), []);
     engine.paused = false;
@@ -86,7 +86,7 @@ test('清空第一波后继续下一波，最后一波击败才算胜利', () =>
 test('怒气不足、暂停、关羽死亡时技能不生效、不消耗怒气', () => {
     const engine = battle();
     assert.equal(engine.castSkill(), false);
-    assert.equal(engine.energy, 45);
+    assert.equal(engine.energy, 0);
     engine.energy = 100;
     engine.paused = true;
     assert.equal(engine.castSkill(), false);
