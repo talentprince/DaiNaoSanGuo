@@ -1,12 +1,15 @@
-# 当前技术结构 · Demo 0.6
+# 当前技术结构 · Demo 0.8
 
 Cocos Creator 3.8.8 / TypeScript。Battle.scene沿用既有UUID，Canvas挂BattlePreview。UI在运行时生成。
 
-- BattleEngine：固定步长、攻击/治疗/死亡、怒气、秘境进度/召Boss、世界Boss计分与城墙减伤；不依赖Cocos。
-- HeroCatalog：24武将、四档品质、职业、获取来源与阵容校验。
+- BattleEngine：固定步长、攻击/治疗/死亡、独立能量、分档技能目标/治疗、护盾/攻击增益、秘境进度/召Boss、世界Boss计分与城墙减伤；不依赖Cocos。
+- HeroCatalog：40武将、四档品质、职业、获取来源与阵容校验。
 - BattleConfig：等级与装备缩放、三类小兵、主线秘境配置。
 - ActivityConfig：四副本配置、挑战快照、关卡特点。
 - ProgressStore：本地账本、武将/阵容、招募保底、兑换、挂机、日次数与唯一副本结算。沿用v1键并以metaVersion2扩展，保留旧存档。
+- FormationConfig：候选站位、校验、自动布阵、旧阵型与品级调整迁移、场景坐标。
+- FormationPanel / HeroPortrait：头像拖动、交换、移除和自动布阵UI。
+- SkillHud：每名非小兵的独立技能圈与手动释放入口。
 - UnitActor：可动身体部件和角色姿态，不承担伤害计算。
 - BattleStage：不同场景的布局背景与主线滚动地景。
 - CombatEffects：消费战斗事件中的真实目标，播放弹道、斩击、治疗、光环与破城碎石。

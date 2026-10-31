@@ -1,3 +1,5 @@
+import { arrangeParty, validateFormation, formationHeroes, autoFormation, repairFormation } from '../data/FormationConfig';
+import type { FormationEntry, FormationMode } from '../data/FormationConfig';
 import { DRAW_COST, DIVINE_PITY, EXCHANGE_COST, getHero, HERO_CATALOG, HERO_IDS, LEGACY_PARTY, STARTER_PARTY, validateParty } from '../data/HeroCatalog';
 import type { HeroId } from '../data/HeroCatalog';
 import type { SoldierType } from '../data/BattleConfig';
@@ -10,6 +12,7 @@ export interface DailyState { day: number; cityUsed: number; boatUsed: number; b
 export interface Progress {
     version: 1; coins: number; highestCleared: number; heroLevel: number; settled: string[];
     inventory: Equipment[]; equipped: Partial<Record<HeroId, string>>;
+    formations: Record<FormationMode, FormationEntry[]>;
     troopType: SoldierType; wallHeroes: HeroId[];
     metaVersion: 2; daibi: number; points: number; owned: HeroId[]; formation: HeroId[];
     trialParty: HeroId[]; defense: HeroId[]; firstCleared: number[]; trialHighest: number;
@@ -26,7 +29,7 @@ const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0
 const nonnegative = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const emptyProgress = (now: number): Progress => ({ version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
-    settled: [], inventory: [], equipped: {}, troopType: 'mixed', wallHeroes: STARTER_PARTY.slice(0, 2), metaVersion: 2, daibi: 0, points: 0, owned: [...STARTER_PARTY], formation: [...STARTER_PARTY],
+    settled: [], inventory: [], equipped: {}, formations: { main: arrangeParty(STARTER_PARTY, 'main'), trial: arrangeParty(STARTER_PARTY.slice(0, 3), 'trial'), defense: arrangeParty(STARTER_PARTY, 'defense', 'mixed', STARTER_PARTY.slice(0, 2)) }, troopType: 'mixed', wallHeroes: STARTER_PARTY.slice(0, 2), metaVersion: 2, daibi: 0, points: 0, owned: [...STARTER_PARTY], formation: [...STARTER_PARTY],
     trialParty: STARTER_PARTY.slice(0, 3), defense: [...STARTER_PARTY], firstCleared: [], trialHighest: 0,
     pity: 0, drawCount: 0, idleAt: now, idleRemainder: 0, daily: dailyState(chinaDay(now)), runSerial: 0, pending: null });
 
@@ -121,6 +124,13 @@ export class ProgressStore {
                 const w = data.wallHeroes;
                 this.state.wallHeroes = Array.isArray(w) && w.length <= 2 && new Set(w).size === w.length && w.every(id => this.state.defense.indexOf(id) >= 0) ? [...w] : this.state.defense.slice(0, 2);
                 this.state.troopType = ['mixed', 'sword', 'spear', 'bow'].indexOf(data.troopType) >= 0 ? data.troopType : 'mixed';
+                const modes: FormationMode[] = ['main', 'trial', 'defense'];
+                modes.forEach(mode => {
+                    const saved = data.formations && data.formations[mode];
+                    const legacyParty = mode === 'main' ? this.state.formation : mode === 'trial' ? this.state.trialParty : this.state.defense;
+                    this.state.formations[mode] = Array.isArray(saved) ? repairFormation(saved, this.state.owned, mode) : arrangeParty(legacyParty, mode, this.state.troopType, mode === 'defense' ? this.state.wallHeroes : []);
+                });
+                this.syncParties();
                 if (this.validRun(data.pending)) this.state.pending = copy(data.pending);
                 this.refreshDay();
             }
@@ -139,11 +149,11 @@ export class ProgressStore {
         return !!run && typeof run.id === 'string' && run.id.length > 0 && ['city', 'boss', 'trial', 'boat'].indexOf(run.mode) >= 0
             && Number.isInteger(run.stage) && run.stage > 0 && run.stage <= 99 && nonnegative(run.day)
             && Number.isInteger(run.level) && run.level > 0 && run.level <= 99 && Array.isArray(run.party)
-            && !validateParty(run.party, this.state.owned, run.mode === 'trial' ? 'trial' : 'main')
+            && (run.layout ? !validateFormation(run.layout, this.state.owned, run.mode === 'trial' ? 'trial' : 'main') : !validateParty(run.party, this.state.owned, run.mode === 'trial' ? 'trial' : 'main'))
             && !!run.equipment && typeof run.equipment === 'object' && Object.keys(run.equipment).every(id => !!getHero(id)
                 && [run.equipment[id].attack, run.equipment[id].defense, run.equipment[id].maxHp].every(n => nonnegative(n)))
             && (run.troopType === undefined || ['mixed', 'sword', 'spear', 'bow'].indexOf(run.troopType) >= 0)
-            && (run.defenders === undefined || (Array.isArray(run.defenders) && !validateParty(run.defenders, this.state.owned)))
+            && (run.defenseLayout ? !validateFormation(run.defenseLayout, this.state.owned, 'defense') : run.defenders === undefined || (Array.isArray(run.defenders) && !validateParty(run.defenders, this.state.owned)))
             && (run.wallHeroes === undefined || (Array.isArray(run.wallHeroes) && run.wallHeroes.length <= 2 && new Set(run.wallHeroes).size === run.wallHeroes.length && run.wallHeroes.every(id => (run.defenders || []).indexOf(id) >= 0)))
             && Array.isArray(run.choices) && run.choices.every(c => ['wind', 'guard', 'repair'].indexOf(c) >= 0)
             && (run.mode !== 'boat' || run.choices.length === 3);
@@ -162,15 +172,30 @@ export class ProgressStore {
         if (mode === 'main') this.state.formation = [...ids];
         else if (mode === 'trial') this.state.trialParty = [...ids];
         else { this.state.defense = [...ids]; this.state.wallHeroes = this.state.wallHeroes.filter(id => ids.indexOf(id) >= 0); }
-        this.save(); return null;
+        this.state.formations[mode === 'defense' ? 'defense' : mode] = arrangeParty(ids, mode, this.state.troopType, mode === 'defense' ? this.state.wallHeroes : []);
+        this.syncParties(); this.save(); return null;
     }
+    private syncParties(): void {
+        this.state.formation = formationHeroes(this.state.formations.main);
+        this.state.trialParty = formationHeroes(this.state.formations.trial);
+        this.state.defense = formationHeroes(this.state.formations.defense);
+        this.state.wallHeroes = formationHeroes(this.state.formations.defense.filter(e => e.spot.startsWith('tower-')));
+    }
+    saveFormation(mode: FormationMode, entries: FormationEntry[]): string | null {
+        const error = validateFormation(entries, this.state.owned, mode);
+        if (error) return error;
+        this.state.formations[mode] = copy(entries); this.syncParties(); this.save(); return null;
+    }
+    autoArrange(mode: FormationMode): void { this.saveFormation(mode, autoFormation(this.state.owned, mode)); }
     setWallHeroes(ids: HeroId[]): string | null {
         if (ids.length > 2 || new Set(ids).size !== ids.length || ids.some(id => this.state.defense.indexOf(id) < 0)) return '最多选2名守城阵容中的武将上城墙';
-        this.state.wallHeroes = [...ids]; this.save(); return null;
+        this.state.wallHeroes = [...ids]; this.state.formations.defense = arrangeParty(this.state.defense, 'defense', this.state.troopType, ids); this.syncParties(); this.save(); return null;
     }
     setTroopType(type: SoldierType): void {
         if (['mixed', 'sword', 'spear', 'bow'].indexOf(type) < 0) throw new Error('兵种无效');
-        this.state.troopType = type; this.save();
+        this.state.troopType = type;
+        (['main', 'trial', 'defense'] as const).forEach(mode => { this.state.formations[mode] = this.state.formations[mode].map((e, i) => e.troop ? { ...e, troop: type === 'mixed' ? (['sword', 'spear', 'bow'] as const)[i % 3] : type } : e); });
+        this.save();
     }
     equip(hero: HeroId, equipmentId: string): boolean {
         if (!getHero(hero) || this.state.owned.indexOf(hero) < 0 || !this.state.inventory.some(item => item.id === equipmentId)) return false;
@@ -268,7 +293,8 @@ export class ProgressStore {
         if (mode === 'trial' && this.state.trialHighest >= 99) throw new Error('三将闯关已全部通关');
         if (mode === 'boat' && (choices.length !== 3 || choices.some(c => ['wind', 'guard', 'repair'].indexOf(c) < 0))) throw new Error('请先完成3次航线筹谋');
         const party = mode === 'trial' ? this.state.trialParty : this.state.formation;
-        const error = validateParty(party, this.state.owned, mode === 'trial' ? 'trial' : 'main');
+        const layout = this.state.formations[mode === 'trial' ? 'trial' : 'main'];
+        const error = validateFormation(layout, this.state.owned, mode === 'trial' ? 'trial' : 'main');
         if (error) throw new Error(error);
         if (mode === 'city') this.state.daily.cityUsed += 1;
         if (mode === 'boat') this.state.daily.boatUsed += 1;
@@ -276,7 +302,7 @@ export class ProgressStore {
         const run: ActivityRun = { id: `run-${this.now()}-${this.state.runSerial}`, mode, day: this.state.daily.day,
             stage: mode === 'trial' ? this.state.trialHighest + 1 : 1, party: [...party], level: this.state.heroLevel,
             equipment: this.getEquipmentBonuses(), choices: [...choices], troopType: this.state.troopType,
-            defenders: [...this.state.defense], wallHeroes: [...this.state.wallHeroes] };
+            defenders: [...this.state.defense], wallHeroes: [...this.state.wallHeroes], layout: copy(layout), defenseLayout: copy(this.state.formations.defense) };
         this.state.pending = run; this.save(); return copy(run);
     }
     abandonActivity(): void { this.state.pending = null; this.save(); }

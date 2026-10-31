@@ -2,7 +2,8 @@ import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
 import type { SoldierType } from './BattleConfig';
 import type { HeroId } from './HeroCatalog';
 import { getHero, validateParty } from './HeroCatalog';
-import { createHeroes, withSoldiers } from './BattleConfig';
+import type { FormationEntry } from './FormationConfig';
+import { createHeroes, createLineup, withSoldiers } from './BattleConfig';
 
 export type ActivityMode = 'city' | 'boss' | 'trial' | 'boat';
 export type BoatChoice = 'wind' | 'guard' | 'repair';
@@ -14,6 +15,8 @@ export interface ActivityRun {
     troopType?: SoldierType;
     defenders?: HeroId[];
     wallHeroes?: HeroId[];
+    layout?: FormationEntry[];
+    defenseLayout?: FormationEntry[];
 }
 export const ACTIVITY_NAMES = { city: '城门别闹', boss: '全服讨董', trial: '三将闹五关', boat: '草船借宝' };
 export const TRIAL_TRAITS = [
@@ -27,8 +30,8 @@ export function trialTrait(stage: number): string[] { return TRIAL_TRAITS[(stage
 
 export function createActivityOptions(run: ActivityRun): BattleOptions {
     if (!Number.isInteger(run.stage) || run.stage < 1 || run.stage > 99) throw new Error('副本关卡无效');
-    const heroes = withSoldiers(createHeroes(run.party, run.level, run.equipment), run.mode === 'trial' ? 3 : 5, run.level, run.troopType);
-    if (run.mode === 'trial' && validateParty(run.party, run.party, 'trial')) throw new Error('三将阵容无效');
+    const heroes = run.layout ? createLineup(run.layout, run.level, run.equipment) : withSoldiers(createHeroes(run.party, run.level, run.equipment), run.mode === 'trial' ? 3 : 5, run.level, run.troopType);
+    if (run.mode === 'trial' && !run.layout && validateParty(run.party, run.party, 'trial')) throw new Error('三将阵容无效');
     const foe = (index: number, name: string, hp: number, attack: number, defense: number, interval = 1.5): UnitConfig => ({
         id: `enemy-${index}`, name, role: '副本', maxHp: hp, attack, defense, interval, priority: index,
         color: '#B79B63',
@@ -39,10 +42,10 @@ export function createActivityOptions(run: ActivityRun): BattleOptions {
         // Explicit local training snapshots. Real player matchmaking belongs to the server phase.
         const party = run.defenders || ['huanggai', 'xuhuang', 'sunshangxiang', 'liubei', 'liaohua'];
         const wallHeroes = run.wallHeroes || party.slice(0, 2);
-        const defenders = withSoldiers(createHeroes(party, run.level, {}), 5, run.level, run.troopType, 'enemy')
-            .map((u, i) => ({ ...u, id: `enemy-${i}`, name: `守军·${u.name}`, onWall: wallHeroes.indexOf(u.id as HeroId) >= 0, maxHp: Math.round(u.maxHp * 0.9) }));
+        const defenders = (run.defenseLayout ? createLineup(run.defenseLayout, run.level, {}, 'guard') : withSoldiers(createHeroes(party, run.level, {}), 5, run.level, run.troopType, 'enemy'))
+            .map((u, i) => ({ ...u, id: `enemy-${i}`, name: `守军·${u.name}`, onWall: u.formationSpot ? u.formationSpot.startsWith('tower-') : wallHeroes.indexOf(u.id as HeroId) >= 0, maxHp: Math.round(u.maxHp * 0.9) }));
         const wall = { ...foe(99, '呆城城墙', Math.round(2200 * Math.pow(1.18, run.level - 1)), 0, 35, 99), kind: 'wall' as const, priority: -10 };
-        return { heroes, waves: [[wall, ...defenders]], seed: 42, timeLimit: 120, approachTime: 1.3 };
+        return { heroes, waves: [[wall, ...defenders]], seed: 42, timeLimit: 120, approachTime: 3.3 };
     }
     if (run.mode === 'trial') {
         const factor = Math.pow(1.12, run.stage - 1);
@@ -70,5 +73,5 @@ export function acquisition(id: string): string {
     const hero = getHero(id)!;
     if (hero.tier === 1) return '初始伙伴 / 招募';
     if (hero.tier === 4) return '招募1% / 3000军功任选';
-    return `主线第${hero.storyStage}关首通 / 招募${hero.tier === 3 ? ' / 800军功任选' : ''}`;
+    return `${hero.storyStage ? `主线第${hero.storyStage}关首通 / ` : ''}招募${hero.tier === 3 ? ' / 800军功任选' : ''}`;
 }

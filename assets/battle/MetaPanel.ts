@@ -1,3 +1,4 @@
+import { FormationPanel } from './FormationPanel';
 import { Node } from 'cc';
 import { button, panel, text } from './BattleUI';
 import { ProgressStore } from './ProgressStore';
@@ -59,43 +60,23 @@ export class MetaPanel {
     }
     private heroes(): void {
         const p = this.store.progress;
-        const modes: ['main' | 'trial' | 'defense' | 'wall', string][] = [['main', '主线阵容'], ['trial', '三将阵容'], ['defense', '守城阵容'], ['wall', '城上守将']];
-        modes.forEach(([mode, name], i) => button(this.node, `Party-${mode}`, name, (i - 1.5) * 156, 361, 148, 48,
-            this.edit === mode ? '#5A705D' : '#273B52', () => {
-                this.edit = mode; this.draft = [...(mode === 'main' ? p.formation : mode === 'trial' ? p.trialParty : mode === 'wall' ? p.wallHeroes : p.defense)]; this.note = ''; this.render();
-            }));
-        text(this.node, 'PartyDraft', `已选 ${this.draft.length}/${this.edit === 'trial' ? 3 : this.edit === 'wall' ? 2 : 5}：${this.draft.map(id => getHero(id)!.name).join('、')}`, -65, 305, 19, '#C6DCCB', 490);
-        button(this.node, 'SaveParty', '保存阵容', 248, 305, 132, 48, '#526F56', () => this.attempt(() => {
-            const error = this.edit === 'wall' ? this.store.setWallHeroes(this.draft) : this.store.setParty(this.draft, this.edit); this.note = error || (this.edit === 'defense' || this.edit === 'wall' ? '守军已保存，可通过攻城演练查看城墙防守' : '阵容已保存，下次入场生效');
-        }));
-        const owned = HERO_CATALOG.filter(h => p.owned.indexOf(h.id) >= 0);
-        const locked = HERO_CATALOG.filter(h => p.owned.indexOf(h.id) < 0);
-        const list = owned.concat(locked);
-        list.slice(this.page * 5, this.page * 5 + 5).forEach((hero, i) => {
-            const have = p.owned.indexOf(hero.id) >= 0; const selected = this.draft.indexOf(hero.id);
-            const row = panel(this.node, `Hero-${hero.id}`, 0, 219 - i * 122, 630, 110, '#21364B', 12);
-            text(row, 'Name', `${TIER_NAMES[hero.tier - 1]} · ${hero.name} · ${hero.role}`, -65, 28, 23, TIER_COLORS[hero.tier - 1], 475);
-            text(row, 'Stats', `攻${hero.attack} 防${hero.defense} 血${hero.maxHp} · ${TACTIC_NAMES[hero.tactic!]}`, -65, -7, 17, '#AFC4D7', 475);
-            text(row, 'Source', have ? '已拥有 · ' + acquisition(hero.id) : acquisition(hero.id), -65, -35, 16, '#809AB5', 475);
-            button(row, 'Select', have ? selected >= 0 ? `撤下 ${selected + 1}` : '上阵' : '未获得', 245, 0, 122, 60,
-                selected >= 0 ? '#785D47' : '#3C6254', () => {
-                    if (!have) { this.note = '通过剧情、招募或军功获得后可上阵'; this.render(); return; }
-                    if (selected >= 0) this.draft.splice(selected, 1);
-                    else if (this.draft.length < (this.edit === 'trial' ? 3 : this.edit === 'wall' ? 2 : 5)) this.draft.push(hero.id);
-                    else this.note = '阵容已满，请先撤下一位；选择顺序决定怒气技能主将';
-                    this.render();
-                });
+        text(this.node, 'RosterSummary', `已结识${p.owned.length}/40位武将 · 阵型分别保存`, 0, 358, 25, '#D9C79C');
+        button(this.node, 'OpenFormationEditor', '拖拽布阵 · 主线 / 三将 / 守城', 0, 282, 620, 70, '#5A7156', () => {
+            new FormationPanel(this.node, this.store, () => this.render());
         });
-        button(this.node, 'SoldierType', `补位小兵：${({ mixed: '刀枪弓均衡', sword: '刀盾兵', spear: '长枪兵', bow: '弓箭兵' })[p.troopType]}（点击切换）`, 0, -355, 510, 44, '#344D5D', () => {
-            const types = ['mixed', 'sword', 'spear', 'bow'] as const; this.store.setTroopType(types[(types.indexOf(p.troopType) + 1) % 4]);
-            this.note = '空缺阵位会自动补小兵，武将与小兵合计主线5人、三将3人'; this.render();
+        const list = HERO_CATALOG.filter(h => p.owned.indexOf(h.id) >= 0).concat(HERO_CATALOG.filter(h => p.owned.indexOf(h.id) < 0));
+        list.slice(this.page * 5, this.page * 5 + 5).forEach((h, i) => {
+            const row = panel(this.node, `Hero-${h.id}`, 0, 185 - i * 112, 630, 100, '#21364B', 12);
+            text(row, 'Name', `${TIER_NAMES[h.tier - 1]} · ${h.name} · ${h.role}`, 0, 22, 24, TIER_COLORS[h.tier - 1], 600);
+            text(row, 'Source', `${p.owned.indexOf(h.id) >= 0 ? '已拥有 · ' : ''}${acquisition(h.id)}`, 0, -16, 18, '#9CB2C6', 600);
         });
         this.pagination(list.length);
+        this.note = this.note || '点击上方拖拽布阵；头像拖入阵位，可混编刀枪弓';
     }
     private draw(): void {
         const p = this.store.progress;
         text(this.node, 'DrawTitle', '呆币招募 · 结识天下英雄', 0, 342, 30, '#E3C68C');
-        text(this.node, 'DrawOdds', '基础概率：小将60% · 骁将30% · 名将9% · 神将1%', 0, 288, 21, '#B0C5DB');
+        text(this.node, 'DrawOdds', '基础概率：普通60% · 骁将30% · 名将9% · 神将1%', 0, 288, 21, '#B0C5DB');
         text(this.node, 'DrawPity', `十连至少1骁将 · 最迟80抽神将（当前 ${p.pity}/80）`, 0, 245, 21, '#CEB4D9');
         text(this.node, 'DrawDuplicate', '重复武将转铜钱：200 / 500 / 2000 / 6000', 0, 204, 19, '#8DA6BF');
         button(this.node, 'SingleRecruit', '招募1次 · 100呆币', -160, 126, 300, 74, '#426C59', () => this.attempt(() => {

@@ -96,22 +96,16 @@ test('怒气不足、暂停、关羽死亡时技能不生效、不消耗怒气',
     assert.equal(engine.energy, 100);
 });
 
-test('青龙斩伤害覆盖全部敌人，仁德回复不超上限、不复活死亡单位', () => {
-    const engine = battle({ heroes: [unit('guanyu'), unit('liubei'), unit('dead')],
+test('神将群攻与名将独立群疗，不超上限、不复活死亡单位', () => {
+    const engine = battle({ heroes: [unit('guanyu', { heroTier: 4, tactic: 'cleave' }), unit('liubei', { heroTier: 3, tactic: 'heal' }), unit('dead')],
         waves: [[unit('a', { maxHp: 1000 }), unit('b', { maxHp: 1000 })]] });
-    engine.autoSkill = false;
-    engine.heroes[0].hp = 95;
-    engine.heroes[1].hp = 20;
-    engine.heroes[2].hp = 0;
-    engine.energy = 100;
-    assert.equal(engine.castSkill(), true);
+    engine.autoSkill = false; engine.heroes[0].hp = 95; engine.heroes[1].hp = 20; engine.heroes[2].hp = 0;
+    engine.energy = 100; assert.equal(engine.castSkill(), true);
     assert.ok(engine.enemies.every(e => e.hp < e.maxHp));
-    assert.equal(engine.heroes[0].hp, 100);
-    assert.equal(engine.heroes[1].hp, 32);
-    assert.equal(engine.heroes[2].hp, 0);
-    assert.equal(engine.energy, 0);
-    assert.equal(engine.skillCount, 1);
-    assert.equal(engine.castSkill(), false);
+    assert.equal(engine.heroes[0].hp, 95); // 群攻不再附带刘备的被动治疗。
+    engine.heroes[1].energy = 100; assert.equal(engine.castSkill('liubei'), true);
+    assert.equal(engine.heroes[0].hp, 100); assert.equal(engine.heroes[1].hp, 32); assert.equal(engine.heroes[2].hp, 0);
+    assert.equal(engine.heroes[0].energy, 0); assert.equal(engine.heroes[1].energy, 0); assert.equal(engine.skillCount, 2);
 });
 
 test('默认第一关能够完成三波，自动技能实际释放', () => {
@@ -231,10 +225,10 @@ test('旧版 v1 存档无等级字段时迁移为 Lv.1，非法等级不污染�
 });
 
 test('升级只影响新创建的战斗；能够靠升级突破原先失败关卡', () => {
-    const original = new BattleEngine(createBattleOptions(5));
+    const original = new BattleEngine(createBattleOptions(10));
     original.advance(120);
     assert.equal(original.status, 'lost');
-    const upgraded = new BattleEngine(createBattleOptions(5, 20261030, 5));
+    const upgraded = new BattleEngine(createBattleOptions(10, 20261030, 5));
     upgraded.advance(120);
     assert.equal(upgraded.status, 'won');
     assert.equal(original.heroes[0].maxHp, HEROES[0].maxHp);
@@ -291,9 +285,9 @@ test('穿戴只接受存在的装备与合法武将；转交装备不会让两�
     assert.equal(store.equip('unknown', item.id), false);
     assert.equal(store.equip('guanhai', 'missing'), false);
     assert.equal(store.equip('guanhai', item.id), true);
-    assert.equal(store.equip('liaohua', item.id), true);
+    assert.equal(store.equip('songxian', item.id), true);
     assert.equal(store.progress.equipped.guanhai, undefined);
-    assert.equal(store.progress.equipped.liaohua, item.id);
+    assert.equal(store.progress.equipped.songxian, item.id);
     assert.equal(store.progress.inventory.length, 1);
 });
 
@@ -316,10 +310,10 @@ test('一键最强选择可用最高评分，不抢其他武将正在使用的�
     assert.equal(store.equipBest('guanhai'), false);
     for (let i = 0; i < 5; i++) store.settleVictory(`best-${i}`, i + 1);
     const ranked = store.progress.inventory.sort((a, b) => equipmentScore(b) - equipmentScore(a) || a.id.localeCompare(b.id));
-    store.equip('zhoucang', ranked[0].id);
+    store.equip('caohong', ranked[0].id);
     assert.equal(store.equipBest('guanhai'), true);
     assert.equal(store.progress.equipped.guanhai, ranked[1].id);
-    assert.equal(store.progress.equipped.zhoucang, ranked[0].id);
+    assert.equal(store.progress.equipped.caohong, ranked[0].id);
 });
 
 test('装备加成只作用于指定武将的新战斗，不回写旧战斗或配置', () => {
@@ -341,10 +335,10 @@ test('旧存档无背包时兼容；无效装备和悬空/重复穿戴被清理'
     assert.deepEqual(migrated.progress.equipped, {});
     const invalid = new ProgressStore(memoryStorage(JSON.stringify({ ...old,
         inventory: [null, item, item, { ...item, id: 'bad', attack: -1 }],
-        equipped: { guanhai: item.id, liaohua: item.id, liubei: 'missing' },
+        equipped: { guanhai: item.id, songxian: item.id, liubei: 'missing' },
     })));
     assert.equal(invalid.progress.inventory.length, 1);
-    assert.deepEqual(invalid.progress.equipped, { liaohua: item.id });
+    assert.deepEqual(Object.values(invalid.progress.equipped), [item.id]);
 });
 
 test('背包与穿戴的外部副本不可改写内部存档', () => {

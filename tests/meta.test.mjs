@@ -14,9 +14,9 @@ function rich(extra = {}, rng = () => 0.1) {
     return { disk, store: new ProgressStore(disk, () => NOW, rng) };
 }
 
-test('24名武将覆盖四档，初始5小将均可战斗，主线第一关可通关', () => {
-    assert.equal(HERO_CATALOG.length, 24);
-    assert.equal(new Set(HERO_CATALOG.map(h => h.id)).size, 24);
+test('40名武将覆盖四档，初始5普通武将均可战斗，主线第一关可通关', () => {
+    assert.equal(HERO_CATALOG.length, 40);
+    assert.equal(new Set(HERO_CATALOG.map(h => h.id)).size, 40);
     assert.deepEqual([...new Set(HERO_CATALOG.map(h => h.tier))].sort(), [1, 2, 3, 4]);
     const store = new ProgressStore(storage(), () => NOW);
     assert.deepEqual(store.progress.formation, STARTER_PARTY);
@@ -28,10 +28,10 @@ test('24名武将覆盖四档，初始5小将均可战斗，主线第一关可�
 test('主线首通给少量呆币与剧情武将，重打和刷新不能再次给首通奖励', () => {
     const disk = storage(); const s = new ProgressStore(disk, () => NOW);
     const r = s.settleVictory('first', 1);
-    assert.equal(r.daibi, 10); assert.deepEqual(r.heroes, ['liubei']);
+    assert.equal(r.daibi, 10); assert.deepEqual(r.heroes, ['chengpu']);
     assert.equal(s.settleVictory('replay', 1).daibi, 0);
     assert.equal(s.settleVictory('milestone', 5).daibi, 60);
-    assert.ok(s.progress.owned.includes('zhangfei'));
+    assert.ok(s.progress.owned.includes('liubei'));
     assert.equal(new ProgressStore(disk, () => NOW).settleVictory('reload', 5).daibi, 0);
 });
 test('0.4旧存档保留原五将、等级、装备和资源，不追发可反复刷的呆币', () => {
@@ -89,8 +89,8 @@ test('军功兑换可以任选名将神将，已有武将与积分不足不扣�
     const { store, disk } = rich({ owned: [...STARTER_PARTY] });
     assert.equal(store.exchange('lvbu'), null); assert.equal(store.progress.points, 7000);
     assert.ok(store.exchange('lvbu')); assert.equal(store.progress.points, 7000);
-    assert.equal(store.exchange('guanyu'), null); assert.equal(store.progress.points, 6200);
-    assert.ok(store.exchange('liubei')); assert.equal(store.progress.points, 6200);
+    assert.equal(store.exchange('zhangfei'), null); assert.equal(store.progress.points, 6200);
+    assert.ok(store.exchange('huanggai')); assert.equal(store.progress.points, 6200);
     assert.ok(new ProgressStore(disk, () => NOW).progress.owned.includes('lvbu'));
     assert.ok(rich({ points: 1, owned: [...STARTER_PARTY] }).store.exchange('zhouyu'));
 });
@@ -100,7 +100,7 @@ test('阵容限制验证人数、归属、唯一性，三将最多1神将2名将
     assert.ok(validateParty(['guanyu', 'zhaoyun', 'zhangfei'], all, 'trial'));
     assert.ok(validateParty(['guanyu', 'guanyu', 'liubei'], all, 'trial'));
     assert.ok(validateParty(['lvbu', 'guanyu', 'liubei'], STARTER_PARTY, 'trial'));
-    assert.equal(validateParty(['lvbu', 'guanyu', 'zhaoyun'], all, 'trial'), null);
+    assert.equal(validateParty(['lvbu', 'zhangfei', 'liubei'], all, 'trial'), null);
     const s = rich().store; const before = s.progress.trialParty;
     assert.ok(s.setParty(['lvbu', 'caocao', 'guanyu'], 'trial'));
     assert.deepEqual(s.progress.trialParty, before);

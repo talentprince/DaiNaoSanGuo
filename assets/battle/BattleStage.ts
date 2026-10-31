@@ -48,8 +48,8 @@ export class BattleStage {
         }
     }
     update(dt: number, marching: boolean): void {
-        if ((this.style === 'rift' && marching) || this.style === 'boat') {
-            this.offset = (this.offset + dt * (this.style === 'boat' ? 13 : 52)) % 650;
+        if (((this.style === 'rift' || this.style === 'city') && marching) || this.style === 'boat') {
+            this.offset = (this.offset + dt * (this.style === 'boat' ? 13 : this.style === 'city' ? 145 : 52)) % 650;
             this.tiles.forEach((tile, i) => tile.setPosition(i * 650 - this.offset, 0, 0));
         }
     }

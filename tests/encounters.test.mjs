@@ -39,7 +39,7 @@ test('接敌阶段不会隔空攻击或放技能，暂停也停止接敌计时',
     e.paused = false; e.advance(1); assert.ok(e.enemies[0].hp < 1000);
 });
 test('城墙存活时城上守将减伤60%，破城后同一攻击恢复正常伤害', () => {
-    const e = new BattleEngine({ heroes: [unit('guanyu')], waves: [[unit('wall', { kind: 'wall', maxHp: 10000 }),
+    const e = new BattleEngine({ heroes: [unit('guanyu', { heroTier: 4 })], waves: [[unit('wall', { kind: 'wall', maxHp: 10000 }),
         unit('upper', { onWall: true }), unit('ground')]], seed: 1 });
     e.energy = 100; e.castSkill();
     const [wall, upper, ground] = e.enemies;
@@ -74,14 +74,15 @@ test('城上最多2将且必须属于守城阵容，保存并快照到演练，�
     const disk = memory(); const s = new ProgressStore(disk);
     assert.ok(s.setWallHeroes(STARTER_PARTY.slice(0, 3)));
     assert.ok(s.setWallHeroes(['lvbu']));
-    assert.equal(s.setWallHeroes(['guanhai', 'zhoucang']), null);
+    assert.equal(s.setWallHeroes(['guanhai', 'caohong']), null);
     const r = s.startActivity('city'); const options = createActivityOptions(r);
     assert.equal(options.waves[0].filter(u => u.onWall).length, 2);
     assert.equal(options.waves[0].filter(u => u.kind === 'wall').length, 1);
     assert.equal(options.waves[0].length, 6);
-    assert.deepEqual(new ProgressStore(disk).progress.wallHeroes, ['guanhai', 'zhoucang']);
-    s.setParty(['liaohua'], 'defense'); assert.deepEqual(s.progress.wallHeroes, []);
-    assert.deepEqual(s.progress.pending.wallHeroes, ['guanhai', 'zhoucang']);
+    assert.deepEqual(new ProgressStore(disk).progress.wallHeroes, ['guanhai', 'caohong']);
+    s.setParty(['songxian'], 'defense'); assert.ok(s.progress.wallHeroes.every(id => id !== 'guanhai' && id !== 'caohong'));
+    assert.equal(s.progress.formations.defense.filter(e => e.spot.startsWith('tower-')).length, 2);
+    assert.deepEqual(s.progress.pending.wallHeroes, ['guanhai', 'caohong']);
 });
 
 test('秘境Boss现身的同一步立即进入接敌阶段，其他队友不能继续隔空攻击', () => {

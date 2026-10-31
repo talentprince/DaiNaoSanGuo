@@ -3,6 +3,8 @@ import { BattleEngine } from './battle/BattleEngine';
 import type { BattleEvent, Unit } from './battle/BattleEngine';
 import { ProgressStore, RARITY_NAMES } from './battle/ProgressStore';
 import { InventoryPanel } from './battle/InventoryPanel';
+import { SkillHud } from './battle/SkillHud';
+import { battlePosition } from './data/FormationConfig';
 import { MetaPanel } from './battle/MetaPanel';
 import { UnitActor } from './battle/UnitActor';
 import { CombatEffects } from './battle/CombatEffects';
@@ -22,6 +24,9 @@ export class BattlePreview extends Component {
     private root!: Node;
     private field!: Node;
     private units!: Node;
+    private enemyUnits!: Node;
+    private skillHud: SkillHud | null = null;
+    private cityOffset = 0;
     private effectsRoot!: Node;
     private engine!: BattleEngine;
     private store!: ProgressStore;
@@ -66,7 +71,7 @@ export class BattlePreview extends Component {
         panel(this.root, 'Background', 0, 0, 720, 1280, '#111E30', 0);
         panel(this.root, 'Accent', 0, 632, 720, 16, '#DCB977', 0);
         text(this.root, 'Title', '呆脑三国', -130, 558, 48, '#F2E1BC', 390);
-        text(this.root, 'Version', 'DEMO 0.6 · 跑动开打', 195, 562, 20, '#C0A773', 270);
+        text(this.root, 'Version', 'DEMO 0.8 · 群将争锋', 195, 562, 20, '#C0A773', 270);
         this.title = text(this.root, 'Stage', '', 0, 492, 30);
         this.wallet = text(this.root, 'Wallet', '', -120, 447, 20, '#B9C5D4', 400);
         this.trainButton = button(this.root, 'TrainButton', '升级全队', 216, 447, 220, 46, '#5E5540', () => {
@@ -86,16 +91,19 @@ export class BattlePreview extends Component {
         this.effectsRoot = makeNode('CombatEffects', this.field);
         this.fx = new CombatEffects(this.effectsRoot);
         this.statusLine = text(this.root, 'BattleLog', '', 0, -294, 21, '#CDD6DE');
-        this.skill = button(this.root, 'SkillButton', '怒气技能', -83, -374, 464, 76, '#426C59', () => {
-            if (this.engine.status !== 'fighting') { this.statusLine.string = '本局已结束'; return; }
-            if (this.engine.castSkill()) this.processEvents();
-            else this.statusLine.string = this.engine.paused ? '战斗暂停中' : this.engine.approachRemaining > 0 ? '正在接敌，接战后可释放技能' : '怒气满100%后可释放存活武将技能';
+        this.skill = button(this.root, 'SkillButton', '武将独立蓄能', -83, -374, 464, 76, '#426C59', () => {
+            let count = 0;
+            this.engine.heroes.forEach(unit => { if (this.engine.canCastHeroSkill(unit.id) && this.engine.castSkill(unit.id)) count += 1; });
+            if (count) this.processEvents();
+            else this.statusLine.string = this.engine.paused ? '战斗暂停中，继续后可释放技能' : '左侧武将头像圈满能闪烁，点击可释放该将技能';
             this.refresh();
         });
         this.autoButton = button(this.root, 'AutoSkillButton', '自动技能', 246, -374, 156, 76, '#3D4E64', () => {
             this.autoSkill = !this.autoSkill; this.engine.autoSkill = this.autoSkill; this.refresh();
         });
         this.energyBar = makeNode('SkillEnergy', this.root, 0, -432).addComponent(Graphics);
+        this.energyBar.node.active = false;
+        text(this.root, 'IndividualSkillHelp', '每将独立蓄能 · 左侧头像发光时可点击放大招', 0, -432, 18, '#A6B8BB');
         button(this.root, 'RestartButton', '重新开始', -220, -502, 200, 64, '#3A4D66', () => this.restart());
         this.pause = button(this.root, 'PauseButton', '暂停', 0, -502, 200, 64, '#3A4D66', () => {
             this.engine.paused = !this.engine.paused;
@@ -106,8 +114,8 @@ export class BattlePreview extends Component {
             this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1; this.refresh();
         });
         this.inventoryButton = button(this.root, 'InventoryButton', '装备背包', -222, -565, 200, 48, '#544B64', () => this.openInventory());
-        button(this.root, 'HallButton', '武将 · 招募 · 副本', 112, -565, 400, 48, '#655D45', () => this.openHall());
-        text(this.root, 'Help', '空位补刀枪弓 · 秘境进度与技能怒气分别累计', 0, -610, 17, '#8094AA');
+        button(this.root, 'HallButton', '布阵 · 武将 · 副本', 112, -565, 400, 48, '#655D45', () => this.openHall());
+        text(this.root, 'Help', '头像拖入阵型 · 刀枪弓可混编 · 武将独立技能', 0, -610, 17, '#8094AA');
         this.begin(this.stage);
     }
 
@@ -119,8 +127,11 @@ export class BattlePreview extends Component {
         this.processEvents();
         if (!this.engine.paused) {
             const march = !this.activeRun && ((!this.engine.bossActive && this.engine.status === 'fighting') || this.autoNext > 0);
-            this.scenery?.update(frame * pace, march);
-            this.actors.forEach(actor => actor.update(frame * pace, march && actor.unit.team === 'hero' && actor.unit.hp > 0));
+            const charge = this.activeRun?.mode === 'city' && this.engine.approachRemaining > 0;
+            if (this.cityOffset > 0) { this.cityOffset = Math.max(0, this.cityOffset - frame * pace * 220); this.enemyUnits.setPosition(this.cityOffset, 0, 0); }
+            this.scenery?.update(frame * pace, march || charge);
+            this.actors.forEach(actor => actor.update(frame * pace, (march || charge) && actor.unit.team === 'hero' && actor.unit.hp > 0));
+            this.sortActors();
             this.fx.update(frame * Math.min(pace, 2));
             if (this.autoNext > 0 && !this.hall && !this.inventory) {
                 this.autoNext -= frame;
@@ -128,6 +139,7 @@ export class BattlePreview extends Component {
                 if (this.autoNext <= 0) { this.begin(Math.min(99, this.stage + 1)); return; }
             }
         }
+        this.skillHud?.update(frame);
         this.refresh();
     }
 
@@ -137,45 +149,63 @@ export class BattlePreview extends Component {
         const p = this.store.progress;
         this.activeLevel = run ? run.level : p.heroLevel;
         this.engine = new BattleEngine(run ? createActivityOptions(run)
-            : createMainlineOptions(stage, 20261030, this.activeLevel, this.store.getEquipmentBonuses(), p.formation, p.troopType));
+            : createMainlineOptions(stage, 20261030, this.activeLevel, this.store.getEquipmentBonuses(), p.formation, p.troopType, p.formations.main));
         this.engine.autoSkill = this.autoSkill;
         this.resultShown = false; this.autoNext = 0; this.nextLabel = null;
         if (this.modal) { this.modal.destroy(); this.modal = null; }
-        this.units.destroyAllChildren(); this.fx.clear(); this.actors.clear();
+        this.units.destroyAllChildren(); this.enemyUnits = makeNode('EnemyArmy', this.units); this.fx.clear(); this.actors.clear();
+        this.skillHud?.destroy(); this.skillHud = null;
+        this.cityOffset = run?.mode === 'city' ? 600 : 0; this.enemyUnits.setPosition(this.cityOffset, 0, 0);
         this.scenery?.destroy();
         const style: StageStyle = !run ? 'rift' : run.mode === 'boss' ? 'boss' : run.mode === 'city' ? 'city' : run.mode === 'boat' ? 'boat' : 'trial';
         this.scenery = new BattleStage(this.field, style); this.scenery.node.setSiblingIndex(0);
-        this.teamLabel.node.active = style !== 'boss'; this.enemyLabel.node.active = style !== 'boss';
+        this.teamLabel.node.active = style !== 'boss'; this.enemyLabel.node.active = style !== 'boss' && style !== 'city'; this.wave.node.active = style !== 'boss' && style !== 'city';
         this.engine.heroes.forEach((unit, i) => this.createActor(unit, i));
         this.statusLine.string = run ? `${ACTIVITY_NAMES[run.mode]} · 准备接战` : '一路向右 · 清怪攒秘境进度，满100召首领';
-        this.processEvents(); this.refresh();
+        this.processEvents();
+        this.skillHud = new SkillHud(this.field, this.engine, id => {
+            if (this.engine.castSkill(id)) this.processEvents();
+            else this.statusLine.string = this.engine.paused ? '战斗暂停中' : '该武将需存活、接战且蓄满100%才能释放';
+            this.refresh();
+        });
+        this.skillHud.update(0); this.refresh();
     }
 
     private createActor(unit: Unit, index: number): void {
         const hero = unit.team === 'hero'; const mode = this.activeRun?.mode;
-        let x = hero ? (index % 2 === 0 ? -236 : -130) : (index % 2 === 0 ? 210 : 125);
+        let x = hero ? (index % 2 === 0 ? -230 : -150) : (index % 2 === 0 ? 215 : 130);
         let y = 180 - index * 90;
-        let fromX = hero ? x - 90 : x + 125; let fromY = y; let scale = unit.kind === 'soldier' ? 0.8 : 0.9;
+        if (unit.formationSpot) ({ x, y } = battlePosition(unit.formationSpot, mode === 'boss' ? 'boss' : mode === 'city' ? 'city' : mode === 'trial' ? 'trial' : 'main', !hero));
+        let fromX = hero ? x - 90 : x + 125; let fromY = y; let scale = unit.kind === 'soldier' ? 0.9 : unit.heroTier === 4 ? 1.28 : unit.heroTier === 3 ? 1.18 : unit.heroTier === 2 ? 1.1 : unit.kind === 'hero' ? 1.06 : 0.9;
         if (mode === 'boss') {
-            x = hero ? (index - 2) * 120 : 0; y = hero ? -175 : 127;
-            fromX = x; fromY = hero ? y - 18 : y; scale = hero ? unit.kind === 'soldier' ? 0.67 : 0.78 : 1.8;
+            if (!hero) { x = 0; y = 90; scale = 2.65; } else scale = unit.kind === 'soldier' ? 0.65 : 0.78;
+            fromX = x; fromY = y;
         } else if (mode === 'city') {
-            if (hero) { x = index % 2 === 0 ? -90 : -165; fromX = x - 110; }
-            else if (unit.kind === 'wall') { x = 175; y = -75; fromX = x; fromY = y; scale = 1; }
-            else if (unit.onWall) {
-                const wallIndex = this.engine.enemies.filter(u => u.onWall).findIndex(u => u.id === unit.id);
-                x = 125 + wallIndex * 108; y = 120; fromX = x; fromY = y;
-            } else {
-                const groundIndex = this.engine.enemies.filter(u => u.kind !== 'wall' && !u.onWall).findIndex(u => u.id === unit.id);
-                x = 95 + groundIndex % 2 * 115; y = -35 - groundIndex * 82; fromX = x; fromY = y;
+            if (hero) fromX = x - 100;
+            else if (unit.kind === 'wall') { x = 300; y = 20; fromX = x; fromY = y; scale = 1; }
+            else {
+                if (!unit.formationSpot) {
+                    const wallIndex = this.engine.enemies.filter(u => u.onWall).findIndex(u => u.id === unit.id);
+                    const groundIndex = this.engine.enemies.filter(u => u.kind !== 'wall' && !u.onWall).findIndex(u => u.id === unit.id);
+                    ({ x, y } = battlePosition(unit.onWall ? wallIndex === 0 ? 'tower-left' : 'tower-right' : `ground-${Math.max(0, groundIndex)}`, 'city', true));
+                }
+                fromX = x; fromY = y; scale = unit.onWall ? 1 : unit.kind === 'soldier' ? 0.9 : unit.heroTier === 4 ? 1.24 : 1.12;
             }
         } else if (mode === 'trial') {
-            x = hero ? index % 2 === 0 ? -135 : -70 : index % 2 === 0 ? 140 : 215;
-            y = hero ? 155 - index * 155 : 180 - index * 90;
+            if (!hero && !unit.formationSpot) ({ x, y } = battlePosition(['r0c2', 'r1c2', 'r2c2', 'r0c0', 'r2c0'][index], 'trial', true));
             fromX = hero ? -310 : 320; fromY = y;
         } else if (unit.kind === 'boss') { x = 185; y = 55; fromX = 325; fromY = y; scale = 1.4; }
-        const actor = new UnitActor(this.units, unit, x, y, fromX, fromY, scale, hero ? 1 : -1);
+        const actor = new UnitActor(hero ? this.units : this.enemyUnits, unit, x, y, fromX, fromY, scale, hero ? 1 : -1,
+            mode === 'boss' && hero, mode === 'boss' || (mode === 'city' && !hero));
+        if (mode === 'boss' && !hero) actor.node.getChildByName('Name')!.active = false;
         this.actors.set(unit.id, actor);
+    }
+
+    private sortActors(): void {
+        const allies: UnitActor[] = []; const enemies: UnitActor[] = [];
+        this.actors.forEach(actor => (actor.unit.team === 'hero' ? allies : enemies).push(actor));
+        allies.sort((a, b) => b.node.position.y - a.node.position.y || a.node.position.x - b.node.position.x).forEach((a, i) => a.node.setSiblingIndex(i + 1));
+        enemies.sort((a, b) => a.unit.kind === 'wall' ? -1 : b.unit.kind === 'wall' ? 1 : b.node.position.y - a.node.position.y || a.node.position.x - b.node.position.x).forEach((a, i) => a.node.setSiblingIndex(i));
     }
 
     private processEvents(): void { this.engine.drainEvents().forEach(event => this.showEvent(event)); }
@@ -186,6 +216,7 @@ export class BattlePreview extends Component {
             this.statusLine.string = this.engine.riftGoal ? this.engine.bossActive ? '首领现身！击败它继续向右' : `遭遇第${event.wave}队敌兵 · 秘境行军中`
                 : this.activeRun?.mode === 'boss' ? '董卓在上，我军迎面讨伐！' : '双方正在接敌';
         } else if (event.type === 'boss') {
+            this.actors.forEach((actor, id) => { if (actor.unit.team === 'enemy' && actor.unit.kind !== 'boss') { actor.node.destroy(); this.actors.delete(id); } });
             this.engine.enemies.forEach((unit, i) => { if (unit.kind === 'boss' && !this.actors.has(unit.id)) this.createActor(unit, i); });
             this.fx.announce('秘境首领 · 现身！');
             this.statusLine.string = '秘境进度已满，首领现身！';
@@ -196,19 +227,28 @@ export class BattlePreview extends Component {
         } else if ((event.type === 'damage' || event.type === 'heal') && event.target) {
             const actor = this.actors.get(event.target);
             if (actor) { this.fx.number(actor, event.amount || 0, event.type === 'heal', !!event.critical); if (event.type === 'damage') actor.hurt(); }
+        } else if (event.type === 'buff' && event.target) {
+            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, event.buff === 'attack' ? '战意+20%' : `护盾+${event.amount}`, '#ADE0D8');
+        } else if (event.type === 'shield' && event.target) {
+            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, `盾−${event.amount}`, '#9DDBE4');
         } else if (event.type === 'death' && event.target) this.actors.get(event.target)?.die();
         else if (event.type === 'wall-break') {
             const wall = this.engine.enemies.find(u => u.kind === 'wall');
             if (wall) { const actor = this.actors.get(wall.id); actor?.breakWall(); if (actor) this.fx.wallBreak(actor.node.position.x, actor.node.position.y); }
+            const used = new Set<string>();
+            this.actors.forEach(a => { if (a.unit.formationSpot?.startsWith('ground-')) used.add(a.unit.formationSpot); });
+            const free = Array.from({ length: 6 }, (_, i) => `ground-${i}`).filter(id => !used.has(id));
             let i = 0;
-            this.actors.forEach(actor => { if (actor.unit.onWall && actor.unit.hp > 0) { actor.fallTo(110 + i * 105, -65 - i * 105); i += 1; } });
+            this.actors.forEach(actor => {
+                if (actor.unit.onWall && actor.unit.hp > 0) { const p = battlePosition(free[i++] || 'ground-4', 'city', true); actor.fallTo(p.x, p.y); }
+            });
             this.fx.announce('城墙崩塌 · 守将减伤解除！'); this.statusLine.string = '破城！城上守军落地，恢复正常承伤';
         } else if (event.type === 'skill' && event.source) {
             const source = this.actors.get(event.source);
             if (source) {
-                const name = source.unit.id === 'guanyu' ? '青龙斩' : TACTIC_NAMES[source.unit.tactic || 'cleave'];
+                const name = source.unit.skillName || (source.unit.kind === 'boss' ? '魔王震地' : TACTIC_NAMES[source.unit.tactic || 'cleave']);
                 const targets: UnitActor[] = []; const friends: UnitActor[] = [];
-                this.actors.forEach(actor => { if (actor.unit.team === 'hero') friends.push(actor); else if (event.targets?.indexOf(actor.unit.id) !== -1) targets.push(actor); });
+                this.actors.forEach(actor => { if (actor.unit.team === source.unit.team) { if (source.unit.tactic !== 'heal' || event.targets?.indexOf(actor.unit.id) !== -1) friends.push(actor); } else if (event.targets?.indexOf(actor.unit.id) !== -1) targets.push(actor); });
                 targets.sort((a, b) => (event.targets || []).indexOf(a.unit.id) - (event.targets || []).indexOf(b.unit.id));
                 this.fx.skill(source, targets, friends, name); this.statusLine.string = `${source.unit.name} · ${name}！`;
             }
@@ -224,7 +264,7 @@ export class BattlePreview extends Component {
         this.inventoryButton.label.string = `装备背包 ${p.inventory.length}/40`;
         this.actors.forEach(actor => {
             const unit = actor.unit;
-            bar(actor.hp, unit.hp / unit.maxHp, unit.kind === 'boss' ? 175 : 85, 8, unit.team === 'hero' ? '#7CC69E' : '#E0B76A');
+            bar(actor.hp, unit.hp / unit.maxHp, unit.kind === 'boss' ? 175 : unit.formationSpot ? 64 : 85, 8, unit.team === 'hero' ? '#7CC69E' : '#E0B76A');
             actor.hpText.string = this.activeRun?.mode === 'boss' && unit.team === 'enemy' ? '30秒计分目标' : `${Math.ceil(unit.hp)}/${unit.maxHp}`;
         });
         const phase = this.engine.paused ? '已暂停' : this.engine.approachRemaining > 0 ? '正在接敌' : this.engine.status === 'fighting' ? '交战中' : '战斗结束';
@@ -234,7 +274,7 @@ export class BattlePreview extends Component {
             bar(this.overviewBar, this.engine.riftEnergy / 100, 620, 10, '#D8BC75');
             this.wave.string = `${phase} · ${Math.floor(this.engine.elapsed)}秒 · 主将+补位兵共${this.engine.heroes.length}人`;
         } else if (mode === 'boss') {
-            this.overview.string = `世界Boss · 固定30秒 · 当前伤害${Math.floor(this.engine.damageDealt)}`;
+            this.overview.string = `世界Boss ${Math.min(30, Math.floor(this.engine.elapsed))}/30秒 · 伤害${Math.floor(this.engine.damageDealt)}`;
             bar(this.overviewBar, this.engine.elapsed / 30, 620, 10, '#BE8FCB');
             this.wave.string = `${phase} · ${Math.min(30, Math.floor(this.engine.elapsed))}/30秒 · 今日最高${p.daily.bossBest}`;
         } else if (mode === 'city') {
@@ -247,11 +287,10 @@ export class BattlePreview extends Component {
             bar(this.overviewBar, (this.engine.waveIndex + 1) / this.engine.waveCount, 620, 10, '#8CBAB1');
             this.wave.string = `${phase} · ${this.engine.waveIndex + 1}/${this.engine.waveCount}波 · ${Math.floor(this.engine.elapsed)}秒`;
         }
-        bar(this.energyBar, this.engine.energy / 100, 620, 14, '#D9B874');
-        const caster = this.engine.heroes.find(u => u.hp > 0 && (u.tactic || u.id === 'guanyu'));
-        const skillName = caster?.id === 'guanyu' ? '青龙斩' : caster ? TACTIC_NAMES[caster.tactic || 'cleave'] : '怒气技能';
-        this.skill.label.string = this.engine.status !== 'fighting' ? `${skillName} · 本局结束` : this.engine.canCastSkill ? `${skillName} · 点击释放` : `${skillName} · 怒气${Math.floor(this.engine.energy)}%`;
-        this.skill.label.color = new Color(this.engine.canCastSkill ? '#FFF0B3' : '#C7D8CC');
+        const ready = this.engine.heroes.filter(u => u.kind !== 'soldier' && u.hp > 0 && u.energy >= 100);
+        const count = this.engine.heroes.filter(u => u.kind !== 'soldier').length;
+        this.skill.label.string = this.engine.status !== 'fighting' ? '本局结束 · 武将技能已停止' : this.engine.paused ? `${ready.length}人技能已满 · 继续后释放` : ready.length ? `${ready.length}名武将已就绪 · 一键放大招` : `${count}名武将独立蓄能中`;
+        this.skill.label.color = new Color(ready.length ? '#FFF0B3' : '#C7D8CC');
         this.autoButton.label.string = this.autoSkill ? '自动技能：开' : '自动技能：关';
         this.pause.label.string = this.engine.paused ? '继续战斗' : '暂停';
         this.speedButton.label.string = mode === 'boss' ? '固定×1' : `速度×${this.speed}`;

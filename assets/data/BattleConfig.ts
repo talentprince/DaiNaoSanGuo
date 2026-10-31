@@ -1,5 +1,6 @@
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
 
+import type { FormationEntry } from './FormationConfig';
 import { getHero, LEGACY_PARTY } from './HeroCatalog';
 import type { HeroId } from './HeroCatalog';
 
@@ -39,7 +40,7 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
 
 export function createHeroes(party: readonly HeroId[], heroLevel = 1,
     equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}): UnitConfig[] {
-    if (!party.length || party.length > 5 || new Set(party).size !== party.length || party.some(id => !getHero(id))) throw new Error('阵容无效');
+    if (party.length > 5 || new Set(party).size !== party.length || party.some(id => !getHero(id))) throw new Error('阵容无效');
     if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为1–99');
     const factor = Math.pow(1.18, heroLevel - 1);
     return party.map(id => {
@@ -70,9 +71,18 @@ export function withSoldiers(heroes: UnitConfig[], size: number, level = 1, type
 
 export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
     equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {},
-    party: readonly HeroId[] = LEGACY_PARTY, troopType: SoldierType = 'mixed'): BattleOptions {
+    party: readonly HeroId[] = LEGACY_PARTY, troopType: SoldierType = 'mixed', layout?: FormationEntry[]): BattleOptions {
     const base = createBattleOptions(stage, seed, level, equipment, party);
     const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: '黄巾魔将' };
-    return { ...base, heroes: withSoldiers(base.heroes, 5, level, troopType), waves: base.waves.slice(0, 2),
-        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150 };
+    return { ...base, heroes: layout ? createLineup(layout, level, equipment) : withSoldiers(base.heroes, 5, level, troopType), waves: base.waves.slice(0, 2),
+        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150, energyRate: 4.5 };
+}
+
+export function createLineup(entries: readonly FormationEntry[], level: number,
+    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}, prefix = 'ally'): UnitConfig[] {
+    return entries.map((entry, i) => {
+        const base = entry.hero ? createHeroes([entry.hero], level, equipment)[0] : withSoldiers([], 1, level, entry.troop || 'sword', `${prefix}-${i}`)[0];
+        const front = /^r[0-2]c2$/.test(entry.spot);
+        return { ...base, formationSpot: entry.spot, priority: front ? 0 : base.priority + 1 };
+    });
 }

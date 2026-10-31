@@ -1,6 +1,7 @@
 export type Team = 'hero' | 'enemy';
 export type BattleStatus = 'fighting' | 'won' | 'lost' | 'scored';
 
+export type WeaponKind = 'sword' | 'spear' | 'bow' | 'fan' | 'glaive' | 'serpent' | 'halberd' | 'dual' | 'axe' | 'staff' | 'ribbon' | 'qin';
 export interface UnitConfig {
     id: string;
     name: string;
@@ -12,7 +13,11 @@ export interface UnitConfig {
     priority: number;
     color: string;
     kind?: 'hero' | 'soldier' | 'boss' | 'wall';
-    weapon?: 'sword' | 'spear' | 'bow' | 'fan';
+    weapon?: WeaponKind;
+    skillName?: string;
+    visualId?: string;
+    heroTier?: number;
+    formationSpot?: string;
     onWall?: boolean;
     tactic?: 'cleave' | 'pierce' | 'volley' | 'guard' | 'heal';
 }
@@ -21,6 +26,11 @@ export interface Unit extends UnitConfig {
     team: Team;
     hp: number;
     cooldown: number;
+    energy: number;
+    shield: number;
+    shieldRemaining: number;
+    attackBuff: number;
+    attackBuffRemaining: number;
 }
 
 export interface BattleOptions {
@@ -38,7 +48,7 @@ export interface BattleOptions {
 }
 
 export interface BattleEvent {
-    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break';
+    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break' | 'buff' | 'shield';
     source?: string;
     target?: string;
     amount?: number;
@@ -46,6 +56,12 @@ export interface BattleEvent {
     wave?: number;
     status?: BattleStatus;
     targets?: string[];
+    buff?: 'shield' | 'attack';
+}
+
+export function skillTargetLimit(unit: Pick<UnitConfig, 'heroTier' | 'kind'>): number {
+    if (unit.kind === 'boss' || unit.heroTier === 4) return Infinity;
+    return unit.heroTier === 3 ? 3 : unit.heroTier === 2 ? 2 : 1;
 }
 
 export function calculateDamage(attack: number, defense: number, roll: number, critical: boolean): number {
@@ -66,7 +82,6 @@ export class BattleEngine {
     status: BattleStatus = 'fighting';
     elapsed = 0;
     waveIndex = 0;
-    energy = 45;
     paused = false;
     autoSkill = true;
     skillCount = 0;
@@ -123,10 +138,16 @@ export class BattleEngine {
     get waveCount(): number { return this.riftGoal ? this.waveIndex + (this.bossActive ? 1 : 2) : this.waves.length; }
     get wallAlive(): boolean { return this.enemies.some(u => u.kind === 'wall' && u.hp > 0); }
     get transitioning(): boolean { return this.waveDelay > 0; }
-    get canCastSkill(): boolean {
+    private get primaryHero(): Unit | undefined { return this.heroes.find(u => u.kind !== 'soldier' && u.hp > 0) || this.heroes.find(u => u.kind !== 'soldier'); }
+    // Compatibility alias for legacy callers. Production UI reads each unit's own energy.
+    get energy(): number { return this.primaryHero?.energy || 0; }
+    set energy(value: number) { if (this.primaryHero) this.primaryHero.energy = value; }
+    get canCastSkill(): boolean { return !!this.primaryHero && this.canCastUnit(this.primaryHero); }
+    canCastHeroSkill(id: string): boolean { const unit = this.heroes.find(u => u.id === id); return !!unit && this.canCastUnit(unit); }
+    private canCastUnit(unit: Unit): boolean {
         return this.status === 'fighting' && !this.paused && !this.transitioning && this.approachRemaining <= 0
-            && this.energy >= 100 && this.heroes.some(u => u.hp > 0 && (u.tactic || u.id === 'guanyu'))
-            && this.enemies.some(u => u.hp > 0);
+            && unit.hp > 0 && (unit.tactic !== 'heal' || (unit.heroTier || 1) >= 2) && unit.kind !== 'soldier' && unit.kind !== 'wall' && unit.energy >= 100
+            && (unit.team === 'hero' ? this.enemies : this.heroes).some(u => u.hp > 0);
     }
 
     advance(seconds: number): void {
@@ -139,25 +160,30 @@ export class BattleEngine {
         }
     }
 
-    castSkill(): boolean {
-        if (!this.canCastSkill) return false;
-        const caster = this.heroes.find(unit => unit.hp > 0 && (unit.tactic || unit.id === 'guanyu'))!;
+    castSkill(id?: string): boolean {
+        const caster = id ? [...this.heroes, ...this.enemies].find(u => u.id === id) : this.primaryHero;
+        if (!caster || !this.canCastUnit(caster)) return false;
         const tactic = caster.tactic || 'cleave';
-        this.energy = 0;
-        this.skillCount += 1;
-        const targets = tactic === 'pierce' ? [selectTarget(this.enemies)!] : this.enemies.filter(unit => unit.hp > 0);
+        const enemies = caster.team === 'hero' ? this.enemies : this.heroes;
+        const friends = caster.team === 'hero' ? this.heroes : this.enemies;
+        caster.energy = 0;
+        if (caster.team === 'hero') this.skillCount += 1;
+        const tier = caster.kind === 'boss' ? 4 : caster.heroTier || 1;
+        const livingFriends = friends.filter(u => u.hp > 0 && u.kind !== 'wall');
+        const candidates = enemies.filter(u => u.hp > 0).sort((a, b) => a.priority - b.priority || a.hp / a.maxHp - b.hp / b.maxHp || a.id.localeCompare(b.id));
+        const targets = tactic === 'heal' ? tier === 2 ? livingFriends.slice().sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.id.localeCompare(b.id)).slice(0, 1) : livingFriends
+            : candidates.slice(0, skillTargetLimit(caster));
         this.events.push({ type: 'skill', source: caster.id, targets: targets.map(unit => unit.id) });
-        const multiplier = tactic === 'pierce' ? 7.5 : tactic === 'volley' ? 2.1 : tactic === 'guard' ? 1.8 : tactic === 'heal' ? 1.2 : 2.6;
-        targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * multiplier), false));
-        if (tactic === 'guard') this.heal(caster, caster, 0.1);
-        const liubei = this.heroes.find(unit => (unit.tactic === 'heal' || unit.id === 'liubei') && unit.hp > 0);
-        if (liubei) {
-            this.heroes.filter(unit => unit.hp > 0).forEach(unit => {
-                this.heal(liubei, unit, 0.12);
-            });
+        if (tactic === 'heal') {
+            const ratio = tier === 2 ? 0.22 : tier === 3 ? 0.12 : caster.visualId === 'huatuo' ? 0.20 : 0.16;
+            targets.forEach(unit => this.heal(caster, unit, ratio));
+            if (tier === 4) targets.forEach(unit => this.applyBuff(caster, unit, caster.visualId === 'simayi' ? 'attack' : 'shield'));
+        } else {
+            const multiplier = tactic === 'pierce' ? 2.8 : tactic === 'volley' ? 2.1 : tactic === 'guard' ? 1.5 : 2.6;
+            targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * (1 + caster.attackBuff) * multiplier), false));
+            if (tactic === 'guard' && tier >= 2) (tier === 4 ? livingFriends : [caster]).forEach(unit => this.applyBuff(caster, unit, 'shield'));
         }
-        this.checkProgress();
-        return true;
+        this.checkProgress(); return true;
     }
 
     drainEvents(): BattleEvent[] {
@@ -167,7 +193,9 @@ export class BattleEngine {
     }
 
     private createUnit(config: UnitConfig, team: Team, index: number): Unit {
-        return { ...config, team, hp: config.maxHp, cooldown: 0.35 + index * 0.13 };
+        return { ...config, team, hp: config.maxHp, cooldown: 0.35 + index * 0.13,
+            shield: 0, shieldRemaining: 0, attackBuff: 0, attackBuffRemaining: 0,
+            energy: config.kind === 'soldier' || config.kind === 'wall' ? 0 : team === 'hero' ? Math.max(0, 45 - index * 11) : config.kind === 'boss' || config.kind === 'hero' ? Math.max(0, 25 - index * 4) : 0 };
     }
 
     private spawnWave(): void {
@@ -187,10 +215,19 @@ export class BattleEngine {
     }
 
     private tick(dt: number): void {
+        [...this.heroes, ...this.enemies].forEach(unit => {
+            unit.shieldRemaining = Math.max(0, unit.shieldRemaining - dt);
+            unit.attackBuffRemaining = Math.max(0, unit.attackBuffRemaining - dt);
+            if (!unit.shieldRemaining) unit.shield = 0;
+            if (!unit.attackBuffRemaining) unit.attackBuff = 0;
+        });
         this.elapsed += dt;
         if (this.elapsed + 1e-9 >= this.timeLimit) { this.finish(this.scoreMode ? 'scored' : 'lost'); return; }
         if (this.approachRemaining > 0) { this.approachRemaining = Math.max(0, this.approachRemaining - dt); return; }
-        this.energy = Math.min(100, this.energy + dt * this.energyRate);
+        [...this.heroes, ...this.enemies].forEach(unit => {
+            const eligible = unit.kind !== 'soldier' && unit.kind !== 'wall' && (unit.team === 'hero' || unit.kind === 'boss' || unit.kind === 'hero');
+            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate);
+        });
         if (this.enemyRegen) this.enemies.filter(u => u.hp > 0).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * this.enemyRegen * dt); });
         if (this.heroDrain) this.heroes.filter(u => u.hp > 0).forEach(u => {
             const amount = Math.min(u.hp, u.maxHp * this.heroDrain * dt);
@@ -211,7 +248,10 @@ export class BattleEngine {
             }
             return;
         }
-        if (this.autoSkill && this.canCastSkill) this.castSkill();
+        for (const unit of [...this.heroes, ...this.enemies]) {
+            if ((unit.team === 'hero' ? this.autoSkill : unit.kind === 'boss' || unit.kind === 'hero') && this.canCastUnit(unit)) this.castSkill(unit.id);
+            if (this.status !== 'fighting' || this.approachRemaining > 0) break;
+        }
         if (this.status !== 'fighting' || this.transitioning || this.approachRemaining > 0) return;
         for (const unit of [...this.heroes, ...this.enemies]) {
             if (unit.hp <= 0 || unit.kind === 'wall') continue;
@@ -222,7 +262,7 @@ export class BattleEngine {
             unit.cooldown += unit.interval;
             this.events.push({ type: 'attack', source: unit.id, target: target.id });
             const critical = this.random() < 0.15;
-            this.damage(unit, target, calculateDamage(unit.attack, target.defense, this.random(), critical), critical);
+            this.damage(unit, target, calculateDamage(unit.attack * (1 + unit.attackBuff), target.defense, this.random(), critical), critical);
             this.checkProgress();
             if (this.status !== 'fighting' || this.transitioning || this.approachRemaining > 0) break;
         }
@@ -231,12 +271,16 @@ export class BattleEngine {
     private damage(source: Unit, target: Unit, requested: number, critical: boolean): void {
         if (source.hp <= 0 || target.hp <= 0) return;
         const protection = target.onWall && this.wallAlive ? 0.4 : 1;
-        const amount = Math.min(target.hp, Math.max(1, Math.floor(requested * protection)));
+        const incoming = Math.max(1, Math.floor(requested * protection));
+        const absorbed = Math.min(target.shield, incoming);
+        target.shield -= absorbed;
+        if (absorbed > 0) this.events.push({ type: 'shield', source: source.id, target: target.id, amount: absorbed });
+        const amount = Math.min(target.hp, incoming - absorbed);
         target.hp -= amount;
         if (source.team === 'hero') this.damageDealt += amount;
         // The world-boss target is a scoring dummy: high damage must not shorten the 30-second attempt.
         if (this.scoreMode && target.team === 'enemy') target.hp = target.maxHp;
-        this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
+        if (amount > 0) this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
         if (target.hp === 0) {
             if (target.team === 'enemy' && this.riftGoal && !this.bossActive) this.riftEnergy = Math.min(this.riftGoal, this.riftEnergy + 10);
             this.events.push({ type: 'death', target: target.id });
@@ -247,7 +291,8 @@ export class BattleEngine {
 
     private spawnBoss(): void {
         this.bossActive = true; this.approachRemaining = this.approachTime;
-        this.bossWave.forEach((config, i) => this.enemies.push(this.createUnit({ ...config, kind: 'boss', id: `enemy-rift-boss-${this.waveIndex}-${i}` }, 'enemy', i)));
+        // Transition to a clean boss encounter once the rift meter is full.
+        this.enemies = this.bossWave.map((config, i) => this.createUnit({ ...config, kind: 'boss', id: `enemy-rift-boss-${this.waveIndex}-${i}` }, 'enemy', i));
         this.events.push({ type: 'boss' });
     }
 
@@ -259,6 +304,12 @@ export class BattleEngine {
             if (this.riftGoal ? this.bossActive : this.waveIndex === this.waves.length - 1) this.finish('won');
             else if (this.waveDelay === 0) this.waveDelay = 0.9;
         }
+    }
+
+    private applyBuff(source: Unit, target: Unit, buff: 'shield' | 'attack'): void {
+        if (buff === 'shield') { target.shield = Math.max(target.shield, Math.floor(target.maxHp * 0.12)); target.shieldRemaining = 6; }
+        else { target.attackBuff = 0.2; target.attackBuffRemaining = 6; }
+        this.events.push({ type: 'buff', source: source.id, target: target.id, buff, amount: buff === 'shield' ? target.shield : 20 });
     }
 
     private heal(source: Unit, target: Unit, ratio: number): void {
