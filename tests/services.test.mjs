@@ -6,13 +6,14 @@ import { createHandler } from '../server/app.mjs';
 import { BOSS_ROTATION_EPOCH, BOSS_WEEK_MS } from '../assets/data/WorldBossConfig.ts';
 
 const storage = () => { const data = new Map(); return { data, getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v) }; };
+const standard = { serviceMode: 'local', localProfile: 'standard' };
 test('默认本地，本机测试档与常规档资源完全隔离，模式选择重启后保留', () => {
-    const disk = storage(), session = new LocalSession(disk, '127.0.0.1');
+    const disk = storage(), session = new LocalSession(disk, '127.0.0.1', false, standard);
     assert.equal(RUNTIME_CONFIG.serviceMode, 'local');
     assert.equal(session.initial().developerMode, true);
     assert.equal(session.initial().progress.heroLevel, 300);
     session.remember('normal');
-    const normal = new LocalSession(disk, '127.0.0.1').initial();
+    const normal = new LocalSession(disk, '127.0.0.1', false, standard).initial();
     assert.equal(normal.developerMode, false); assert.equal(normal.progress.heroLevel, 1); assert.equal(normal.progress.daibi, 0);
     session.test(true); assert.equal(session.normal().progress.heroLevel, 1);
     assert.equal(session.test().progress.heroLevel, 300);

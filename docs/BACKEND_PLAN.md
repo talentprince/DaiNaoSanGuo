@@ -17,7 +17,9 @@
 
 启动：在工程运行 `npm run backend:dev`，访问 http://127.0.0.1:8787/v1/bootstrap。DAINAO_BACKEND_PORT可指定1024–65535端口。它不是可供朋友联机的公网服务器，也不是身份或安全系统；CORS不替代鉴权。
 
-已有键保持兼容：常规dainaosanguo.demo.progress.v1，开发dainaosanguo.developer.progress.v1，偏好dainaosanguo.local.mode.v1。没有把测试档/本地存档上传；云端账号、存档命名空间和迁移还没实现。
+0.11.1当前localProfile=experience，为手机/远程独立内测补给档，首次赠脑铢1000万、呆币/脑勋各100万、将魂10万、经验1亿；experience信封只发一次，原常规进度单向复制且不覆盖。以后公开发布前切回standard，云端禁止导入该体验资产。
+
+已有键保持兼容：常规dainaosanguo.demo.progress.v1，开发dainaosanguo.developer.progress.v1，偏好dainaosanguo.local.mode.v1。体验档键dainaosanguo.experience.progress.v1；没有把测试档/本地存档上传；云端账号、存档命名空间和迁移还没实现。
 
 ## 下一步实施顺序
 

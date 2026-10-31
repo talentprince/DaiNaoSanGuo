@@ -1,3 +1,4 @@
+import { EXPERIENCE_GIFT } from './battle/ExperienceMode';
 import { GameAudio } from './battle/GameAudio';
 import { WORLD_BOSSES,worldBoss } from './data/WorldBossConfig';
 import type { WorldBossId } from './data/WorldBossConfig';
@@ -104,7 +105,7 @@ export class BattlePreview extends Component {
         panel(this.root, 'Accent', 0, 632, 720, 16, '#DCB977', 0);
         this.wallet=text(this.root,'Wallet','',0,612,21,'#D6D3B9',710);
         this.title=text(this.root,'Stage','',-55,558,24,'#EADBBF',560);
-        this.modeBadge=button(this.root,'ModeBadge','常规',297,557,92,42,'#4B5C65',()=>{if(this.localAllowed)this.openDeveloper();});
+        this.modeBadge=button(this.root,'ModeBadge','常规',297,557,92,42,'#4B5C65',()=>{if(this.localAllowed)this.openDeveloper();else if(this.session.experienceMode)this.openExperienceGift();});
         this.overview=text(this.root,'EncounterOverview','',0,518,17,'#C6CBAA',700);
         this.overviewBar=makeNode('EncounterProgress',this.root,0,495).addComponent(Graphics);
         panel(this.root,'BattlefieldFrame',0,-64,704,1108,'#192C3D',14);
@@ -134,6 +135,7 @@ export class BattlePreview extends Component {
         iconButton(this.root,'ToggleControls','菜单','menu',260,-567,150,68,()=>{this.controlsOpen=!this.controlsOpen;this.controls.active=this.controlsOpen;});
         this.begin(this.stage);
         this.root.active = true;
+        if(!this.developer&&this.session.experienceGiftApplied)this.openExperienceGift(true);
         // Refresh once after the first frame, after the runtime mask and graphic assemblers have initialized.
         this.scheduleOnce(() => { this.root.active = false; this.root.active = true; }, 0.1);
     }
@@ -291,7 +293,7 @@ export class BattlePreview extends Component {
         if(this.activeRun?.mode==='boss'){const b=worldBoss(this.activeRun.worldBoss||this.store.currentBoss.boss.id);this.title.string=`${b.name} · ${b.title}`;}
         const p = this.store.progress;
         this.wallet.string=`脑铢 ${formatAmount(p.coins)}     呆币 ${formatAmount(p.daibi)}     脑勋 ${formatAmount(p.points)}`;
-        this.modeBadge.label.string=this.developer?'测试':'常规';
+        this.modeBadge.label.string=this.developer?'测试':this.session.experienceMode?'内测':'常规';
         const bonds=bondProgress(this.engine.heroes.filter(u=>u.kind==='hero').map(u=>u.visualId||u.id)).filter(b=>b.active);
         this.bondsBadge.label.string=`同阵羁绊 · ${bonds.length}`;
         this.inventoryButton.label.string = '行装';
@@ -381,6 +383,19 @@ export class BattlePreview extends Component {
         button(popup,'CloseBonds','返回战场',0,-554,620,66,'#3C5669',()=>{popup.destroy();this.utility=null;this.engine.paused=was;});
     }
     private persistMode(mode:'normal'|'test'):void{this.session.remember(mode);}
+    private openExperienceGift(first=false):void {
+        if(this.utility||this.hall||this.inventory)return;
+        const was=this.engine.paused;this.engine.paused=true;
+        const popup=this.utility=panel(this.root,'ExperienceGift',0,0,720,1280,'#101A2DF8',0);
+        popup.on(Node.EventType.TOUCH_END,()=>{});
+        text(popup,'GiftTitle',first?'内测补给已到账':'内测补给说明',0,405,38,'#F0CF8C');
+        text(popup,'GiftRule','独立体验档 · 不带入正式服',0,328,23,'#AFCBD7');
+        const gifts:[string,number][]=[['脑铢',EXPERIENCE_GIFT.coins],['呆币',EXPERIENCE_GIFT.daibi],['脑勋',EXPERIENCE_GIFT.points],['将魂',EXPERIENCE_GIFT.souls],['升级经验',EXPERIENCE_GIFT.experience]];
+        gifts.forEach(([name,value],i)=>text(popup,`Gift-${i}`,`${name}  +${formatAmount(value)}`,0,228-i*80,30,'#E9D9AB',600));
+        text(popup,'GiftHint','首次进入发放一次；消费后不自动补满。',0,-243,21,'#BBCBD4',640);
+        text(popup,'GiftStorage',this.store.storageAvailable?'已保留原常规档进度，体验资源单独保存。':'当前存储不可用，退出后可能无法保留。',0,-290,19,'#BBCBD4',650);
+        button(popup,'GiftContinue','开玩 · 招募配装去',0,-405,590,80,'#4E7560',()=>{popup.destroy();this.utility=null;this.engine.paused=was;});
+    }
     private openDeveloper():void {
         if(!this.localAllowed||this.utility||this.hall||this.inventory)return;
         const was=this.engine.paused;this.engine.paused=true;const popup=this.utility=panel(this.root,'DeveloperPanel',0,0,720,1280,'#101A2DFD',0);popup.on(Node.EventType.TOUCH_END,()=>{});
@@ -396,7 +411,7 @@ export class BattlePreview extends Component {
         button(popup,'ChargeDeveloper','充满我方技能',-161,-164,302,64,'#456B5C',()=>{dismiss();this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});this.engine.paused=was;});
         button(popup,'BossDeveloper','本周Boss技能测试',161,-164,302,64,'#456B5C',()=>{dismiss();if(!this.developer){this.store=this.session.test();this.developer=true;this.persistMode('test');}this.store.abandonActivity();this.autoSkill=false;this.begin(stage,this.store.startActivity('boss'));this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});});
         button(popup,'ResetDeveloper','重置测试档 · 全满级满星',0,-263,620,64,'#604557',()=>{dismiss();this.store=this.session.test(true);this.developer=true;this.persistMode('test');this.autoSkill=false;this.begin(999);this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});});
-        button(popup,'UseNormalSave','切换常规存档',0,-366,620,64,'#354D63',()=>{dismiss();this.store=this.session.normal();this.developer=false;this.persistMode('normal');this.autoSkill=true;this.begin(Math.min(MAX_STAGE,this.store.progress.highestCleared+1));});
+        button(popup,'UseNormalSave',this.session.experienceMode?'切换内测存档':'切换常规存档',0,-366,620,64,'#354D63',()=>{dismiss();this.store=this.session.normal();this.developer=false;this.persistMode('normal');this.autoSkill=true;this.begin(Math.min(MAX_STAGE,this.store.progress.highestCleared+1));});
         button(popup,'ElementDeveloper','雷火毒演武队 · 满能Boss',0,-418,620,48,'#63527C',()=>{dismiss();if(!this.developer){this.store=this.session.test();this.developer=true;this.persistMode('test');}this.store.abandonActivity();this.store.setParty(['zhaoyun','zhouyu','jiaxu','xiaoqiao','huatuo'],'main');this.autoSkill=false;this.begin(stage,this.store.startActivity('boss'));this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});});
         WORLD_BOSSES.forEach((b,i)=>button(popup,`BossPreview-${b.id}`,`${b.name}试战`,(i-1)*205,-480,190,48,'#57466D',()=>{dismiss();this.startDeveloperBoss(b.id,stage);}));
         button(popup,'CloseDeveloper','返回战场',0,-554,620,64,'#3B5669',()=>{dismiss();this.engine.paused=was;});

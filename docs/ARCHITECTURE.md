@@ -46,3 +46,7 @@ preflight-wechat.mjs只读本地微信构建，检查AppID/入口/portrait/保�
 - AudioDirector是独立平台音频策略，GameAudio接微信/HTML音频与生命周期；构建模板复制根audio文件，不扩引擎音频包。
 - LocalSession集中本地档入口并检查RuntimeConfig；cloud在创建Store前拒绝，不能fallback到本地资源。当前仍是同步本地业务，不声称完整异步云Provider。
 - server/app.mjs与dev-server.mjs为loopback只读配置原型，BackendContract记录响应。与游戏可独立运行，当前客户端不请求/应用其配置。后续异步服务层、登录、云档、幂等账本和可信重演见BACKEND_PLAN。
+
+## 0.11.1体验档
+
+ExperienceMode用独立键/带grantVersion的信封保存体验进度，首次从常规档取副本后加五种资源；写入始终只写体验键。LocalSession由构建localProfile选择，不接受URL/玩家存档指定。开发档仍走原隔离方式。开局补给弹层暂停战斗，手机顶部标注内测；公开版本须切回standard，服务器不信任/导入这些本地资源。
