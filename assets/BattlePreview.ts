@@ -1,3 +1,4 @@
+import { MAX_STAGE, MAX_LEVEL } from './data/GrowthConfig';
 import { _decorator, Color, Component, Graphics, Label, Mask, Node, ResolutionPolicy, sys, UITransform, view } from 'cc';
 import { BattleEngine } from './battle/BattleEngine';
 import type { BattleEvent, Unit } from './battle/BattleEngine';
@@ -10,7 +11,7 @@ import { UnitActor } from './battle/UnitActor';
 import { CombatEffects } from './battle/CombatEffects';
 import { BattleStage } from './battle/BattleStage';
 import type { StageStyle } from './battle/BattleStage';
-import { bar, button, makeNode, panel, text } from './battle/BattleUI';
+import { bar, button, iconButton, makeNode, panel, text } from './battle/BattleUI';
 import type { UIButton } from './battle/BattleUI';
 import { createMainlineOptions, STAGE_NAMES } from './data/BattleConfig';
 import { getHero, TACTIC_NAMES } from './data/HeroCatalog';
@@ -65,24 +66,23 @@ export class BattlePreview extends Component {
     start(): void {
         view.setDesignResolutionSize(720, 1280, ResolutionPolicy.SHOW_ALL);
         this.store = new ProgressStore(sys.localStorage);
-        this.stage = Math.min(99, this.store.progress.highestCleared + 1);
+        this.stage = Math.min(MAX_STAGE, this.store.progress.highestCleared + 1);
         this.root = makeNode('BattleDemo', this.node);
+        // Activate the completed hierarchy together so mask/graphics register in consistent render order.
+        this.root.active = false;
         this.root.addComponent(UITransform).setContentSize(720, 1280);
         panel(this.root, 'Background', 0, 0, 720, 1280, '#111E30', 0);
         panel(this.root, 'Accent', 0, 632, 720, 16, '#DCB977', 0);
-        text(this.root, 'Title', '呆脑三国', -130, 558, 48, '#F2E1BC', 390);
-        text(this.root, 'Version', 'DEMO 0.8 · 群将争锋', 195, 562, 20, '#C0A773', 270);
-        this.title = text(this.root, 'Stage', '', 0, 492, 30);
-        this.wallet = text(this.root, 'Wallet', '', -120, 447, 20, '#B9C5D4', 400);
-        this.trainButton = button(this.root, 'TrainButton', '升级全队', 216, 447, 220, 46, '#5E5540', () => {
-            const result = this.store.upgradeTeam();
-            this.statusLine.string = result.upgraded ? `全队升至Lv.${result.level}，下局生效${result.saved ? '' : '（未保存）'}`
-                : result.level >= 99 ? '全队已达最高等级' : `升级需要${result.cost}铜钱`;
-            this.refresh();
-        });
-        this.overview = text(this.root, 'EncounterOverview', '', 0, 405, 18, '#DCC893', 630);
-        this.overviewBar = makeNode('EncounterProgress', this.root, 0, 383).addComponent(Graphics);
-        this.field = panel(this.root, 'Battlefield', 0, 55, 660, 630, '#1D2D42', 24);
+        text(this.root, 'Title', '呆脑三国', -170, 577, 38, '#F2E1BC', 340);
+        text(this.root, 'Version', '0.9 · 脑洞大开', 211, 581, 17, '#C0A773', 270);
+        this.title = text(this.root, 'Stage', '', 0, 520, 29);
+        this.wallet = text(this.root, 'Wallet', '', -80, 466, 20, '#B9C5D4', 470);
+        this.trainButton = button(this.root, 'TrainButton', '成长', 239, 464, 150, 46, '#61573F', () => this.openHall('idle'));
+        this.overview = text(this.root, 'EncounterOverview', '', 0, 415, 18, '#DCC893', 630);
+        this.overviewBar = makeNode('EncounterProgress', this.root, 0, 393).addComponent(Graphics);
+        panel(this.root, 'BattlefieldFrame', 0, 20, 660, 710, '#1D2D42', 24);
+        this.field = makeNode('Battlefield', this.root, 0, 20);
+        this.field.addComponent(UITransform).setContentSize(660,710);
         this.field.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
         this.teamLabel = text(this.field, 'TeamLabel', '呆 萌 战 队', -176, 285, 18, '#A8CBB2', 270);
         this.enemyLabel = text(this.field, 'EnemyLabel', '敌 方 阵 地', 176, 285, 18, '#D5B77E', 270);
@@ -90,33 +90,21 @@ export class BattlePreview extends Component {
         this.units = makeNode('Units', this.field);
         this.effectsRoot = makeNode('CombatEffects', this.field);
         this.fx = new CombatEffects(this.effectsRoot);
-        this.statusLine = text(this.root, 'BattleLog', '', 0, -294, 21, '#CDD6DE');
-        this.skill = button(this.root, 'SkillButton', '武将独立蓄能', -83, -374, 464, 76, '#426C59', () => {
-            let count = 0;
-            this.engine.heroes.forEach(unit => { if (this.engine.canCastHeroSkill(unit.id) && this.engine.castSkill(unit.id)) count += 1; });
-            if (count) this.processEvents();
-            else this.statusLine.string = this.engine.paused ? '战斗暂停中，继续后可释放技能' : '左侧武将头像圈满能闪烁，点击可释放该将技能';
-            this.refresh();
+        this.statusLine = text(this.root, 'BattleLog', '', 0, -357, 18, '#CDD6DE');
+        this.skill = iconButton(this.root,'SkillButton','齐放','skill',-240,-426,144,92,()=>{
+            this.engine.heroes.forEach(u=>{if(this.engine.canCastHeroSkill(u.id))this.engine.castSkill(u.id);});this.processEvents();this.refresh();
         });
-        this.autoButton = button(this.root, 'AutoSkillButton', '自动技能', 246, -374, 156, 76, '#3D4E64', () => {
-            this.autoSkill = !this.autoSkill; this.engine.autoSkill = this.autoSkill; this.refresh();
-        });
-        this.energyBar = makeNode('SkillEnergy', this.root, 0, -432).addComponent(Graphics);
-        this.energyBar.node.active = false;
-        text(this.root, 'IndividualSkillHelp', '每将独立蓄能 · 左侧头像发光时可点击放大招', 0, -432, 18, '#A6B8BB');
-        button(this.root, 'RestartButton', '重新开始', -220, -502, 200, 64, '#3A4D66', () => this.restart());
-        this.pause = button(this.root, 'PauseButton', '暂停', 0, -502, 200, 64, '#3A4D66', () => {
-            this.engine.paused = !this.engine.paused;
-            this.statusLine.string = this.engine.paused ? '已暂停 · 行军与战斗停止' : '继续行军作战'; this.refresh();
-        });
-        this.speedButton = button(this.root, 'SpeedButton', '速度×1', 220, -502, 200, 64, '#3A4D66', () => {
-            if (this.activeRun?.mode === 'boss') { this.statusLine.string = '世界Boss固定30秒计分，不支持倍速'; return; }
-            this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1; this.refresh();
-        });
-        this.inventoryButton = button(this.root, 'InventoryButton', '装备背包', -222, -565, 200, 48, '#544B64', () => this.openInventory());
-        button(this.root, 'HallButton', '布阵 · 武将 · 副本', 112, -565, 400, 48, '#655D45', () => this.openHall());
-        text(this.root, 'Help', '头像拖入阵型 · 刀枪弓可混编 · 武将独立技能', 0, -610, 17, '#8094AA');
+        this.pause=iconButton(this.root,'PauseButton','暂停','pause',-80,-426,144,92,()=>{this.engine.paused=!this.engine.paused;this.refresh();});
+        this.speedButton=iconButton(this.root,'SpeedButton','×1','speed',80,-426,144,92,()=>{if(this.activeRun?.mode!=='boss')this.speed=this.speed===1?2:this.speed===2?4:1;this.refresh();});
+        this.autoButton=iconButton(this.root,'AutoSkillButton','自动开','auto',240,-426,144,92,()=>{this.autoSkill=!this.autoSkill;this.engine.autoSkill=this.autoSkill;this.refresh();});
+        this.inventoryButton=iconButton(this.root,'InventoryButton','行装','bag',-240,-552,144,100,()=>this.openInventory());
+        iconButton(this.root,'HallButton','武将','hero',-80,-552,144,100,()=>this.openHall());
+        iconButton(this.root,'GrowthButton','征途','growth',80,-552,144,100,()=>this.openHall('idle'));
+        iconButton(this.root,'RestartButton','重战','restart',240,-552,144,100,()=>this.restart());
         this.begin(this.stage);
+        this.root.active = true;
+        // Refresh once after the first frame, after the runtime mask and graphic assemblers have initialized.
+        this.scheduleOnce(() => { this.root.active = false; this.root.active = true; }, 0.1);
     }
 
     update(dt: number): void {
@@ -136,7 +124,7 @@ export class BattlePreview extends Component {
             if (this.autoNext > 0 && !this.hall && !this.inventory) {
                 this.autoNext -= frame;
                 if (this.nextLabel) this.nextLabel.string = `继续向右 · ${Math.max(1, Math.ceil(this.autoNext))}秒后进入下一关`;
-                if (this.autoNext <= 0) { this.begin(Math.min(99, this.stage + 1)); return; }
+                if (this.autoNext <= 0) { this.begin(Math.min(MAX_STAGE, this.stage + 1)); return; }
             }
         }
         this.skillHud?.update(frame);
@@ -159,7 +147,7 @@ export class BattlePreview extends Component {
         this.scenery?.destroy();
         const style: StageStyle = !run ? 'rift' : run.mode === 'boss' ? 'boss' : run.mode === 'city' ? 'city' : run.mode === 'boat' ? 'boat' : 'trial';
         this.scenery = new BattleStage(this.field, style); this.scenery.node.setSiblingIndex(0);
-        this.teamLabel.node.active = style !== 'boss'; this.enemyLabel.node.active = style !== 'boss' && style !== 'city'; this.wave.node.active = style !== 'boss' && style !== 'city';
+        this.teamLabel.node.active=false;this.enemyLabel.node.active=false;this.wave.node.active=false;
         this.engine.heroes.forEach((unit, i) => this.createActor(unit, i));
         this.statusLine.string = run ? `${ACTIVITY_NAMES[run.mode]} · 准备接战` : '一路向右 · 清怪攒秘境进度，满100召首领';
         this.processEvents();
@@ -257,15 +245,15 @@ export class BattlePreview extends Component {
 
     private refresh(): void {
         this.title.string = this.activeRun ? `${ACTIVITY_NAMES[this.activeRun.mode]}${this.activeRun.mode === 'trial' ? ` · 第${this.activeRun.stage}关` : this.activeRun.mode === 'city' ? ' · 演练' : ''}`
-            : `第${this.stage}关 · ${STAGE_NAMES[(this.stage - 1) % STAGE_NAMES.length]}`;
+            : `第${this.stage}/${MAX_STAGE}关 · ${STAGE_NAMES[(this.stage - 1) % STAGE_NAMES.length]}`;
         const p = this.store.progress;
-        this.wallet.string = `铜钱${p.coins} · 已过${p.highestCleared}关${this.store.storageAvailable ? '' : ' · 未保存'}`;
-        this.trainButton.label.string = p.heroLevel >= 99 ? '全队Lv.99 · 满级' : `全队Lv.${p.heroLevel} · 升级${this.store.upgradeCost}`;
-        this.inventoryButton.label.string = `装备背包 ${p.inventory.length}/40`;
+        this.wallet.string = `铜${p.coins}  ·  呆币${p.daibi}  ·  脑勋${p.points}${this.store.storageAvailable ? '' : ' · 未保存'}`;
+        this.trainButton.label.string = `Lv.${p.heroLevel} · 成长`;
+        this.inventoryButton.label.string = '行装';
         this.actors.forEach(actor => {
             const unit = actor.unit;
             bar(actor.hp, unit.hp / unit.maxHp, unit.kind === 'boss' ? 175 : unit.formationSpot ? 64 : 85, 8, unit.team === 'hero' ? '#7CC69E' : '#E0B76A');
-            actor.hpText.string = this.activeRun?.mode === 'boss' && unit.team === 'enemy' ? '30秒计分目标' : `${Math.ceil(unit.hp)}/${unit.maxHp}`;
+            actor.hpText.node.active=false;
         });
         const phase = this.engine.paused ? '已暂停' : this.engine.approachRemaining > 0 ? '正在接敌' : this.engine.status === 'fighting' ? '交战中' : '战斗结束';
         const mode = this.activeRun?.mode;
@@ -288,12 +276,10 @@ export class BattlePreview extends Component {
             this.wave.string = `${phase} · ${this.engine.waveIndex + 1}/${this.engine.waveCount}波 · ${Math.floor(this.engine.elapsed)}秒`;
         }
         const ready = this.engine.heroes.filter(u => u.kind !== 'soldier' && u.hp > 0 && u.energy >= 100);
-        const count = this.engine.heroes.filter(u => u.kind !== 'soldier').length;
-        this.skill.label.string = this.engine.status !== 'fighting' ? '本局结束 · 武将技能已停止' : this.engine.paused ? `${ready.length}人技能已满 · 继续后释放` : ready.length ? `${ready.length}名武将已就绪 · 一键放大招` : `${count}名武将独立蓄能中`;
-        this.skill.label.color = new Color(ready.length ? '#FFF0B3' : '#C7D8CC');
-        this.autoButton.label.string = this.autoSkill ? '自动技能：开' : '自动技能：关';
-        this.pause.label.string = this.engine.paused ? '继续战斗' : '暂停';
-        this.speedButton.label.string = mode === 'boss' ? '固定×1' : `速度×${this.speed}`;
+        this.skill.label.string=ready.length?`齐放 ${ready.length}`:'齐放';
+        this.autoButton.label.string=this.autoSkill?'自动开':'自动关';
+        this.pause.label.string=this.engine.paused?'继续':'暂停';
+        this.speedButton.label.string=mode==='boss'?'固定×1':`×${this.speed}`;
     }
 
     private showResult(): void {
@@ -308,11 +294,11 @@ export class BattlePreview extends Component {
         const detail = reward?.heroes?.length ? `剧情入队：${reward.heroes.map(id => getHero(id)!.name).join('、')}`
             : reward?.equipment ? `掉落${RARITY_NAMES[reward.equipment.rarity - 1]}·${reward.equipment.name}` : `用时${this.engine.elapsed.toFixed(1)}秒`;
         text(this.modal, 'ResultDetail', detail, 0, 16, 22, '#B1C4D4', 550);
-        this.nextLabel = text(this.modal, 'AutoNext', won && this.stage < 99 ? '继续向右 · 3秒后进入下一关' : won ? '当前99关Demo已通关' : '调整阵容后再次挑战', 0, -28, 19, '#98AFBF', 550);
+        this.nextLabel = text(this.modal, 'AutoNext', won && this.stage < MAX_STAGE ? '继续向右 · 3秒后进入下一关' : won ? '999关征途已完成' : this.store.growthAdvice(), 0, -28, 19, '#98AFBF', 550);
         if (reward && !reward.saved) this.nextLabel.string = '存储不可用：奖励仅保留于当前会话';
-        button(this.modal, 'NextStageButton', won ? '立即向右 · 下一关' : '重新打本关', 0, -91, 470, 62, '#426D59', () => this.begin(won ? Math.min(99, this.stage + 1) : this.stage));
+        button(this.modal, 'NextStageButton', won ? this.stage>=MAX_STAGE?'重游终章':'立即向右 · 下一关' : '重新打本关', 0, -91, 470, 62, '#426D59', () => this.begin(won ? Math.min(MAX_STAGE, this.stage + 1) : this.stage));
         button(this.modal, 'AdjustParty', '查看武将与阵容', 0, -157, 470, 48, '#30465E', () => this.openHall());
-        this.autoNext = won && this.stage < 99 ? 3 : 0;
+        this.autoNext = won && this.stage < MAX_STAGE ? 3 : 0;
         this.statusLine.string = won ? '首领已击败 · 队伍继续向右行军' : '挑战失败 · 本关需重新攒秘境进度';
     }
 
@@ -329,20 +315,20 @@ export class BattlePreview extends Component {
         const reward = this.store.settleActivity(run.id, won, Math.floor(this.engine.damageDealt));
         this.modal = panel(this.root, 'ActivityResult', 0, 60, 600, 420, '#15253A', 24);
         text(this.modal, 'ResultTitle', boss ? '讨 董 战 报' : won ? '大 获 全 胜' : '暂 时 撤 退', 0, 128, 43, '#E6C486', 550);
-        text(this.modal, 'ResultReward', `呆币+${reward.daibi} · 军功+${reward.points}`, 0, 66, 29, '#C4D9CA', 550);
+        text(this.modal, 'ResultReward', `呆币+${reward.daibi} · 脑勋+${reward.points}`, 0, 66, 29, '#C4D9CA', 550);
         text(this.modal, 'ResultDetail', boss ? `本次${Math.floor(this.engine.damageDealt)} · 今日最高${this.store.progress.daily.bossBest}` : `${ACTIVITY_NAMES[run.mode]} · ${this.engine.elapsed.toFixed(1)}秒`, 0, 12, 22, '#A9BBD0', 550);
         text(this.modal, 'ResultNote', !reward.granted ? '挑战已失效，不重复发奖励' : !reward.saved ? '本次未能保存' : boss ? '奖励只补当日最高档位差额' : run.mode === 'city' ? '当前为本地守军演练，真实玩家攻守待联机' : '结算已保存，不重复发奖', 0, -34, 18, '#8FA6BF', 550);
         button(this.modal, 'ActivityAgain', run.mode === 'trial' && won ? '挑战下一关' : '再次挑战', 0, -100, 470, 62, '#426D59', () => {
             try { this.begin(this.stage, this.store.startActivity(run.mode, run.choices)); }
             catch (error) { this.statusLine.string = error instanceof Error ? error.message : '无法进入副本'; }
         });
-        button(this.modal, 'ReturnMain', '返回主线行军', 0, -171, 470, 52, '#30465E', () => this.begin(Math.min(99, this.store.progress.highestCleared + 1)));
+        button(this.modal, 'ReturnMain', '返回主线行军', 0, -171, 470, 52, '#30465E', () => this.begin(Math.min(MAX_STAGE, this.store.progress.highestCleared + 1)));
         this.statusLine.string = boss ? '个人成绩已保存 · 全服榜单待联机' : won ? '副本通关，奖励已结算' : '调整阵容后再试';
     }
-    private openHall(): void {
+    private openHall(tab: 'heroes'|'idle' = 'heroes'): void {
         if (this.hall || this.inventory) return;
         const wasPaused = this.engine.paused; this.engine.paused = true;
-        this.hall = new MetaPanel(this.root, this.store, () => { this.hall = null; this.engine.paused = wasPaused; this.refresh(); }, run => { this.hall = null; this.begin(this.stage, run); });
+        this.hall = new MetaPanel(this.root, this.store, () => { this.hall = null; this.engine.paused = wasPaused; this.refresh(); }, run => { this.hall = null; this.begin(this.stage, run); }, tab);
         this.refresh();
     }
     private openInventory(): void {

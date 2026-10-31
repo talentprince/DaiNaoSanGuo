@@ -8,7 +8,8 @@
     "test": "node --experimental-strip-types --import ./scripts/test-support.mjs --test tests/*.test.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "build:web": "node scripts/build.mjs web-mobile",
-    "build:wechat": "node scripts/build.mjs wechatgame"
+    "build:wechat": "node scripts/build.mjs wechatgame",
+    "balance": "node --experimental-strip-types --import ./scripts/test-support.mjs scripts/balance-report.mjs"
   },
   "engines": {
     "node": ">=22.18.0"

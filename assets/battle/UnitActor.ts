@@ -111,7 +111,10 @@ export class UnitActor {
         const id = this.unit.visualId || this.unit.id;
         const tier = this.unit.heroTier || 1;
         const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier';
-        const armor = new Color(this.unit.color);
+        const comic:Record<string,string>={guanyu:'#168D63',zhangfei:'#C95332',zhaoyun:'#58A7ED',zhugeliang:'#8054C9',lvbu:'#C73148',caocao:'#4D3E92',zhouyu:'#ED6736',simayi:'#5850A1',huatuo:'#4FB58D',sunce:'#EB972F',diaochan:'#D65C9A'};
+        const armor = new Color(comic[id] || this.unit.color);
+        const ink = new Color('#171B2A');
+        const polygon=(g:Graphics,points:number[][],fill:Color)=>{g.fillColor=fill;g.strokeColor=ink;g.lineWidth=4;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
         if (tier >= 3) {
             const aura = makeNode('EliteAura', this.body, 0, -39).addComponent(Graphics);
             aura.strokeColor = new Color(tier === 4 ? '#DAC17577' : '#B5A3D966'); aura.lineWidth = tier === 4 ? 4 : 2;
@@ -120,26 +123,28 @@ export class UnitActor {
         if (!soldier) {
             const cape = makeNode('SignatureCape', this.body).addComponent(Graphics);
             cape.fillColor = new Color(id === 'lvbu' || id === 'zhouyu' ? '#8E3F43' : id === 'zhaoyun' || id === 'machao' ? '#D5E0DE' : this.unit.color);
-            cape.moveTo(-17, 24); cape.lineTo(-32, -42); cape.lineTo(32, -42); cape.lineTo(17, 24); cape.close(); cape.fill();
+            polygon(cape,[[-18,25],[-42,-34],[-22,-31],[-28,-48],[10,-37],[42,-44],[24,25]],new Color(id==='lvbu'||id==='zhouyu'?'#A82D45':comic[id]||this.unit.color));
             cape.strokeColor = new Color(tier === 4 ? '#E7C879' : '#BCCFC377'); cape.lineWidth = 2; cape.moveTo(-17, 24); cape.lineTo(-32, -42); cape.lineTo(32, -42); cape.stroke();
         }
         const limb = (name: string, x: number, y: number, leg: boolean): Node => {
             const node = makeNode(name, this.body, x, y); const g = node.addComponent(Graphics);
-            g.fillColor = leg ? new Color('#26374C') : armor; g.roundRect(-5, -24, 10, 25, 4); g.fill();
-            g.fillColor = leg ? new Color('#162134') : new Color('#ECC695'); g.roundRect(-6, -27, leg ? 16 : 12, 9, 3); g.fill(); return node;
+            polygon(g,[[-7,3],[8,0],[9,-23],[-9,-25]],leg?new Color('#334058'):armor);
+            polygon(g,[[-9,-19],[9,-20],[17,-31],[-11,-31]],leg?new Color('#1B2034'):new Color('#EDB77D'));return node;
         };
         this.leftLeg = limb('LeftLeg', -10, -13, true); this.rightLeg = limb('RightLeg', 10, -13, true);
         this.torso = makeNode('ArmoredTorso', this.body); const g = this.torso.addComponent(Graphics);
-        g.fillColor = id === 'zhaoyun' || id === 'machao' ? new Color('#D3DFE0') : armor;
-        g.roundRect(-23, -20, 46, 49, 12); g.fill();
-        g.strokeColor = new Color('#202C35'); g.lineWidth = 3; g.roundRect(-23, -20, 46, 49, 12); g.stroke();
-        g.fillColor = new Color('#CDD8C744'); g.roundRect(-20, -9, 5, 30, 2); g.fill();
-        g.fillColor = new Color(this.rear ? this.unit.color : tier === 4 ? '#564452' : '#35475B'); g.roundRect(-16, -12, 32, 32, 6); g.fill();
-        g.strokeColor = new Color(tier === 4 ? '#E6C673' : '#C4B385'); g.lineWidth = 2;
-        if (this.rear) { g.moveTo(0, 20); g.lineTo(-11, -8); g.lineTo(11, -8); g.close(); g.stroke(); }
-        else [-6, 3, 12].forEach(y => { g.moveTo(-13, y); g.lineTo(13, y); g.stroke(); });
-        g.fillColor = new Color('#D6B76F'); g.rect(-23, -14, 46, 5); g.fill(); g.circle(0, -11, 5); g.fill();
-        if (tier >= 3) { g.fillColor = new Color(tier === 4 ? '#D5AF5B' : '#A9BEC6'); g.ellipse(-24, 17, 10, 8); g.ellipse(24, 17, 10, 8); g.fill(); }
+        polygon(g,[[-26,29],[-35,13],[-22,-10],[-20,-28],[21,-28],[23,-9],[35,13],[26,29]],armor);
+        polygon(g,[[-19,20],[0,27],[20,19],[14,-12],[0,-21],[-14,-12]],new Color(this.rear?'#34466B':tier===4?'#522D48':'#314466'));
+        g.strokeColor=new Color('#F2CF78');g.lineWidth=3;
+        [-4,6,16].forEach(y=>{g.moveTo(-13,y);g.lineTo(0,y-5);g.lineTo(13,y);g.stroke();});
+        polygon(g,[[-25,-17],[25,-17],[22,-28],[-22,-28]],new Color('#E7B448'));
+        g.fillColor=new Color('#FFE6A7');g.circle(0,-22,5);g.fill();
+        if(!soldier){
+            const shoulder=tier>=3?new Color('#E9B94E'):new Color('#899DB4');
+            polygon(g,[[-18,25],[-32,35],[-45,23],[-41,7],[-23,12]],shoulder);
+            polygon(g,[[18,25],[32,35],[45,23],[41,7],[23,12]],shoulder);
+            if(tier>=3){polygon(g,[[-34,33],[-41,47],[-45,23]],shoulder);polygon(g,[[34,33],[41,47],[45,23]],shoulder);}
+        }
         this.leftArm = limb('LeftArm', -25, 19, false); this.rightArm = limb('RightArm', 25, 19, false);
         if (['caohong', 'chengpu', 'huanggai', 'zhoucang'].indexOf(id) >= 0 || (soldier && this.weapon === 'sword')) {
             const shield = makeNode('Shield', this.leftArm, -2, -17).addComponent(Graphics);
@@ -147,14 +152,19 @@ export class UnitActor {
             shield.strokeColor = new Color('#D6BC83'); shield.lineWidth = 3; shield.roundRect(-12, -16, 24, 32, 9); shield.stroke();
         }
         this.head = makeNode('Head', this.body, 0, 34); const h = this.head.addComponent(Graphics);
-        h.fillColor = id === 'zhaoyun' || id === 'machao' ? new Color('#D7E6E8') : armor; h.circle(0, 0, 25); h.fill(); h.strokeColor = new Color('#1B2933'); h.lineWidth = 3; h.circle(0, 0, 25); h.stroke();
-        if (!this.rear) {
-            h.fillColor = new Color(id === 'guanyu' ? '#C38D75' : '#F0CB9F'); h.roundRect(-19, -15, 38, 29, 10); h.fill();
-            h.fillColor = new Color('#233548'); h.circle(-7, 0, 2.5); h.circle(7, 0, 2.5); h.fill();
-            h.strokeColor = new Color('#A76F4D'); h.lineWidth = 1.5; h.moveTo(-4, -8); h.lineTo(4, -8); h.stroke();
-        } else {
-            h.fillColor = new Color('#28384B'); h.roundRect(-17, -17, 34, 17, 7); h.fill();
-            h.strokeColor = new Color('#D9C28D'); h.lineWidth = 3; h.moveTo(0, -5); h.lineTo(0, 23); h.stroke();
+        polygon(h,[[-25,17],[-31,-1],[-23,-22],[0,-29],[25,-20],[30,1],[22,21]],id==='zhaoyun'||id==='machao'?new Color('#D6E7F2'):armor);
+        if(!this.rear){
+            polygon(h,[[-22,11],[-23,-7],[-12,-22],[12,-23],[24,-7],[21,12],[0,18]],new Color(id==='guanyu'?'#D87554':id==='zhangfei'?'#D89A5E':'#F5C389'));
+            h.fillColor=new Color(id==='guanyu'?'#AC483F':'#DD9F65');h.moveTo(5,9);h.lineTo(17,-14);h.lineTo(5,-19);h.lineTo(-3,-4);h.close();h.fill();
+            h.fillColor=new Color('#FFF9E7');h.moveTo(-19,5);h.lineTo(-4,2);h.lineTo(-5,-4);h.lineTo(-17,-3);h.close();h.fill();h.moveTo(4,2);h.lineTo(19,6);h.lineTo(17,-3);h.lineTo(5,-4);h.close();h.fill();
+            h.fillColor=ink;h.rect(-10,-3,4,8);h.rect(9,-3,4,8);h.fill();
+            h.strokeColor=ink;h.lineWidth=4;h.moveTo(-22,11);h.lineTo(-4,6);h.moveTo(4,6);h.lineTo(22,12);h.stroke();
+            h.lineWidth=2;h.moveTo(0,3);h.lineTo(-3,-8);h.lineTo(3,-8);h.stroke();
+            polygon(h,[[-12,-13],[13,-12],[8,-20],[-6,-21]],new Color('#FFF8DD'));
+            h.strokeColor=new Color('#FFEAAD');h.lineWidth=2;h.moveTo(-22,-4);h.lineTo(-16,-10);h.moveTo(-23,-7);h.lineTo(-17,-13);h.stroke();
+        }else{
+            polygon(h,[[-24,5],[-23,-20],[0,-29],[23,-20],[25,5]],new Color('#25314B'));
+            h.strokeColor=new Color('#D9C28D');h.lineWidth=4;h.moveTo(0,-18);h.lineTo(0,23);h.stroke();
         }
         h.fillColor = new Color(tier === 4 || boss ? '#D8B46B' : '#596C78'); h.roundRect(-25, 13, 50, 6, 3); h.fill();
         if (boss) {
@@ -168,8 +178,8 @@ export class UnitActor {
         }
         if (id === 'lvbu') {
             h.strokeColor = new Color('#D8A65B'); h.lineWidth = 4;
-            h.moveTo(-11, 21); h.bezierCurveTo(-13, 63, -53, 64, -40, 30); h.stroke();
-            h.moveTo(11, 21); h.bezierCurveTo(13, 63, 53, 64, 40, 30); h.stroke();
+            h.moveTo(-11, 21); h.bezierCurveTo(-5, 91, -76, 99, -54, 42); h.stroke();
+            h.moveTo(11, 21); h.bezierCurveTo(5, 91, 76, 99, 54, 42); h.stroke();
         } else if (id === 'zhugeliang' || id === 'simayi' || id === 'caocao' || id === 'jiaxu' || id === 'sunquan') {
             h.fillColor = new Color(id === 'zhugeliang' ? '#304B62' : '#2C2A3A'); h.roundRect(-18, 17, 36, 24, 5); h.fill();
             h.strokeColor = new Color('#C9B87F'); h.lineWidth = 2; h.moveTo(-18, 22); h.lineTo(18, 22); h.stroke();
@@ -181,6 +191,11 @@ export class UnitActor {
             h.strokeColor = new Color('#E7BCD2'); h.lineWidth = 3; h.moveTo(-23, 9); h.quadraticCurveTo(-40, -3, -29, -26); h.stroke();
         }
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);
+        this.weaponNode.setScale(this.unit.signature?1.32:soldier?1:1.12,this.unit.signature?1.32:soldier?1:1.12,1);
+        if(this.unit.signature){
+            const glow=makeNode('ExclusiveWeaponGlow',this.weaponNode).addComponent(Graphics);glow.strokeColor=new Color('#FFD65377');glow.lineWidth=12;glow.moveTo(3,-10);glow.lineTo(3,76);glow.stroke();
+            const sig=makeNode('SignatureSeal',this.body,0,-45).addComponent(Graphics);sig.strokeColor=new Color('#FFD474');sig.lineWidth=3;sig.ellipse(0,0,46,15);sig.stroke();sig.moveTo(-44,0);sig.lineTo(-57,0);sig.moveTo(44,0);sig.lineTo(57,0);sig.stroke();
+        }
         const w = this.weaponNode.addComponent(Graphics); w.fillColor = new Color('#DFEAE8'); w.strokeColor = new Color('#D9E5E3'); w.lineWidth = 3;
         if (this.weapon === 'bow') {
             w.strokeColor = new Color(id === 'huangzhong' ? '#D3AD55' : '#BA9270'); w.lineWidth = 4; w.arc(7, 15, id === 'huangzhong' ? 35 : 29, -1.2, 1.2, false); w.stroke();

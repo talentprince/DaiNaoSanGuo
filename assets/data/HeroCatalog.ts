@@ -65,7 +65,7 @@ export function getHero(id: string): HeroDefinition | undefined { return HERO_CA
 export const DRAW_COST = 100;
 export const TEN_DRAW_COST = 1000;
 export const DIVINE_PITY = 80;
-export const EXCHANGE_COST = { 3: 800, 4: 3000 };
+export const EXCHANGE_COST = { 3: 1400, 4: 2100 };
 export const TACTIC_NAMES = { cleave: '猛将斩击', pierce: '一击破阵', volley: '追风连射', guard: '攻守兼备', heal: '妙手回春' };
 export function validateParty(ids: readonly string[], owned: readonly HeroId[], mode: 'main' | 'trial' | 'defense' = 'main'): string | null {
     if (new Set(ids).size !== ids.length || ids.some(id => !getHero(id) || owned.indexOf(id as HeroId) < 0)) return '只能使用已拥有且不重复的武将';

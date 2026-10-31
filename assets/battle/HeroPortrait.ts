@@ -13,7 +13,9 @@ export function portrait(parent: Node, member: FormationMember, size: number): N
     g.strokeColor = new Color(h ? TIER_COLORS[h.tier - 1] : '#78919C'); g.lineWidth = h && h.tier >= 3 ? 4 : 2; g.circle(0, 0, 41); g.stroke();
     g.fillColor = new Color(color); g.roundRect(-25, -29, 50, 39, 10); g.fill(); g.circle(0, 13, 26); g.fill();
     g.fillColor = new Color(member.hero === 'guanyu' ? '#D49D82' : '#EDC69B'); g.roundRect(-19, -5, 38, 29, 10); g.fill();
-    g.fillColor = new Color('#213248'); g.circle(-7, 10, 2.5); g.circle(7, 10, 2.5); g.fill();
+    g.strokeColor=new Color('#161C2B');g.lineWidth=3;g.moveTo(-18,19);g.lineTo(-4,15);g.moveTo(4,15);g.lineTo(18,20);g.stroke();
+    g.fillColor=new Color('#FFF7DD');g.rect(-16,8,12,6);g.rect(4,8,12,6);g.fill();g.fillColor=new Color('#1B243A');g.rect(-9,8,4,6);g.rect(8,8,4,6);g.fill();
+    g.strokeColor=new Color('#252235');g.lineWidth=2;g.moveTo(-8,2);g.lineTo(8,2);g.stroke();
     const id = member.hero || '';
     if (['guanyu', 'zhangfei', 'caocao', 'huangzhong', 'huatuo'].indexOf(id) >= 0) {
         g.fillColor = new Color(id === 'huangzhong' || id === 'huatuo' ? '#DFE3DE' : '#253738'); g.moveTo(-14, 0); g.lineTo(14, 0); g.lineTo(0, -23); g.close(); g.fill();

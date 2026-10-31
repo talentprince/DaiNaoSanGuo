@@ -58,7 +58,7 @@ test('分次领取保存余数，全天合计不超过十连；时间倒退不�
     now -= DAY_MS; assert.equal(s.claimIdle(), 0);
     now += DAY_MS; assert.equal(s.claimIdle(), 0);
 });
-test('招募概率边界对应60/30/9/1四档，费用准确，重复将只换铜钱', () => {
+test('招募概率边界对应60/30/9/1四档，费用准确，重复将转铜钱和碎片', () => {
     for (const [roll, tier] of [[0, 1], [0.59999, 1], [0.6, 2], [0.89999, 2], [0.9, 3], [0.98999, 3], [0.99, 4]]) {
         let n = 0; const { store } = rich({}, () => n++ % 2 === 0 ? roll : 0);
         const result = store.recruit(1)[0];
@@ -85,12 +85,12 @@ test('呆币不足或无效随机源不扣费、不改变阵容与招募状态',
     const bad = rich({}, () => 1).store; const original = bad.progress;
     assert.throws(() => bad.recruit(10)); assert.deepEqual(bad.progress, original);
 });
-test('军功兑换可以任选名将神将，已有武将与积分不足不扣积分', () => {
+test('脑勋兑换可以任选名将神将，已有武将与积分不足不扣积分', () => {
     const { store, disk } = rich({ owned: [...STARTER_PARTY] });
-    assert.equal(store.exchange('lvbu'), null); assert.equal(store.progress.points, 7000);
-    assert.ok(store.exchange('lvbu')); assert.equal(store.progress.points, 7000);
-    assert.equal(store.exchange('zhangfei'), null); assert.equal(store.progress.points, 6200);
-    assert.ok(store.exchange('huanggai')); assert.equal(store.progress.points, 6200);
+    assert.equal(store.exchange('lvbu'), null); assert.equal(store.progress.points, 7900);
+    assert.ok(store.exchange('lvbu')); assert.equal(store.progress.points, 7900);
+    assert.equal(store.exchange('zhangfei'), null); assert.equal(store.progress.points, 6500);
+    assert.ok(store.exchange('huanggai')); assert.equal(store.progress.points, 6500);
     assert.ok(new ProgressStore(disk, () => NOW).progress.owned.includes('lvbu'));
     assert.ok(rich({ points: 1, owned: [...STARTER_PARTY] }).store.exchange('zhouyu'));
 });
@@ -111,7 +111,7 @@ test('攻城每天3次，失败仍有少量奖励；挑战票据重载恢复且�
     assert.throws(() => store.startActivity('city'));
     const s = new ProgressStore(disk, () => NOW);
     assert.equal(s.progress.pending.id, first.id);
-    assert.deepEqual(s.settleActivity(first.id, false), { granted: true, daibi: 30, points: 15, saved: true });
+    assert.deepEqual(s.settleActivity(first.id, false), { granted: true, daibi: 90, points: 8, saved: true });
     assert.equal(s.settleActivity(first.id, false).granted, false);
     for (let i = 0; i < 2; i++) { const r = s.startActivity('city'); s.settleActivity(r.id, true); }
     assert.throws(() => s.startActivity('city'));
@@ -139,13 +139,13 @@ test('世界Boss固定30秒，记录有效伤害，死亡后等到计时结束�
     const dead = new BattleEngine(createActivityOptions(run)); dead.heroes.forEach(u => { u.hp = 0; });
     dead.advance(100); assert.equal(dead.status, 'scored'); assert.equal(dead.damageDealt, 0);
 });
-test('Boss无限次挑战只发当日最高档差额，不能无限刷呆币或军功', () => {
+test('Boss无限次挑战只发当日最高档差额，不能无限刷呆币或脑勋', () => {
     const s = rich().store; let daibi = 0; let points = 0;
     for (const damage of [100, 3000, 10000, 25000, 50000, 99999, 0]) {
         const run = s.startActivity('boss'); const r = s.settleActivity(run.id, false, damage);
         daibi += r.daibi; points += r.points;
     }
-    assert.equal(daibi, 300); assert.equal(points, 120);
+    assert.equal(daibi, 320); assert.equal(points, 30);
 });
 test('三将关卡确实产生不同战斗特性，首通才能递增关卡和得奖励', () => {
     const s = rich().store;
@@ -163,7 +163,7 @@ test('草船借宝每天2次，三种筹谋改变不同属性，失败小奖，�
     const s = rich().store;
     assert.throws(() => s.startActivity('boat', [])); assert.equal(s.progress.daily.boatUsed, 0);
     const a = s.startActivity('boat', ['wind', 'wind', 'wind']); const optA = createActivityOptions(a);
-    assert.equal(s.settleActivity(a.id, false).daibi, 50);
+    assert.equal(s.settleActivity(a.id, false).daibi, 130);
     const b = s.startActivity('boat', ['guard', 'repair', 'repair']); const optB = createActivityOptions(b);
     assert.ok(optA.heroes[0].attack > optB.heroes[0].attack);
     assert.ok(optB.heroes[0].maxHp > optA.heroes[0].maxHp);

@@ -2,6 +2,7 @@ export type Team = 'hero' | 'enemy';
 export type BattleStatus = 'fighting' | 'won' | 'lost' | 'scored';
 
 export type WeaponKind = 'sword' | 'spear' | 'bow' | 'fan' | 'glaive' | 'serpent' | 'halberd' | 'dual' | 'axe' | 'staff' | 'ribbon' | 'qin';
+export interface CombatBonus { attack: number; defense: number; maxHp: number; stars?: number; signature?: string; }
 export interface UnitConfig {
     id: string;
     name: string;
@@ -17,6 +18,8 @@ export interface UnitConfig {
     skillName?: string;
     visualId?: string;
     heroTier?: number;
+    stars?: number;
+    signature?: string;
     formationSpot?: string;
     onWall?: boolean;
     tactic?: 'cleave' | 'pierce' | 'volley' | 'guard' | 'heal';
@@ -176,12 +179,12 @@ export class BattleEngine {
         this.events.push({ type: 'skill', source: caster.id, targets: targets.map(unit => unit.id) });
         if (tactic === 'heal') {
             const ratio = tier === 2 ? 0.22 : tier === 3 ? 0.12 : caster.visualId === 'huatuo' ? 0.20 : 0.16;
-            targets.forEach(unit => this.heal(caster, unit, ratio));
+            targets.forEach(unit => this.heal(caster, unit, ratio * (caster.signature ? 1.25 : 1)));
             if (tier === 4) targets.forEach(unit => this.applyBuff(caster, unit, caster.visualId === 'simayi' ? 'attack' : 'shield'));
         } else {
             const multiplier = tactic === 'pierce' ? 2.8 : tactic === 'volley' ? 2.1 : tactic === 'guard' ? 1.5 : 2.6;
-            targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * (1 + caster.attackBuff) * multiplier), false));
-            if (tactic === 'guard' && tier >= 2) (tier === 4 ? livingFriends : [caster]).forEach(unit => this.applyBuff(caster, unit, 'shield'));
+            targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * (1 + caster.attackBuff) * multiplier * (caster.signature && (tactic === 'cleave' || tactic === 'pierce') ? 1.25 : 1) * ((caster.stars || 1) >= 6 ? 1.2 : 1)), false));
+            if (tactic === 'guard' && (tier >= 2 || caster.signature)) (tier === 4 ? livingFriends : [caster]).forEach(unit => this.applyBuff(caster, unit, 'shield'));
         }
         this.checkProgress(); return true;
     }
@@ -226,7 +229,7 @@ export class BattleEngine {
         if (this.approachRemaining > 0) { this.approachRemaining = Math.max(0, this.approachRemaining - dt); return; }
         [...this.heroes, ...this.enemies].forEach(unit => {
             const eligible = unit.kind !== 'soldier' && unit.kind !== 'wall' && (unit.team === 'hero' || unit.kind === 'boss' || unit.kind === 'hero');
-            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate);
+            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate * ((unit.stars || 1) >= 3 ? 1.1 : 1));
         });
         if (this.enemyRegen) this.enemies.filter(u => u.hp > 0).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * this.enemyRegen * dt); });
         if (this.heroDrain) this.heroes.filter(u => u.hp > 0).forEach(u => {
@@ -307,7 +310,7 @@ export class BattleEngine {
     }
 
     private applyBuff(source: Unit, target: Unit, buff: 'shield' | 'attack'): void {
-        if (buff === 'shield') { target.shield = Math.max(target.shield, Math.floor(target.maxHp * 0.12)); target.shieldRemaining = 6; }
+        if (buff === 'shield') { target.shield = Math.max(target.shield, Math.floor(target.maxHp * 0.12 * (source.signature && source.tactic === 'guard' ? 1.5 : 1))); target.shieldRemaining = 6; }
         else { target.attackBuff = 0.2; target.attackBuffRemaining = 6; }
         this.events.push({ type: 'buff', source: source.id, target: target.id, buff, amount: buff === 'shield' ? target.shield : 20 });
     }

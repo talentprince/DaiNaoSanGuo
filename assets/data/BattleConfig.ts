@@ -1,3 +1,5 @@
+import { MAX_STAGE, MAX_LEVEL, levelFactor, stageFactor, starFactor } from './GrowthConfig';
+import type { CombatBonus } from '../battle/BattleEngine';
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
 
 import type { FormationEntry } from './FormationConfig';
@@ -9,11 +11,11 @@ export const HEROES: UnitConfig[] = LEGACY_PARTY.map(id => ({ ...getHero(id)! })
 export const STAGE_NAMES = ['黄巾初阵', '山道伏兵', '营寨突围', '荒野追击', '黄巾大营'];
 
 export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 1,
-    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {},
+    equipment: Record<string, CombatBonus> = {},
     party: readonly HeroId[] = LEGACY_PARTY): BattleOptions {
-    if (!Number.isInteger(stage) || stage < 1 || stage > 99) throw new Error('Demo 关卡范围为 1–99');
-    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为 1–99');
-    const factor = Math.pow(1.17, stage - 1);
+    if (!Number.isInteger(stage) || stage < 1 || stage > MAX_STAGE) throw new Error('主线关卡范围为 1–999');
+    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > MAX_LEVEL) throw new Error('全队等级范围为1–300');
+    const factor = stageFactor(stage);
 
     const waves: UnitConfig[][] = [];
     for (let wave = 0; wave < 3; wave += 1) {
@@ -39,23 +41,27 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
 }
 
 export function createHeroes(party: readonly HeroId[], heroLevel = 1,
-    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}): UnitConfig[] {
+    equipment: Record<string, CombatBonus> = {}): UnitConfig[] {
     if (party.length > 5 || new Set(party).size !== party.length || party.some(id => !getHero(id))) throw new Error('阵容无效');
-    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > 99) throw new Error('全队等级范围为1–99');
-    const factor = Math.pow(1.18, heroLevel - 1);
+    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > MAX_LEVEL) throw new Error('全队等级范围为1–300');
+    const factor = levelFactor(heroLevel);
     return party.map(id => {
         const hero = getHero(id)!;
-        const bonus = equipment[id] || { attack: 0, defense: 0, maxHp: 0 };
+        const bonus: CombatBonus = equipment[id] || { attack: 0, defense: 0, maxHp: 0 };
+        const stars = bonus.stars || 1; const star = starFactor(stars);
+        if (!Number.isInteger(stars) || stars < 1 || stars > 6) throw new Error('星级无效');
+        if (bonus.signature && bonus.signature !== id) throw new Error('专属武器不属于此将');
         if (![bonus.attack, bonus.defense, bonus.maxHp].every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error('装备加成无效');
-        return { ...hero, maxHp: Math.round(hero.maxHp * factor) + bonus.maxHp,
-            attack: Math.round(hero.attack * factor) + bonus.attack, defense: Math.round(hero.defense * factor) + bonus.defense };
+        return { ...hero, stars, signature: bonus.signature, interval: hero.interval * (bonus.signature && hero.tactic === 'volley' ? 0.85 : 1),
+            maxHp: Math.round((hero.maxHp + bonus.maxHp) * factor * star),
+            attack: Math.round((hero.attack + bonus.attack) * factor * star), defense: Math.round((hero.defense + bonus.defense) * factor * star) };
     });
 }
 
 export type SoldierType = 'mixed' | 'sword' | 'spear' | 'bow';
 export function withSoldiers(heroes: UnitConfig[], size: number, level = 1, type: SoldierType = 'mixed', prefix = 'ally'): UnitConfig[] {
     const result = heroes.map(h => ({ ...h }));
-    const factor = Math.pow(1.18, level - 1);
+    const factor = levelFactor(level);
     const types = ['sword', 'spear', 'bow'] as const;
     while (result.length < size) {
         const i = result.length;
@@ -70,7 +76,7 @@ export function withSoldiers(heroes: UnitConfig[], size: number, level = 1, type
 }
 
 export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
-    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {},
+    equipment: Record<string, CombatBonus> = {},
     party: readonly HeroId[] = LEGACY_PARTY, troopType: SoldierType = 'mixed', layout?: FormationEntry[]): BattleOptions {
     const base = createBattleOptions(stage, seed, level, equipment, party);
     const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: '黄巾魔将' };
@@ -79,7 +85,7 @@ export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
 }
 
 export function createLineup(entries: readonly FormationEntry[], level: number,
-    equipment: Record<string, { attack: number; defense: number; maxHp: number }> = {}, prefix = 'ally'): UnitConfig[] {
+    equipment: Record<string, CombatBonus> = {}, prefix = 'ally'): UnitConfig[] {
     return entries.map((entry, i) => {
         const base = entry.hero ? createHeroes([entry.hero], level, equipment)[0] : withSoldiers([], 1, level, entry.troop || 'sword', `${prefix}-${i}`)[0];
         const front = /^r[0-2]c2$/.test(entry.spot);

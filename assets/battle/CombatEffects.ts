@@ -1,3 +1,4 @@
+import { formatAmount } from '../data/GrowthConfig';
 import { Color, Graphics, Node, UIOpacity } from 'cc';
 import { makeNode, panel, text } from './BattleUI';
 import type { UnitActor } from './UnitActor';
@@ -28,7 +29,7 @@ export class CombatEffects {
     }
     number(actor: UnitActor, amount: number, heal: boolean, critical: boolean): void {
         const x = actor.impactPoint.x; const y = actor.impactPoint.y + (actor.unit.kind === 'boss' ? 90 : 61);
-        const node = text(this.parent, 'FloatingNumber', `${heal ? '+' : '−'}${Math.ceil(amount)}${critical ? '!' : ''}`, x, y,
+        const node = text(this.parent, 'FloatingNumber', `${heal ? '+' : '−'}${formatAmount(Math.ceil(amount))}${critical ? '!' : ''}`, x, y,
             critical ? 29 : 22, heal ? '#9CE7B0' : critical ? '#FFE3A1' : '#F4C4B6', 180).node;
         const opacity = node.addComponent(UIOpacity);
         this.effects.push({ node, opacity, total: 0.65, left: 0.65, frame: p => node.setPosition(x, y + p * 48, 0) });
@@ -83,10 +84,14 @@ export class CombatEffects {
         this.globalNodes.push(this.ring(0, 0, color, 0.9, 235));
         }
         const title = panel(this.parent, 'SkillBanner', 0, 249, 520, 50, '#14263EF2', 12);
-        text(title, 'SkillTitle', `${source.unit.name} · ${name}`, 0, 0, 25, '#FFE4A2', 500);
+        text(title, 'SkillTitle', `${source.unit.signature?'【专武】':''}${source.unit.name} · ${name}`, 0, 0, 25, '#FFE4A2', 500);
         this.globalNodes.push(title);
         const opacity = title.addComponent(UIOpacity); this.effects.push({ node: title, opacity, total: 0.9, left: 0.9 });
         this.ring(x, y, '#E9D18C', 0.55, 70);
+        if(source.unit.signature){
+            this.ring(x,y,'#FFD45B',0.7,90);
+            targets.forEach(t=>this.slash(t.impactPoint.x,t.impactPoint.y,'#FFD55B',false,1.3));
+        }
         if (tactic === 'pierce') {
             targets.forEach(target => {
                 const b = target.impactPoint;
