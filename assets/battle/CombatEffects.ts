@@ -1,3 +1,4 @@
+import { WeatherEffects } from './WeatherEffects';
 import { formatAmount } from '../data/GrowthConfig';
 import { Color, Graphics, Node, UIOpacity } from 'cc';
 import { makeNode, panel, text } from './BattleUI';
@@ -8,8 +9,10 @@ export class CombatEffects {
     private parent: Node;
     private effects: Effect[] = [];
     private globalNodes: Node[] = [];
-    constructor(parent: Node) { this.parent = parent; }
+    private weather:WeatherEffects;
+    constructor(parent: Node) { this.parent = parent; this.weather=new WeatherEffects(parent); }
     update(dt: number): void {
+        this.weather.update(dt);
         this.effects = this.effects.filter(effect => {
             effect.left -= dt;
             const progress = 1 - Math.max(0, effect.left) / effect.total;
@@ -19,7 +22,7 @@ export class CombatEffects {
             return true;
         });
     }
-    clear(): void { this.effects.forEach(e => e.node.destroy()); this.effects = []; this.globalNodes = []; }
+    clear(): void { this.weather.clear(); this.effects.forEach(e => e.node.destroy()); this.effects = []; this.globalNodes = []; }
     private add(name: string, x: number, y: number, duration: number, frame?: (p: number) => void): { node: Node; graphics: Graphics } {
         const node = makeNode(name, this.parent, x, y); const opacity = node.addComponent(UIOpacity);
         const graphics = node.addComponent(Graphics);
@@ -62,7 +65,7 @@ export class CombatEffects {
         for (let i = 0; i < 4; i++) { const angle = i * 1.6; g.moveTo(Math.cos(angle) * 12, Math.sin(angle) * 12); g.lineTo(Math.cos(angle) * 24, Math.sin(angle) * 24); g.stroke(); }
     }
     private plus(x: number, y: number): void {
-        const { graphics: g } = this.add('HealingCross', x, y, 0.7);
+        const { graphics: g } = this.add('HealingCross', x, y, 1.8);
         g.fillColor = new Color('#9BE3AA'); g.roundRect(-4, -14, 8, 28, 3); g.fill(); g.roundRect(-14, -4, 28, 8, 3); g.fill();
     }
     skill(source: UnitActor, targets: UnitActor[], friends: UnitActor[], name: string): void {
@@ -73,20 +76,11 @@ export class CombatEffects {
         const x = source.node.position.x; const y = source.node.position.y;
         const color = source.unit.team === 'enemy' ? '#DF9A8A' : tactic === 'heal' || tactic === 'guard' ? '#A5DAB6' : source.unit.heroTier === 4 ? '#F0CD81' : '#BADFD8';
         const fullField = source.unit.kind === 'boss' || source.unit.heroTier === 4 || (tactic === 'heal' && (source.unit.heroTier || 1) >= 3);
-        if (fullField) {
-        const wash = this.add('FullFieldSkillWash', 0, 0, 0.85);
-        wash.graphics.fillColor = source.unit.team === 'enemy' ? new Color(140, 55, 65, 35) : new Color(65, 140, 130, 34);
-        this.globalNodes.push(wash.node);
-        wash.graphics.roundRect(-328, -312, 656, 626, 18); wash.graphics.fill();
-        wash.graphics.strokeColor = new Color(color); wash.graphics.lineWidth = 5;
-        wash.graphics.moveTo(-310, -220); wash.graphics.bezierCurveTo(-100, 330, 100, -270, 310, 210); wash.graphics.stroke();
-        wash.graphics.lineWidth = 2; wash.graphics.ellipse(0, 0, 300, 210); wash.graphics.stroke();
-        this.globalNodes.push(this.ring(0, 0, color, 0.9, 235));
-        }
-        const title = panel(this.parent, 'SkillBanner', 0, 249, 520, 50, '#14263EF2', 12);
+        if(fullField&&tactic!=='heal'&&tactic!=='guard')this.weather.cast(source.unit.element==='slash'||!source.unit.element?'wind':source.unit.element);
+        const title = panel(this.parent, 'SkillBanner', 0, 380, 590, 56, '#14263EF2', 12);
         text(title, 'SkillTitle', `${source.unit.signature?'【专武】':''}${source.unit.name} · ${name}`, 0, 0, 25, '#FFE4A2', 500);
         this.globalNodes.push(title);
-        const opacity = title.addComponent(UIOpacity); this.effects.push({ node: title, opacity, total: 0.9, left: 0.9 });
+        const opacity = title.addComponent(UIOpacity); this.effects.push({ node: title, opacity, total: 1.5, left: 1.5 });
         this.ring(x, y, '#E9D18C', 0.55, 70);
         if(source.unit.signature){
             this.ring(x,y,'#FFD45B',0.7,90);
@@ -106,7 +100,7 @@ export class CombatEffects {
             g.strokeColor = new Color('#9ED5C7'); g.lineWidth = 6; g.moveTo(-40, 37); g.lineTo(40, 37); g.lineTo(36, -18); g.lineTo(0, -44); g.lineTo(-36, -18); g.close(); g.stroke();
             targets.forEach(target => this.slash(target.impactPoint.x, target.impactPoint.y, '#B7E6D3'));
         } else if (tactic === 'heal') {
-            friends.filter(a => a.unit.hp > 0).forEach(actor => { this.plus(actor.node.position.x, actor.node.position.y + 22); this.ring(actor.node.position.x, actor.node.position.y - 27, '#88E0A6', 0.8, 55); });
+            friends.filter(a => a.unit.hp > 0).forEach(actor => { this.plus(actor.node.position.x, actor.node.position.y + 22); this.ring(actor.node.position.x, actor.node.position.y - 27, '#88E0A6', 3.6, 55); });
         } else {
             targets.forEach(target => { this.slash(target.impactPoint.x, target.impactPoint.y + 10, '#C3E4B1', false, 1.8); this.ring(target.impactPoint.x, target.impactPoint.y, '#9DCCAF', 0.6, 65); });
         }

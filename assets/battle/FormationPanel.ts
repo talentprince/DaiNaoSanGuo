@@ -1,3 +1,4 @@
+import { bondProgress } from '../data/BondConfig';
 import { Color, EventTouch, Graphics, Node, UITransform, Vec3 } from 'cc';
 import { ProgressStore } from './ProgressStore';
 import { button, makeNode, panel, text } from './BattleUI';
@@ -27,7 +28,8 @@ export class FormationPanel {
         this.node.destroyAllChildren(); this.ghost = null;
         text(this.node, 'FormationTitle', '拖 拽 布 阵', 0, 560, 40, '#E8CF9E');
         button(this.node, 'CloseFormation', '返回', 290, 560, 84, 46, '#33485B', () => { this.node.destroy(); this.close(); });
-        text(this.node, 'FormationHelp', '上方排阵 · 下方选将和混编刀枪弓 · 可自动布阵', 0, 507, 19, '#A8C3D6');
+        const active=bondProgress(this.entries.filter(e=>e.hero).map(e=>e.hero!)).filter(b=>b.active);
+        text(this.node, 'FormationHelp', active.length?`已激活：${active.map(b=>b.bond.name).join(' / ')}`:'拖入同阵英雄激活羁绊 · 刀枪弓可混编', 0, 507, 18, '#A8C3D6');
         const modes: [FormationMode, string][] = [['main', '主线 / Boss'], ['trial', '三将3v5'], ['defense', '守城阵型']];
         modes.forEach(([id, title], i) => button(this.node, `FormationMode-${id}`, title, (i - 1) * 210, 444, 198, 54,
             this.mode === id ? '#6B7252' : '#2A4058', () => {

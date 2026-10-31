@@ -1,3 +1,4 @@
+import { applyBonds } from './BondConfig';
 import { levelFactor, stageFactor } from './GrowthConfig';
 import type { CombatBonus } from '../battle/BattleEngine';
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
@@ -34,7 +35,7 @@ export function trialTrait(stage: number): string[] { return TRIAL_TRAITS[(stage
 export function createActivityOptions(run: ActivityRun): BattleOptions {
     if (!Number.isInteger(run.stage) || run.stage < 1 || run.stage > 99) throw new Error('副本关卡无效');
     const bandFactor = stageFactor(((run.band || 1) - 1) * 50 + 1);
-    const heroes = run.layout ? createLineup(run.layout, run.level, run.equipment) : withSoldiers(createHeroes(run.party, run.level, run.equipment), run.mode === 'trial' ? 3 : 5, run.level, run.troopType);
+    const heroes = run.layout ? createLineup(run.layout, run.level, run.equipment) : applyBonds(withSoldiers(createHeroes(run.party, run.level, run.equipment), run.mode === 'trial' ? 3 : 5, run.level, run.troopType));
     if (run.mode === 'trial' && !run.layout && validateParty(run.party, run.party, 'trial')) throw new Error('三将阵容无效');
     const foe = (index: number, name: string, hp: number, attack: number, defense: number, interval = 1.5): UnitConfig => ({
         id: `enemy-${index}`, name, role: '副本', maxHp: hp, attack, defense, interval, priority: index,

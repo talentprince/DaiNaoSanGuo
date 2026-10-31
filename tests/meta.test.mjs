@@ -14,9 +14,9 @@ function rich(extra = {}, rng = () => 0.1) {
     return { disk, store: new ProgressStore(disk, () => NOW, rng) };
 }
 
-test('40名武将覆盖四档，初始5普通武将均可战斗，主线第一关可通关', () => {
-    assert.equal(HERO_CATALOG.length, 40);
-    assert.equal(new Set(HERO_CATALOG.map(h => h.id)).size, 40);
+test('44名武将覆盖四档，初始5普通武将均可战斗，主线第一关可通关', () => {
+    assert.equal(HERO_CATALOG.length, 44);
+    assert.equal(new Set(HERO_CATALOG.map(h => h.id)).size, 44);
     assert.deepEqual([...new Set(HERO_CATALOG.map(h => h.tier))].sort(), [1, 2, 3, 4]);
     const store = new ProgressStore(storage(), () => NOW);
     assert.deepEqual(store.progress.formation, STARTER_PARTY);

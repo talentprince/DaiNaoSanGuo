@@ -234,7 +234,7 @@ test('升级只影响新创建的战斗；能够靠升级突破原先失败关�
     const upgraded = new BattleEngine(createBattleOptions(60, 20261030, 20));
     upgraded.advance(120);
     assert.equal(upgraded.status, 'won');
-    assert.equal(original.heroes[0].maxHp, HEROES[0].maxHp);
+    assert.equal(original.heroes[0].maxHp,createBattleOptions(60).heroes[0].maxHp);
     assert.throws(() => createBattleOptions(1, 1, 0));
     assert.throws(() => createBattleOptions(1, 1, 301));
 });
@@ -323,10 +323,10 @@ test('装备加成只作用于指定武将的新战斗，不回写旧战斗或�
     const before = createBattleOptions(1);
     const item = createEquipment(2, 'bonus');
     const after = createBattleOptions(1, 20261030, 1, { guanyu: item });
-    assert.equal(after.heroes[0].attack, before.heroes[0].attack + item.attack);
-    assert.equal(after.heroes[0].maxHp, before.heroes[0].maxHp + item.maxHp);
+    assert.ok(after.heroes[0].attack > before.heroes[0].attack + item.attack); // 桃园/五虎羁绊同样放大新装备加成。
+    assert.ok(after.heroes[0].maxHp > before.heroes[0].maxHp + item.maxHp);
     assert.equal(after.heroes[1].maxHp, before.heroes[1].maxHp);
-    assert.equal(before.heroes[0].maxHp, HEROES[0].maxHp);
+    assert.equal(HEROES[0].maxHp,2400); // 配置未被羁绊或装备回写。
     assert.throws(() => createBattleOptions(1, 1, 1, { guanyu: { attack: -1, defense: 0, maxHp: 0 } }));
 });
 

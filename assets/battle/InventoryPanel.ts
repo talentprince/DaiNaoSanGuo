@@ -1,3 +1,4 @@
+import { previewUnit } from './UnitPreview';
 import { EventTouch, Node, UITransform, Vec3 } from 'cc';
 import { getHero, TIER_COLORS } from '../data/HeroCatalog';
 import { SIGNATURE_COST } from '../data/GrowthConfig';
@@ -35,7 +36,7 @@ export class InventoryPanel {
         });
         const pedestal=panel(this.node,'HeroShowcase',0,240,640,305,'#1C3044',24);const model=makeNode('Model',pedestal,-25,-10);
         const sig=p.inventory.find(i=>i.id===p.loadouts[this.selected]?.weapon)?.exclusive;
-        const unit:Unit={...hero,team:'hero',hp:hero.maxHp,cooldown:0,energy:0,shield:0,shieldRemaining:0,attackBuff:0,attackBuffRemaining:0,signature:sig,stars:p.stars[this.selected]||1};
+        const unit:Unit=previewUnit({...hero,signature:sig,stars:p.stars[this.selected]||1});
         const actor=new UnitActor(model,unit,0,0,0,0,1.7,1);actor.hp.node.active=false;actor.hpText.node.active=false;actor.node.getChildByName('Name')!.active=false;
         text(pedestal,'HeroStars',`${hero.name}  ${'★'.repeat(p.stars[this.selected]||1)}${'☆'.repeat(6-(p.stars[this.selected]||1))}`,0,-119,23,TIER_COLORS[hero.tier-1],330);
         SLOT_ORDER.forEach(slot=>{
@@ -59,7 +60,7 @@ export class InventoryPanel {
         if(!items.length)text(this.node,'EmptyBag','此栏暂无装备 · 击败主线首领获得',0,-160,23,'#9FB3C8',600);
         this.detail(p.inventory.find(i=>i.id===this.picked));
         button(this.node,'PrevPage','‹',-252,-531,88,48,'#2F455B',()=>{this.page=(this.page+bagPages-1)%bagPages;this.render();});
-        text(this.node,'PageInfo',`${this.page+1}/${bagPages}  ·  背包${p.inventory.length}/40`,0,-531,20,'#9DB2C5',330);
+        text(this.node,'PageInfo',`${this.page+1}/${bagPages}  ·  背包${p.inventory.length}/${this.store.inventoryCapacity}`,0,-531,20,'#9DB2C5',330);
         button(this.node,'NextPage','›',252,-531,88,48,'#2F455B',()=>{this.page=(this.page+1)%bagPages;this.render();});
         text(this.node,'InventoryNote',this.note+(this.store.storageAvailable?'':'（未保存）'),0,-595,18,'#C7D8B8',660);
     }
@@ -73,7 +74,7 @@ export class InventoryPanel {
         button(this.node,'EquipSelected',current?'卸下':owner?'转交穿戴':'穿戴',-157,-465,300,56,current?'#775546':'#4C7057',()=>{
             const ok=current?this.store.unequip(this.selected,slotOf(item)):this.store.equip(this.selected,item.id);this.note=ok?`${current?'已卸下':'已穿戴'}${item.name}，下场生效`:'专属武器仅限对应武将';this.render();
         });
-        button(this.node,'RecycleSelected',item.exclusive?'专武保留':'分解',157,-465,300,56,'#394C62',()=>{this.note=this.store.recycleEquipment(item.id)||'已分解为铜钱';if(!this.store.progress.inventory.some(i=>i.id===item.id))this.picked='';this.render();});
+        button(this.node,'RecycleSelected',item.exclusive?'专武保留':'分解',157,-465,300,56,'#394C62',()=>{this.note=this.store.recycleEquipment(item.id)||'已分解为脑铢';if(!this.store.progress.inventory.some(i=>i.id===item.id))this.picked='';this.render();});
     }
     private signatureShop():void{
         const p=this.store.progress;const item=signatureFor(this.selected);const owned=p.inventory.some(i=>i.id===item.id);

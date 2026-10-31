@@ -65,7 +65,7 @@ test('专武背包满/未有武将/钱不足均不扣脑勋',()=>{
     for(let i=0;i<40;i++)f.store.settleVictory(`bag${i}`,1);assert.ok(f.store.redeemSignature('guanhai'));assert.equal(f.store.progress.points,700);
     const poor=fixture({points:699});assert.ok(poor.store.redeemSignature('guanhai'));assert.equal(poor.store.progress.points,699);
 });
-test('40武将均可1至6星、优先本将碎片再将魂、满星不再消费',()=>{
+test('44武将均可1至6星、优先本将碎片再将魂、满星不再消费',()=>{
     const f=rich({souls:100000,fragments:{guanhai:10}});for(const h of HERO_CATALOG){for(let i=0;i<5;i++)assert.equal(f.store.starUp(h.id),null);assert.equal(f.store.progress.stars[h.id],6);}
     const before=f.store.progress.souls;assert.ok(f.store.starUp('guanhai'));assert.equal(f.store.progress.souls,before);assert.equal(f.store.progress.fragments.guanhai,0);
     const reload=new ProgressStore(f.disk,()=>f.now);assert.equal(reload.progress.stars.guanyu,6);

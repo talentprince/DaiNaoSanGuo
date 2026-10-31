@@ -11,8 +11,8 @@ const engine = (caster, friends = [], foes = 5) => {
     const e = new BattleEngine({ heroes: [caster, ...friends], waves: [Array.from({ length: foes }, (_, i) => unit(`enemy-${i}`, { kind: 'soldier', maxHp: 10000 }))], seed: 5 });
     e.autoSkill = false; e.heroes[0].energy = 100; return e;
 };
-test('40武将ID唯一，普通无治疗，神将无剧情赠送节点，新初始均为普通', () => {
-    assert.equal(HERO_CATALOG.length, 40); assert.equal(new Set(HERO_IDS).size, 40);
+test('44武将ID唯一，普通无治疗，神将无剧情赠送节点，新初始均为普通', () => {
+    assert.equal(HERO_CATALOG.length, 44); assert.equal(new Set(HERO_IDS).size, 44);
     assert.ok(HERO_CATALOG.filter(h => h.tier === 1).every(h => h.tactic !== 'heal'));
     assert.ok(HERO_CATALOG.filter(h => h.tier === 4).every(h => !h.storyStage));
     assert.ok(STARTER_PARTY.every(id => getHero(id).tier === 1));

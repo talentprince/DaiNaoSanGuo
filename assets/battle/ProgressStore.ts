@@ -79,8 +79,11 @@ export class ProgressStore {
     private clock: () => number;
     private random: () => number;
     storageAvailable = true;
+    readonly developerMode:boolean;
+    get inventoryCapacity():number{return this.developerMode?160:40;}
 
-    constructor(storage: StorageAdapter, clock: () => number = Date.now, random: () => number = Math.random) {
+    constructor(storage: StorageAdapter, clock: () => number = Date.now, random: () => number = Math.random, options:{developer?:boolean}={}) {
+        this.developerMode=!!options.developer;
         this.storage = storage; this.clock = clock; this.random = random;
         const now = this.now();
         this.state = emptyProgress(now);
@@ -94,7 +97,7 @@ export class ProgressStore {
                     || !Number.isInteger(level) || level < 1 || level > MAX_LEVEL) return;
                 const inventory: Equipment[] = [];
                 if (Array.isArray(data.inventory)) data.inventory.forEach(item => {
-                    if (inventory.length < 40 && validEquipment(item) && !inventory.some(old => old.id === item.id)) inventory.push(item.exclusive ? signatureFor(item.exclusive) : { ...item });
+                    if (inventory.length < this.inventoryCapacity && validEquipment(item) && !inventory.some(old => old.id === item.id)) inventory.push(item.exclusive ? signatureFor(item.exclusive) : { ...item });
                 });
                 const legacy = data.metaVersion !== 2;
                 const owned = legacy ? [...STARTER_PARTY, ...LEGACY_PARTY] : Array.isArray(data.owned)
@@ -270,7 +273,7 @@ export class ProgressStore {
         if (!getHero(hero) || this.state.owned.indexOf(hero) < 0) return '先获得对应武将';
         const item = signatureFor(hero);
         if (this.state.inventory.some(i => i.id === item.id)) return '已拥有该专武';
-        if (this.state.inventory.length >= 40) return '背包已满，请先分解闲置装备';
+        if (this.state.inventory.length >= this.inventoryCapacity) return '背包已满，请先分解闲置装备';
         if (this.state.points < SIGNATURE_COST) return `脑勋不足，需要${SIGNATURE_COST}`;
         this.state.points -= SIGNATURE_COST; this.state.inventory.push(item); this.save(); return null;
     }
@@ -315,7 +318,7 @@ export class ProgressStore {
         const heroes = first ? HERO_CATALOG.filter(h => h.storyStage === stage && this.state.owned.indexOf(h.id) < 0).map(h => h.id) : [];
         const daibi = first ? 10 + (stage % 5 === 0 ? 50 : 0) : 0;
         const item = createEquipment(stage, battleId);
-        const equipment = this.state.inventory.length < 40 ? item : undefined;
+        const equipment = this.state.inventory.length < this.inventoryCapacity ? item : undefined;
         const convertedCoins = equipment ? 0 : 15 + stage * 5;
         const coins = 80 + stage * 20 + convertedCoins;
         if (this.state.highestCleared === 0) { this.state.idleAt = this.now(); this.state.xpAt = this.now(); }

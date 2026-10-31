@@ -1,8 +1,9 @@
+import { heroElement } from './HeroIdentity';
 import type { UnitConfig, WeaponKind } from '../battle/BattleEngine';
 export const HERO_IDS = ['guanyu', 'zhangfei', 'zhaoyun', 'zhugeliang', 'liubei', 'liaohua', 'zhoucang', 'guanhai', 'jianyong', 'mizhu',
     'huangzhong', 'sunshangxiang', 'huanggai', 'xuhuang', 'zhangliao', 'luxun', 'diaochan', 'ganning', 'machao', 'xuchu',
     'lvbu', 'caocao', 'zhouyu', 'simayi', 'chengpu', 'mifang', 'caohong', 'songxian', 'handang', 'yuejin', 'caiwenji', 'huatuo',
-    'sunquan', 'sunce', 'dianwei', 'pangtong', 'huangyueying', 'jiaxu', 'taishici', 'xunyu'] as const;
+    'sunquan', 'sunce', 'dianwei', 'pangtong', 'huangyueying', 'jiaxu', 'taishici', 'xunyu', 'daqiao', 'xiaoqiao', 'zhurong', 'zhenji'] as const;
 export type HeroId = typeof HERO_IDS[number];
 export type HeroTier = 1 | 2 | 3 | 4;
 export const TIER_NAMES = ['普通', '骁将', '名将', '神将'];
@@ -15,7 +16,7 @@ function hero(id: HeroId, name: string, tier: HeroTier, tactic: Tactic, weapon: 
     if (tier === 1 && tactic === 'heal') throw new Error('普通武将不配置治疗职业');
     return { id, name, tier, tactic, weapon, maxHp: hp, attack: atk, defense: def, interval, priority, color, skillName,
         role: ({ cleave: '猛攻', pierce: '破阵', volley: '速攻', guard: '护阵', heal: '治疗' })[tactic],
-        storyStage, kind: 'hero', visualId: id, heroTier: tier };
+        storyStage, kind: 'hero', visualId: id, heroTier: tier, element: heroElement(id,tactic) };
 }
 export const HERO_CATALOG: HeroDefinition[] = [
     hero('guanhai', '管亥', 1, 'cleave', 'sword', 1150, 82, 20, 1.1, 2, '#B9A053', '斩将突击'),
@@ -48,6 +49,9 @@ export const HERO_CATALOG: HeroDefinition[] = [
     hero('taishici', '太史慈', 3, 'volley', 'bow', 1800, 145, 33, 0.85, 2, '#8DB2A7', '三矢贯阵', 55),
     hero('diaochan', '貂蝉', 3, 'heal', 'ribbon', 1950, 85, 32, 1.25, 3, '#C991BD', '倾城回舞', 60),
     hero('machao', '马超', 3, 'pierce', 'spear', 2100, 155, 36, 1, 1, '#B6BDCF', '西凉铁骑', 70),
+    hero('daqiao', '大乔', 3, 'heal', 'ribbon', 2000, 85, 32, 1.3, 3, '#EB846B', '春风沐雨', 28),
+    hero('zhurong', '祝融', 3, 'cleave', 'dual', 2400, 160, 35, 1.1, 2, '#DF6334', '南蛮烈焰', 65),
+    hero('zhenji', '甄姬', 3, 'heal', 'ribbon', 2200, 90, 35, 1.35, 3, '#6D93D6', '洛水清波', 75),
     hero('guanyu', '关羽', 4, 'cleave', 'glaive', 2400, 185, 38, 1.1, 2, '#58A686', '青龙偃月'),
     hero('zhaoyun', '赵云', 4, 'pierce', 'spear', 2200, 165, 35, 0.8, 1, '#78ABD1', '七进七出'),
     hero('zhugeliang', '诸葛亮', 4, 'cleave', 'fan', 1900, 220, 30, 1.4, 4, '#AB93D1', '八阵东风'),
@@ -57,6 +61,7 @@ export const HERO_CATALOG: HeroDefinition[] = [
     hero('simayi', '司马懿', 4, 'heal', 'fan', 2300, 145, 42, 1.3, 3, '#8D93C7', '幽谋振军'),
     hero('huatuo', '华佗', 4, 'heal', 'staff', 2400, 105, 40, 1.35, 3, '#95B9A4', '青囊护生'),
     hero('sunce', '孙策', 4, 'pierce', 'spear', 2850, 195, 45, 1, 1, '#C98D70', '霸王破阵'),
+    hero('xiaoqiao', '小乔', 4, 'volley', 'fan', 2150, 190, 35, 1.0, 3, '#75BFE4', '霜华漫天'),
     hero('jiaxu', '贾诩', 4, 'cleave', 'fan', 2200, 215, 32, 1.4, 4, '#8E90AA', '乱武毒谋'),
 ];
 export const STARTER_PARTY: HeroId[] = ['guanhai', 'caohong', 'songxian', 'jianyong', 'mifang'];

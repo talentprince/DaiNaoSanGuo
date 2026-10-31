@@ -1,8 +1,11 @@
+import { heroCard,heroArtwork,heroDetails } from './HeroCard';
+import { formatAmount } from '../data/GrowthConfig';
+import { Color,Graphics } from 'cc';
 import { portrait } from './HeroPortrait';
 import { MAX_LEVEL, STAR_COSTS, xpRequired } from '../data/GrowthConfig';
 import { FormationPanel } from './FormationPanel';
 import { Node } from 'cc';
-import { button, panel, text } from './BattleUI';
+import { button, panel, text, makeNode } from './BattleUI';
 import { ProgressStore } from './ProgressStore';
 import type { RecruitResult } from './ProgressStore';
 import { HERO_CATALOG, getHero, TIER_NAMES, TIER_COLORS, EXCHANGE_COST, TACTIC_NAMES } from '../data/HeroCatalog';
@@ -39,10 +42,10 @@ export class MetaPanel {
     private render(): void {
         this.node.destroyAllChildren();
         const p = this.store.progress;
-        text(this.node, 'HallTitle', '呆 营 · 集 结', 0, 558, 42, '#EACD96');
-        text(this.node, 'HallWallet', `呆币 ${p.daibi}   脑勋 ${p.points}   铜钱 ${p.coins}`, 0, 502, 23, '#C6D6DF');
-        const tabs: [Tab, string][] = [['heroes', '武将'], ['draw', '招募'], ['idle', '成长'], ['activities', '副本'], ['exchange', '脑勋坊']];
-        tabs.forEach(([id, title], i) => button(this.node, `Tab-${id}`, title, (i - 2) * 128, 440, 120, 56,
+        text(this.node, 'HallTitle', ({heroes:'群 英 录',draw:'神 将 召 来',idle:'征 途',activities:'四 境 征 战',exchange:'名 将 坊'})[this.tab], 0, 548, 38, '#EACD96');
+        text(this.node, 'HallWallet', `脑铢 ${formatAmount(p.coins)}    呆币 ${formatAmount(p.daibi)}    脑勋 ${formatAmount(p.points)}`, 0, 609, 21, '#C6D6DF');
+        const tabs: [Tab, string][] = [['heroes', '武将'], ['draw', '招募'], ['idle', '成长'], ['activities', '副本'], ['exchange', '名将坊']];
+        tabs.forEach(([id, title], i) => button(this.node, `Tab-${id}`, title, (i - 2) * 128, 479, 120, 52,
             this.tab === id ? '#666E53' : '#293C54', () => { this.tab = id; this.page = 0; this.boat = null; this.note = ''; this.render(); }));
         if (this.tab === 'heroes') this.heroes();
         else if (this.tab === 'draw') this.draw();
@@ -54,61 +57,55 @@ export class MetaPanel {
         text(this.node, 'LocalNotice', '本地试玩 · 真实玩家攻守与全服排名待接入', 0, -611, 16, '#7D91AD');
     }
     private pagination(total: number): void {
-        const pages = Math.max(1, Math.ceil(total / 5));
+        const pages = Math.max(1, Math.ceil(total / 6));
         this.page = Math.max(0, Math.min(this.page, pages - 1));
         button(this.node, 'PagePrev', '上一页', -230, -421, 150, 52, '#2A4058', () => { this.page = (this.page + pages - 1) % pages; this.render(); });
         text(this.node, 'PageCount', `${this.page + 1} / ${pages}`, 0, -421, 20, '#91AAC2', 200);
         button(this.node, 'PageNext', '下一页', 230, -421, 150, 52, '#2A4058', () => { this.page = (this.page + 1) % pages; this.render(); });
     }
-    private heroes(): void {
-        const p = this.store.progress;
-        text(this.node, 'RosterSummary', `已结识${p.owned.length}/40位武将 · 阵型分别保存`, 0, 358, 25, '#D9C79C');
-        button(this.node, 'OpenFormationEditor', '拖拽布阵 · 主线 / 三将 / 守城', 0, 282, 620, 70, '#5A7156', () => {
-            new FormationPanel(this.node, this.store, () => this.render());
-        });
-        const list = HERO_CATALOG.filter(h => p.owned.indexOf(h.id) >= 0).sort((a,b)=>b.tier-a.tier||(p.stars[b.id]||1)-(p.stars[a.id]||1)).concat(HERO_CATALOG.filter(h => p.owned.indexOf(h.id) < 0).sort((a,b)=>(a.storyStage||9999)-(b.storyStage||9999)));
-        list.slice(this.page * 5, this.page * 5 + 5).forEach((h, i) => {
-            const row = panel(this.node, `Hero-${h.id}`, 0, 185 - i * 112, 630, 100, '#21364B', 12);
-            const owned=p.owned.indexOf(h.id)>=0;
-            portrait(row,{hero:h.id},65).setPosition(-259,0);
-            text(row,'Name',`${h.name}  ${owned?'★'.repeat(p.stars[h.id]||1):TIER_NAMES[h.tier-1]}`,-28,21,23,TIER_COLORS[h.tier-1],390);
-            text(row,'Source',owned?`${TIER_NAMES[h.tier-1]} · ${h.role} · 碎片${p.fragments[h.id]||0}`:acquisition(h.id),-28,-18,17,'#9CB2C6',390);
-            button(row,'StarDetails',owned?'升星':'未结识',247,0,112,56,owned?'#665D42':'#34475C',()=>{if(owned)this.showStar(h.id);});
-        });
-        this.pagination(list.length);
-        this.note = this.note || '点击上方拖拽布阵；头像拖入阵位，可混编刀枪弓';
+    private openHero(id:HeroId,mode:'roster'|'exchange'|'result'):void {
+        heroDetails(this.node,this.store,id,mode,()=>this.render(),()=>new FormationPanel(this.node,this.store,()=>this.render()));
     }
-    private draw(): void {
-        const p = this.store.progress;
-        text(this.node, 'DrawTitle', '呆币招募 · 结识天下英雄', 0, 342, 30, '#E3C68C');
-        text(this.node, 'DrawOdds', '基础概率：普通60% · 骁将30% · 名将9% · 神将1%', 0, 288, 21, '#B0C5DB');
-        text(this.node, 'DrawPity', `十连至少1骁将 · 最迟80抽神将（当前 ${p.pity}/80）`, 0, 245, 21, '#CEB4D9');
-        text(this.node, 'DrawDuplicate', '重复武将：20专属碎片 + 铜钱 · 全部武将可升星', 0, 204, 19, '#8DA6BF');
-        button(this.node, 'SingleRecruit', '招募1次 · 100呆币', -160, 126, 300, 74, '#426C59', () => this.attempt(() => {
-            this.results = this.store.recruit(1); this.note = '招募结果已入库，前往武将阵容上阵';
-        }));
-        button(this.node, 'TenRecruit', '招募10次 · 1000呆币', 160, 126, 300, 74, '#7C6644', () => this.attempt(() => {
-            this.results = this.store.recruit(10); this.note = '十连结果已保存；新伙伴可以立即编队';
-        }));
-        if (!this.results.length) text(this.node, 'DrawHint', '主线首通、挂机与副本产出呆币', 0, -70, 24, '#8FA8C3');
-        this.results.forEach((r, i) => {
-            const h = getHero(r.hero)!;
-            const row = panel(this.node, `DrawResult-${i}`, i % 2 === 0 ? -160 : 160, 20 - Math.floor(i / 2) * 88, 300, 74, '#21374C', 12);
-            text(row, 'Hero', `${TIER_NAMES[h.tier - 1]} · ${h.name}${r.guaranteed ? '（保底）' : ''}`, 0, 13, 23, TIER_COLORS[h.tier - 1], 288);
-            text(row, 'Outcome', r.duplicate ? `碎片+${r.fragments} · 铜钱+${r.coins}` : '新武将已获得', 0, -19, 18, '#A6BECF', 288);
-        });
+    private heroes():void {
+        const p=this.store.progress;
+        text(this.node,'RosterSummary',`已结识 ${p.owned.length}/${HERO_CATALOG.length} · 点击卡牌看属性与羁绊`,0,415,21,'#C7CCA8');
+        button(this.node,'OpenFormationEditor','布阵 · 查看同阵羁绊',0,360,620,48,'#53694D',()=>new FormationPanel(this.node,this.store,()=>this.render()));
+        const list=HERO_CATALOG.filter(h=>p.owned.indexOf(h.id)>=0).sort((a,b)=>b.tier-a.tier||(p.stars[b.id]||1)-(p.stars[a.id]||1)).concat(HERO_CATALOG.filter(h=>p.owned.indexOf(h.id)<0).sort((a,b)=>(a.storyStage||9999)-(b.storyStage||9999)));
+        list.slice(this.page*6,this.page*6+6).forEach((h,i)=>heroCard(this.node,this.store,h.id,(i%3-1)*216,192-Math.floor(i/3)*310,200,284,p.owned.indexOf(h.id)>=0?h.role:'未结识',()=>this.openHero(h.id,'roster')));
+        this.pagination(list.length);this.note=this.note||'卡牌与战斗共用人物造型 · 羁绊仅同阵生效';
     }
-    private showStar(id:HeroId):void {
-        const p=this.store.progress;const h=getHero(id)!;const star=p.stars[id]||1;const cost=STAR_COSTS[star-1];
-        const overlay=panel(this.node,'StarOverlay',0,0,720,1280,'#101B2CF5',0);overlay.on(Node.EventType.TOUCH_END,()=>{});
-        portrait(overlay,{hero:id},160).setPosition(0,300);
-        text(overlay,'StarTitle',`${h.name} · ${star}星`,0,150,38,'#F2D08C');
-        text(overlay,'StarRule','每升1星基础攻防生命+16% · 最高6星',0,75,23,'#BACDDD');
-        text(overlay,'StarMilestone','3星：蓄能+10%   6星：攻击技能伤害+20%',0,23,22,'#DFC396');
-        text(overlay,'StarFragments',`专属碎片 ${p.fragments[id]||0}  +  通用将魂 ${p.souls}`,0,-62,27,'#B9D1BE');
-        text(overlay,'StarNeed',star>=6?'已达到最高星级':`本次消耗${cost}，优先使用本将碎片`,0,-119,23,'#C7B7CA');
-        button(overlay,'ConfirmStar',star>=6?'已满星':'升星',0,-226,440,80,'#77613E',()=>{this.note=this.store.starUp(id)||`${h.name}升至${star+1}星，下一场生效`;this.render();});
-        button(overlay,'CloseStar','返回武将',0,-350,440,64,'#344E64',()=>{overlay.destroy();});
+    private performDraw(count:1|10):void {
+        try{this.results=this.store.recruit(count);this.note='招募结果已保存';this.render();this.showRecruitResults(count);}
+        catch(error){this.note=error instanceof Error?error.message:'招募未完成';this.render();}
+    }
+    private draw():void {
+        const p=this.store.progress;
+        const banner=panel(this.node,'DivineRecruitBanner',0,205,640,380,'#362A42',20);
+        const rays=makeNode('RecruitRays',banner).addComponent(Graphics);rays.fillColor=new Color('#E7C57224');
+        for(let i=0;i<13;i++){const a=i*.5;const end=(v:number)=>[Math.max(-310,Math.min(310,Math.cos(v)*340)),Math.max(-170,Math.min(170,Math.sin(v)*340-115))];const p=end(a),q=end(a+.12);rays.moveTo(0,-115);rays.lineTo(p[0],p[1]);rays.lineTo(q[0],q[1]);rays.close();rays.fill();}
+        heroArtwork(banner,'guanyu',-192,-7,1.52,true);heroArtwork(banner,'lvbu',0,-7,1.60,true);heroArtwork(banner,'xiaoqiao',192,-7,1.55,true);
+        const titleBand=panel(banner,'RecruitTitleBand',0,160,600,44,'#2A233BEF',8);text(titleBand,'RecruitBannerTitle','神 将 · 破 阵 而 来',0,0,28,'#FFE0A1',590);
+        ['关羽 · 青龙风暴','吕布 · 无双乱舞','小乔 · 霜华漫天'].forEach((name,i)=>text(banner,'DivineName',name,(i-1)*207,-146,19,'#F4D7A2',204));
+        text(this.node,'DrawOdds','普通60% · 骁将30% · 名将9% · 神将1%',0,-33,21,'#AFC5DA');
+        text(this.node,'DrawPity',`十连至少骁将 · 最迟80抽神将 · 当前${p.pity}/80`,0,-77,20,'#D7BFDE');
+        button(this.node,'SingleRecruit','单抽 · 100呆币',-160,-153,300,76,'#456C5C',()=>this.performDraw(1));
+        button(this.node,'TenRecruit','十连 · 1000呆币',160,-153,300,76,'#92723E',()=>this.performDraw(10));
+        const rules=panel(this.node,'RecruitRules',0,-306,630,170,'#23374D');
+        text(rules,'RecruitRuleTitle','结识新将 · 组合羁绊',0,49,25,'#DACA9C');
+        text(rules,'RecruitRuleOne','重复武将 → 20专属碎片 + 脑铢',0,0,22,'#AAC7D8');
+        text(rules,'RecruitRuleTwo','所有武将均可升到6星；保底跨次保存',0,-43,20,'#A4BBD0');
+    }
+    private showRecruitResults(count:1|10):void {
+        const overlay=panel(this.node,'RecruitResults',0,0,720,1280,'#111827FC',0);overlay.on(Node.EventType.TOUCH_END,()=>{});
+        text(overlay,'RecruitResultTitle',count===10?'十 连 · 将 星 入 营':'将 星 入 营',0,550,38,'#EBCD8C');
+        text(overlay,'RecruitResultHint','点击卡牌查看属性与羁绊',0,493,21,'#9EBAD0');
+        this.results.forEach((r,i)=>{
+            const x=count===1?0:(i%5-2)*132;const y=count===1?155:240-Math.floor(i/5)*286;
+            heroCard(overlay,this.store,r.hero,x,y,count===1?300:124,count===1?420:252,r.duplicate?`碎片+${r.fragments}`:r.guaranteed?'保底·新武将':'新武将',()=>this.openHero(r.hero,'result'));
+        });
+        text(overlay,'ResultsSaved','结果已入库 · 重复碎片和脑铢已结算',0,-298,21,'#AEC7B8');
+        button(overlay,'RecruitAgain',count===10?'再十连 · 1000呆币':'再招募 · 100呆币',0,-416,580,74,'#80663F',()=>this.performDraw(count));
+        button(overlay,'CloseResults','收下武将',0,-548,580,64,'#3C576A',()=>overlay.destroy());
     }
     private idle():void {
         const p=this.store.progress;const xp=this.store.experiencePreview();
@@ -118,7 +115,7 @@ export class MetaPanel {
         text(exp,'XpRate',`最高第${p.highestCleared}关 · ${xp.rate.toFixed(1)}经验/分钟`,0,-5,21,'#A6BED1',590);
         text(exp,'XpCap',`今日已领${Math.floor(p.daily.xpUsedMs/60000)}/240分钟 · 缓存最多4小时`,0,-43,20,'#9CB7C9',595);
         button(this.node,'ClaimExperience',`领取经验 +${xp.amount}`,-161,106,302,70,'#486F56',()=>this.attempt(()=>{const n=this.store.claimExperience();this.note=n?`经验+${n}`:'暂时无经验或今日已满4小时';}));
-        button(this.node,'UpgradeGrowth',p.heroLevel>=MAX_LEVEL?'已满级':`升级 · ${this.store.upgradeCost}铜`,161,106,302,70,'#776440',()=>this.attempt(()=>{const r=this.store.upgradeTeam();this.note=r.upgraded?`全队升到Lv.${r.level}，下一场生效`:`需要${this.store.experienceCost}经验和${r.cost}铜钱`;}));
+        button(this.node,'UpgradeGrowth',p.heroLevel>=MAX_LEVEL?'已满级':`升级 · ${this.store.upgradeCost}脑铢`,161,106,302,70,'#776440',()=>this.attempt(()=>{const r=this.store.upgradeTeam();this.note=r.upgraded?`全队升到Lv.${r.level}，下一场生效`:`需要${this.store.experienceCost}经验和${r.cost}脑铢`;}));
         text(this.node,'IdleCoins',`呆币缓存 ${this.store.idlePreview()} / 1000（24h）`,-64,6,22,'#DBCC9D',470);
         button(this.node,'ClaimIdle','领币',247,6,120,52,'#415F6F',()=>this.attempt(()=>{this.note=`领取${this.store.claimIdle()}呆币`;}));
         const goals=panel(this.node,'DailyGoals',0,-143,630,198,'#22364D');
@@ -172,20 +169,12 @@ export class MetaPanel {
         if (this.boat!.length === 3) button(this.node, 'Sail', '扬帆出航 · 消耗1次', 0, -260, 540, 78, '#71683E', () => this.attempt(() => this.start(this.store.startActivity('boat', this.boat!))));
         button(this.node, 'ResetRoute', '重新筹谋', 0, -366, 300, 52, '#34485E', () => { this.boat = []; this.render(); });
     }
-    private exchange(): void {
-        const p = this.store.progress;
-        text(this.node, 'ExchangeRule', '脑勋每天最多100 · 名将1400 / 神将2100 · 任意选', 0, 357, 22, '#D2BE98');
-        const list = HERO_CATALOG.filter(h => h.tier >= 3);
-        list.slice(this.page * 5, this.page * 5 + 5).forEach((h, i) => {
-            const owned = p.owned.indexOf(h.id) >= 0;
-            const row = panel(this.node, `Exchange-${h.id}`, 0, 255 - i * 128, 630, 114, '#23374D', 12);
-            text(row, 'Hero', `${TIER_NAMES[h.tier - 1]} · ${h.name} · ${h.role}`, -70, 24, 25, TIER_COLORS[h.tier - 1], 460);
-            text(row, 'Cost', `${EXCHANGE_COST[h.tier as 3 | 4]}脑勋任选，获得后可立即编队`, -70, -21, 18, '#98B1C9', 460);
-            button(row, 'Redeem', owned ? '已拥有' : '兑换此将', 240, 0, 134, 62, owned ? '#3C4B5A' : '#6C6046', () => this.attempt(() => {
-                this.note = this.store.exchange(h.id) || `兑换成功！${h.name}已加入武将库`;
-            }));
-        });
-        this.pagination(list.length);
+    private exchange():void {
+        const p=this.store.progress;
+        text(this.node,'ExchangeRule','名将1400 · 神将2100脑勋 · 先看属性再兑换',0,414,21,'#CDBF9F');
+        const list=HERO_CATALOG.filter(h=>h.tier>=3).sort((a,b)=>b.tier-a.tier);
+        list.slice(this.page*6,this.page*6+6).forEach((h,i)=>heroCard(this.node,this.store,h.id,(i%3-1)*216,220-Math.floor(i/3)*326,200,300,p.owned.indexOf(h.id)>=0?'已拥有':`${EXCHANGE_COST[h.tier as 3|4]}脑勋`,()=>this.openHero(h.id,'exchange')));
+        this.pagination(list.length);this.note=this.note||'点击卡牌查看属性、技能、专武和羁绊，再确认兑换';
     }
     private start(run: ActivityRun): void { this.closed = true; this.node.destroy(); this.onStart(run); }
 }

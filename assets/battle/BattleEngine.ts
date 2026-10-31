@@ -1,3 +1,4 @@
+import type { SkillElement } from '../data/HeroIdentity';
 export type Team = 'hero' | 'enemy';
 export type BattleStatus = 'fighting' | 'won' | 'lost' | 'scored';
 
@@ -18,6 +19,11 @@ export interface UnitConfig {
     skillName?: string;
     visualId?: string;
     heroTier?: number;
+    element?: SkillElement;
+    bondIds?: string[];
+    bondEnergy?: number;
+    bondHealing?: number;
+    bondSkill?: number;
     stars?: number;
     signature?: string;
     formationSpot?: string;
@@ -34,6 +40,10 @@ export interface Unit extends UnitConfig {
     shieldRemaining: number;
     attackBuff: number;
     attackBuffRemaining: number;
+    healGlowRemaining: number;
+    slow: number; slowRemaining: number;
+    burnRemaining: number; burnPower: number; burnTick: number; burnSource: string;
+    poisonRemaining: number; poisonPower: number; poisonTick: number; poisonSource: string;
 }
 
 export interface BattleOptions {
@@ -51,7 +61,7 @@ export interface BattleOptions {
 }
 
 export interface BattleEvent {
-    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break' | 'buff' | 'shield';
+    type: 'attack' | 'damage' | 'heal' | 'death' | 'wave' | 'skill' | 'finish' | 'boss' | 'wall-break' | 'buff' | 'shield' | 'debuff';
     source?: string;
     target?: string;
     amount?: number;
@@ -59,7 +69,7 @@ export interface BattleEvent {
     wave?: number;
     status?: BattleStatus;
     targets?: string[];
-    buff?: 'shield' | 'attack';
+    buff?: 'shield' | 'attack' | 'slow' | 'burn' | 'poison';
 }
 
 export function skillTargetLimit(unit: Pick<UnitConfig, 'heroTier' | 'kind'>): number {
@@ -179,11 +189,12 @@ export class BattleEngine {
         this.events.push({ type: 'skill', source: caster.id, targets: targets.map(unit => unit.id) });
         if (tactic === 'heal') {
             const ratio = tier === 2 ? 0.22 : tier === 3 ? 0.12 : caster.visualId === 'huatuo' ? 0.20 : 0.16;
-            targets.forEach(unit => this.heal(caster, unit, ratio * (caster.signature ? 1.25 : 1)));
+            targets.forEach(unit => this.heal(caster, unit, ratio * (caster.signature ? 1.25 : 1) * (1 + (caster.bondHealing || 0))));
             if (tier === 4) targets.forEach(unit => this.applyBuff(caster, unit, caster.visualId === 'simayi' ? 'attack' : 'shield'));
         } else {
             const multiplier = tactic === 'pierce' ? 2.8 : tactic === 'volley' ? 2.1 : tactic === 'guard' ? 1.5 : 2.6;
-            targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * (1 + caster.attackBuff) * multiplier * (caster.signature && (tactic === 'cleave' || tactic === 'pierce') ? 1.25 : 1) * ((caster.stars || 1) >= 6 ? 1.2 : 1)), false));
+            targets.forEach(unit => this.damage(caster, unit, Math.floor(caster.attack * (1 + caster.attackBuff) * multiplier * (caster.signature && (tactic === 'cleave' || tactic === 'pierce') ? 1.25 : 1) * ((caster.stars || 1) >= 6 ? 1.2 : 1) * (1 + (caster.bondSkill || 0))), false));
+            targets.filter(u => u.hp > 0).forEach(u => this.applyDebuff(caster,u));
             if (tactic === 'guard' && (tier >= 2 || caster.signature)) (tier === 4 ? livingFriends : [caster]).forEach(unit => this.applyBuff(caster, unit, 'shield'));
         }
         this.checkProgress(); return true;
@@ -197,7 +208,7 @@ export class BattleEngine {
 
     private createUnit(config: UnitConfig, team: Team, index: number): Unit {
         return { ...config, team, hp: config.maxHp, cooldown: 0.35 + index * 0.13,
-            shield: 0, shieldRemaining: 0, attackBuff: 0, attackBuffRemaining: 0,
+            shield: 0, shieldRemaining: 0, attackBuff: 0, attackBuffRemaining: 0, healGlowRemaining: 0, slow: 0, slowRemaining: 0, burnRemaining: 0, burnPower: 0, burnTick: 0, burnSource: '', poisonRemaining: 0, poisonPower: 0, poisonTick: 0, poisonSource: '',
             energy: config.kind === 'soldier' || config.kind === 'wall' ? 0 : team === 'hero' ? Math.max(0, 45 - index * 11) : config.kind === 'boss' || config.kind === 'hero' ? Math.max(0, 25 - index * 4) : 0 };
     }
 
@@ -219,6 +230,15 @@ export class BattleEngine {
 
     private tick(dt: number): void {
         [...this.heroes, ...this.enemies].forEach(unit => {
+            unit.healGlowRemaining = Math.max(0,unit.healGlowRemaining-dt);
+            unit.slowRemaining = Math.max(0,unit.slowRemaining-dt);if(!unit.slowRemaining)unit.slow=0;
+            for(const kind of ['burn','poison'] as const){
+                if(unit[`${kind}Remaining`] > 0 && unit.hp > 0){
+                    unit[`${kind}Remaining`] = Math.max(0,unit[`${kind}Remaining`]-dt);unit[`${kind}Tick`] += dt;
+                    if(unit[`${kind}Tick`] + 1e-8 >= .5){unit[`${kind}Tick`] -= .5;const source=[...this.heroes,...this.enemies].find(u=>u.id===unit[`${kind}Source`]);if(source)this.damage(source,unit,Math.max(1,Math.floor(unit[`${kind}Power`]*.5)),false,true);}
+                    if(!unit[`${kind}Remaining`]){unit[`${kind}Power`]=0;unit[`${kind}Tick`]=0;unit[`${kind}Source`]='';}
+                }
+            }
             unit.shieldRemaining = Math.max(0, unit.shieldRemaining - dt);
             unit.attackBuffRemaining = Math.max(0, unit.attackBuffRemaining - dt);
             if (!unit.shieldRemaining) unit.shield = 0;
@@ -229,7 +249,7 @@ export class BattleEngine {
         if (this.approachRemaining > 0) { this.approachRemaining = Math.max(0, this.approachRemaining - dt); return; }
         [...this.heroes, ...this.enemies].forEach(unit => {
             const eligible = unit.kind !== 'soldier' && unit.kind !== 'wall' && (unit.team === 'hero' || unit.kind === 'boss' || unit.kind === 'hero');
-            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate * ((unit.stars || 1) >= 3 ? 1.1 : 1));
+            if (eligible && unit.hp > 0) unit.energy = Math.min(100, unit.energy + dt * this.energyRate * ((unit.stars || 1) >= 3 ? 1.1 : 1) * (1 + (unit.bondEnergy || 0)));
         });
         if (this.enemyRegen) this.enemies.filter(u => u.hp > 0).forEach(u => { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * this.enemyRegen * dt); });
         if (this.heroDrain) this.heroes.filter(u => u.hp > 0).forEach(u => {
@@ -258,7 +278,7 @@ export class BattleEngine {
         if (this.status !== 'fighting' || this.transitioning || this.approachRemaining > 0) return;
         for (const unit of [...this.heroes, ...this.enemies]) {
             if (unit.hp <= 0 || unit.kind === 'wall') continue;
-            unit.cooldown -= dt;
+            unit.cooldown -= dt * (1 - unit.slow);
             if (unit.cooldown > 1e-8) continue;
             const target = selectTarget(unit.team === 'hero' ? this.enemies : this.heroes);
             if (!target) { this.checkProgress(); break; }
@@ -271,8 +291,8 @@ export class BattleEngine {
         }
     }
 
-    private damage(source: Unit, target: Unit, requested: number, critical: boolean): void {
-        if (source.hp <= 0 || target.hp <= 0) return;
+    private damage(source: Unit, target: Unit, requested: number, critical: boolean, ongoing=false): void {
+        if ((!ongoing && source.hp <= 0) || target.hp <= 0) return;
         const protection = target.onWall && this.wallAlive ? 0.4 : 1;
         const incoming = Math.max(1, Math.floor(requested * protection));
         const absorbed = Math.min(target.shield, incoming);
@@ -315,9 +335,18 @@ export class BattleEngine {
         this.events.push({ type: 'buff', source: source.id, target: target.id, buff, amount: buff === 'shield' ? target.shield : 20 });
     }
 
+    private applyDebuff(source:Unit,target:Unit):void {
+        const kind=source.element==='blizzard'?'slow':source.element==='fire'?'burn':source.element==='poison'?'poison':null;
+        if(!kind)return;
+        if(kind==='slow'){target.slow=.25;target.slowRemaining=4;}
+        else {target[`${kind}Remaining`]=4;target[`${kind}Power`]=Math.max(target[`${kind}Power`],source.attack*(kind==='burn'?.12:.08));target[`${kind}Source`]=source.id;}
+        this.events.push({type:'debuff',source:source.id,target:target.id,buff:kind});
+    }
+
     private heal(source: Unit, target: Unit, ratio: number): void {
         if (target.hp <= 0) return;
-        const amount = Math.min(target.maxHp - target.hp, Math.floor(target.maxHp * ratio));
+        target.healGlowRemaining = 3.6;
+        const amount = Math.min(target.maxHp - target.hp, Math.floor(target.maxHp * ratio * (target.poisonRemaining > 0 ? .75 : 1)));
         if (amount > 0) { target.hp += amount; this.events.push({ type: 'heal', source: source.id, target: target.id, amount }); }
     }
 

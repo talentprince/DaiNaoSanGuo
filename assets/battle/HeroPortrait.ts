@@ -1,41 +1,17 @@
-import { Color, Graphics, Node } from 'cc';
-import { getHero, TIER_COLORS } from '../data/HeroCatalog';
+import { Color,Graphics,Mask,Node,UITransform } from 'cc';
+import { getHero,TIER_COLORS } from '../data/HeroCatalog';
+import { heroColor } from '../data/HeroIdentity';
 import type { FormationMember } from '../data/FormationConfig';
+import { comicHead } from './ComicHead';
 import { makeNode } from './BattleUI';
-
-export function portrait(parent: Node, member: FormationMember, size: number): Node {
-    const node = makeNode('Portrait', parent); const g = node.addComponent(Graphics);
-    const h = member.hero ? getHero(member.hero) : undefined;
-    const color = h?.color || ({ sword: '#819B88', spear: '#819BAE', bow: '#B49C76' })[member.troop || 'sword'];
-    const scale = size / 90;
-    node.setScale(scale, scale, 1);
-    g.fillColor = new Color('#1A2C42'); g.circle(0, 0, 42); g.fill();
-    g.strokeColor = new Color(h ? TIER_COLORS[h.tier - 1] : '#78919C'); g.lineWidth = h && h.tier >= 3 ? 4 : 2; g.circle(0, 0, 41); g.stroke();
-    g.fillColor = new Color(color); g.roundRect(-25, -29, 50, 39, 10); g.fill(); g.circle(0, 13, 26); g.fill();
-    g.fillColor = new Color(member.hero === 'guanyu' ? '#D49D82' : '#EDC69B'); g.roundRect(-19, -5, 38, 29, 10); g.fill();
-    g.strokeColor=new Color('#161C2B');g.lineWidth=3;g.moveTo(-18,19);g.lineTo(-4,15);g.moveTo(4,15);g.lineTo(18,20);g.stroke();
-    g.fillColor=new Color('#FFF7DD');g.rect(-16,8,12,6);g.rect(4,8,12,6);g.fill();g.fillColor=new Color('#1B243A');g.rect(-9,8,4,6);g.rect(8,8,4,6);g.fill();
-    g.strokeColor=new Color('#252235');g.lineWidth=2;g.moveTo(-8,2);g.lineTo(8,2);g.stroke();
-    const id = member.hero || '';
-    if (['guanyu', 'zhangfei', 'caocao', 'huangzhong', 'huatuo'].indexOf(id) >= 0) {
-        g.fillColor = new Color(id === 'huangzhong' || id === 'huatuo' ? '#DFE3DE' : '#253738'); g.moveTo(-14, 0); g.lineTo(14, 0); g.lineTo(0, -23); g.close(); g.fill();
-    }
-    if (id === 'lvbu') {
-        g.strokeColor = new Color('#E9AE71'); g.lineWidth = 4;
-        g.moveTo(-13, 30); g.quadraticCurveTo(-32, 58, -37, 32); g.stroke(); g.moveTo(13, 30); g.quadraticCurveTo(32, 58, 37, 32); g.stroke();
-    } else if (id === 'zhugeliang' || id === 'simayi' || id === 'jiaxu' || id === 'sunquan') {
-        g.fillColor = new Color(id === 'simayi' ? '#2D2842' : '#314865'); g.rect(-16, 27, 32, 15); g.fill();
-    } else if (id === 'zhaoyun' || id === 'machao' || id === 'sunce') {
-        g.fillColor = new Color('#E6EDF0'); g.moveTo(-10, 33); g.lineTo(0, 49); g.lineTo(13, 31); g.close(); g.fill();
-    } else if (id === 'diaochan' || id === 'sunshangxiang') {
-        g.fillColor = new Color('#E0ADC0'); g.circle(-22, 25, 8); g.circle(22, 25, 8); g.fill();
-    }
-    if (h?.tier === 4) { g.fillColor = new Color('#F1D383'); g.moveTo(-8, -30); g.lineTo(0, -37); g.lineTo(8, -30); g.lineTo(0, -22); g.close(); g.fill(); }
-    if (!h) {
-        g.strokeColor = new Color('#E0DBC2'); g.lineWidth = 3;
-        if (member.troop === 'spear') { g.moveTo(27, -25); g.lineTo(27, 30); g.stroke(); g.moveTo(27, 39); g.lineTo(21, 25); g.lineTo(33, 25); g.close(); g.fillColor = new Color('#E2E9DE'); g.fill(); }
-        else if (member.troop === 'bow') { g.arc(24, 0, 26, -1.15, 1.15, false); g.stroke(); g.moveTo(34, -23); g.lineTo(34, 23); g.stroke(); }
-        else { g.moveTo(26, -24); g.lineTo(26, 30); g.stroke(); g.roundRect(-31, -25, 18, 28, 6); g.stroke(); }
-    }
+export function portrait(parent:Node,member:FormationMember,size:number):Node{
+    const node=makeNode('Portrait',parent);node.addComponent(UITransform).setContentSize(90,90);node.setScale(size/90,size/90,1);
+    const hero=member.hero?getHero(member.hero):undefined;const color=heroColor(member.hero||'',hero?.color||'#7E93A2');
+    const bg=node.addComponent(Graphics);bg.fillColor=new Color('#152439');bg.circle(0,0,43);bg.fill();
+    const crop=makeNode('PortraitCrop',node);crop.addComponent(UITransform).setContentSize(78,78);crop.addComponent(Mask).type=Mask.Type.GRAPHICS_ELLIPSE;
+    const shoulders=makeNode('Shoulders',crop,0,-29).addComponent(Graphics);shoulders.fillColor=new Color(color);shoulders.roundRect(-32,-20,64,30,8);shoulders.fill();
+    const head=comicHead(crop,member.hero||`soldier-${member.troop}`,color,hero?.tier||1);head.setPosition(0,-4);head.setScale(1,1,1);
+    const rim=makeNode('PortraitRim',node).addComponent(Graphics);rim.strokeColor=new Color(hero?TIER_COLORS[hero.tier-1]:'#9CAEB7');rim.lineWidth=3;rim.circle(0,0,42);rim.stroke();
+    if(!hero){rim.strokeColor=new Color('#EEE0AB');rim.lineWidth=3;if(member.troop==='bow'){rim.arc(25,-10,15,-1.2,1.2,false);rim.stroke();}else{rim.moveTo(28,-30);rim.lineTo(28,15);rim.stroke();}}
     return node;
 }

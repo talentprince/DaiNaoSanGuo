@@ -1,3 +1,8 @@
+import { FormationPanel } from './battle/FormationPanel';
+import { createDeveloperStore,configureDeveloper,isLocalDevelopment,MODE_KEY } from './battle/DeveloperMode';
+import { bondProgress } from './data/BondConfig';
+import { formatAmount } from './data/GrowthConfig';
+declare const wx: { getSystemInfoSync?:()=>{brand?:string;platform?:string} };
 import { MAX_STAGE, MAX_LEVEL } from './data/GrowthConfig';
 import { _decorator, Color, Component, Graphics, Label, Mask, Node, ResolutionPolicy, sys, UITransform, view } from 'cc';
 import { BattleEngine } from './battle/BattleEngine';
@@ -23,6 +28,13 @@ const { ccclass } = _decorator;
 @ccclass('BattlePreview')
 export class BattlePreview extends Component {
     private root!: Node;
+    private developer=false;
+    private localAllowed=false;
+    private utility:Node|null=null;
+    private controls!:Node;
+    private controlsOpen=false;
+    private modeBadge!:UIButton;
+    private bondsBadge!:UIButton;
     private field!: Node;
     private units!: Node;
     private enemyUnits!: Node;
@@ -65,7 +77,10 @@ export class BattlePreview extends Component {
 
     start(): void {
         view.setDesignResolutionSize(720, 1280, ResolutionPolicy.SHOW_ALL);
-        this.store = new ProgressStore(sys.localStorage);
+        let simulator=false;try{if(typeof wx!=='undefined'){const info=wx.getSystemInfoSync?.();simulator=info?.brand==='devtools'||info?.platform==='devtools';}}catch(_){}
+        const host=typeof window!=='undefined'&&window.location?window.location.hostname:'';
+        this.localAllowed=isLocalDevelopment(host,simulator);let savedMode='test';try{savedMode=sys.localStorage.getItem(MODE_KEY)||'test';}catch(_){}this.developer=this.localAllowed&&savedMode!=='normal';
+        this.store=this.developer?createDeveloperStore(sys.localStorage):new ProgressStore(sys.localStorage);this.autoSkill=!this.developer;
         this.stage = Math.min(MAX_STAGE, this.store.progress.highestCleared + 1);
         this.root = makeNode('BattleDemo', this.node);
         // Activate the completed hierarchy together so mask/graphics register in consistent render order.
@@ -73,34 +88,35 @@ export class BattlePreview extends Component {
         this.root.addComponent(UITransform).setContentSize(720, 1280);
         panel(this.root, 'Background', 0, 0, 720, 1280, '#111E30', 0);
         panel(this.root, 'Accent', 0, 632, 720, 16, '#DCB977', 0);
-        text(this.root, 'Title', '呆脑三国', -170, 577, 38, '#F2E1BC', 340);
-        text(this.root, 'Version', '0.9 · 脑洞大开', 211, 581, 17, '#C0A773', 270);
-        this.title = text(this.root, 'Stage', '', 0, 520, 29);
-        this.wallet = text(this.root, 'Wallet', '', -80, 466, 20, '#B9C5D4', 470);
-        this.trainButton = button(this.root, 'TrainButton', '成长', 239, 464, 150, 46, '#61573F', () => this.openHall('idle'));
-        this.overview = text(this.root, 'EncounterOverview', '', 0, 415, 18, '#DCC893', 630);
-        this.overviewBar = makeNode('EncounterProgress', this.root, 0, 393).addComponent(Graphics);
-        panel(this.root, 'BattlefieldFrame', 0, 20, 660, 710, '#1D2D42', 24);
-        this.field = makeNode('Battlefield', this.root, 0, 20);
-        this.field.addComponent(UITransform).setContentSize(660,710);
-        this.field.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+        this.wallet=text(this.root,'Wallet','',0,612,21,'#D6D3B9',710);
+        this.title=text(this.root,'Stage','',-55,558,24,'#EADBBF',560);
+        this.modeBadge=button(this.root,'ModeBadge','常规',297,557,92,42,'#4B5C65',()=>{if(this.localAllowed)this.openDeveloper();});
+        this.overview=text(this.root,'EncounterOverview','',0,518,17,'#C6CBAA',700);
+        this.overviewBar=makeNode('EncounterProgress',this.root,0,495).addComponent(Graphics);
+        panel(this.root,'BattlefieldFrame',0,20,704,940,'#192C3D',14);
+        this.field=makeNode('Battlefield',this.root,0,20);this.field.addComponent(UITransform).setContentSize(704,940);this.field.addComponent(Mask).type=Mask.Type.GRAPHICS_RECT;
         this.teamLabel = text(this.field, 'TeamLabel', '呆 萌 战 队', -176, 285, 18, '#A8CBB2', 270);
         this.enemyLabel = text(this.field, 'EnemyLabel', '敌 方 阵 地', 176, 285, 18, '#D5B77E', 270);
         this.wave = text(this.field, 'Wave', '', 0, -292, 18, '#C5D0D1', 620);
         this.units = makeNode('Units', this.field);
         this.effectsRoot = makeNode('CombatEffects', this.field);
         this.fx = new CombatEffects(this.effectsRoot);
-        this.statusLine = text(this.root, 'BattleLog', '', 0, -357, 18, '#CDD6DE');
-        this.skill = iconButton(this.root,'SkillButton','齐放','skill',-240,-426,144,92,()=>{
-            this.engine.heroes.forEach(u=>{if(this.engine.canCastHeroSkill(u.id))this.engine.castSkill(u.id);});this.processEvents();this.refresh();
-        });
-        this.pause=iconButton(this.root,'PauseButton','暂停','pause',-80,-426,144,92,()=>{this.engine.paused=!this.engine.paused;this.refresh();});
-        this.speedButton=iconButton(this.root,'SpeedButton','×1','speed',80,-426,144,92,()=>{if(this.activeRun?.mode!=='boss')this.speed=this.speed===1?2:this.speed===2?4:1;this.refresh();});
-        this.autoButton=iconButton(this.root,'AutoSkillButton','自动开','auto',240,-426,144,92,()=>{this.autoSkill=!this.autoSkill;this.engine.autoSkill=this.autoSkill;this.refresh();});
-        this.inventoryButton=iconButton(this.root,'InventoryButton','行装','bag',-240,-552,144,100,()=>this.openInventory());
-        iconButton(this.root,'HallButton','武将','hero',-80,-552,144,100,()=>this.openHall());
-        iconButton(this.root,'GrowthButton','征途','growth',80,-552,144,100,()=>this.openHall('idle'));
-        iconButton(this.root,'RestartButton','重战','restart',240,-552,144,100,()=>this.restart());
+        this.statusLine=text(this.root,'BattleLog','',0,-464,17,'#ADBFD0',700);
+        this.bondsBadge=button(this.field,'BondsBadge','羁绊',-231,437,202,36,'#2D4754',()=>this.openBonds());
+        iconButton(this.root,'SceneShortcut','副本','scene',313,338,68,72,()=>this.openHall('activities'));
+        this.controls=makeNode('FoldableBattleControls',this.root);
+        this.inventoryButton=iconButton(this.controls,'InventoryButton','行装','bag',-301,-515,80,64,()=>this.openInventory());
+        iconButton(this.controls,'GrowthButton','成长','growth',-215,-515,80,64,()=>this.openHall('idle'));
+        iconButton(this.controls,'FormationShortcut','布阵','hero',-129,-515,80,64,()=>{const was=this.engine.paused;this.engine.paused=true;new FormationPanel(this.root,this.store,()=>{this.engine.paused=was;});});
+        this.skill=iconButton(this.controls,'SkillButton','齐放','skill',-43,-515,80,64,()=>{this.engine.heroes.forEach(u=>{if(this.engine.canCastHeroSkill(u.id))this.engine.castSkill(u.id);});this.processEvents();this.refresh();});
+        this.pause=iconButton(this.controls,'PauseButton','暂停','pause',43,-515,80,64,()=>{this.engine.paused=!this.engine.paused;this.refresh();});
+        this.speedButton=iconButton(this.controls,'SpeedButton','×1','speed',129,-515,80,64,()=>{if(this.activeRun?.mode!=='boss')this.speed=this.speed===1?2:this.speed===2?4:1;this.refresh();});
+        this.autoButton=iconButton(this.controls,'AutoSkillButton','自动关','auto',215,-515,80,64,()=>{this.autoSkill=!this.autoSkill;this.engine.autoSkill=this.autoSkill;this.refresh();});
+        iconButton(this.controls,'RestartButton','重战','restart',301,-515,80,64,()=>this.restart());this.controls.active=false;
+        iconButton(this.root,'HallButton','群英','hero',-260,-590,150,76,()=>this.openHall('heroes'));
+        iconButton(this.root,'DrawShortcut','招募','skill',-87,-590,150,76,()=>this.openHall('draw'));
+        iconButton(this.root,'ExchangeShortcut','名将坊','growth',87,-590,150,76,()=>this.openHall('exchange'));
+        iconButton(this.root,'ToggleControls','菜单','menu',260,-590,150,76,()=>{this.controlsOpen=!this.controlsOpen;this.controls.active=this.controlsOpen;});
         this.begin(this.stage);
         this.root.active = true;
         // Refresh once after the first frame, after the runtime mask and graphic assemblers have initialized.
@@ -120,7 +136,7 @@ export class BattlePreview extends Component {
             this.scenery?.update(frame * pace, march || charge);
             this.actors.forEach(actor => actor.update(frame * pace, (march || charge) && actor.unit.team === 'hero' && actor.unit.hp > 0));
             this.sortActors();
-            this.fx.update(frame * Math.min(pace, 2));
+            this.fx.update(frame);
             if (this.autoNext > 0 && !this.hall && !this.inventory) {
                 this.autoNext -= frame;
                 if (this.nextLabel) this.nextLabel.string = `继续向右 · ${Math.max(1, Math.ceil(this.autoNext))}秒后进入下一关`;
@@ -139,6 +155,7 @@ export class BattlePreview extends Component {
         this.engine = new BattleEngine(run ? createActivityOptions(run)
             : createMainlineOptions(stage, 20261030, this.activeLevel, this.store.getEquipmentBonuses(), p.formation, p.troopType, p.formations.main));
         this.engine.autoSkill = this.autoSkill;
+        if(this.developer)this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});
         this.resultShown = false; this.autoNext = 0; this.nextLabel = null;
         if (this.modal) { this.modal.destroy(); this.modal = null; }
         this.units.destroyAllChildren(); this.enemyUnits = makeNode('EnemyArmy', this.units); this.fx.clear(); this.actors.clear();
@@ -216,9 +233,10 @@ export class BattlePreview extends Component {
             const actor = this.actors.get(event.target);
             if (actor) { this.fx.number(actor, event.amount || 0, event.type === 'heal', !!event.critical); if (event.type === 'damage') actor.hurt(); }
         } else if (event.type === 'buff' && event.target) {
-            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, event.buff === 'attack' ? '战意+20%' : `护盾+${event.amount}`, '#ADE0D8');
+            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, event.buff === 'attack' ? '战意+20%' : `护盾+${formatAmount(event.amount||0)}`, '#ADE0D8');
+        } else if(event.type==='debuff'&&event.target){const actor=this.actors.get(event.target);if(actor)this.fx.status(actor,event.buff==='slow'?'冰缓−25%':event.buff==='burn'?'灼烧4秒':'中毒·抑疗','#B6C8F5');
         } else if (event.type === 'shield' && event.target) {
-            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, `盾−${event.amount}`, '#9DDBE4');
+            const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, `盾−${formatAmount(event.amount||0)}`, '#9DDBE4');
         } else if (event.type === 'death' && event.target) this.actors.get(event.target)?.die();
         else if (event.type === 'wall-break') {
             const wall = this.engine.enemies.find(u => u.kind === 'wall');
@@ -247,8 +265,10 @@ export class BattlePreview extends Component {
         this.title.string = this.activeRun ? `${ACTIVITY_NAMES[this.activeRun.mode]}${this.activeRun.mode === 'trial' ? ` · 第${this.activeRun.stage}关` : this.activeRun.mode === 'city' ? ' · 演练' : ''}`
             : `第${this.stage}/${MAX_STAGE}关 · ${STAGE_NAMES[(this.stage - 1) % STAGE_NAMES.length]}`;
         const p = this.store.progress;
-        this.wallet.string = `铜${p.coins}  ·  呆币${p.daibi}  ·  脑勋${p.points}${this.store.storageAvailable ? '' : ' · 未保存'}`;
-        this.trainButton.label.string = `Lv.${p.heroLevel} · 成长`;
+        this.wallet.string=`脑铢 ${formatAmount(p.coins)}     呆币 ${formatAmount(p.daibi)}     脑勋 ${formatAmount(p.points)}`;
+        this.modeBadge.label.string=this.developer?'测试':'常规';
+        const bonds=bondProgress(this.engine.heroes.filter(u=>u.kind==='hero').map(u=>u.visualId||u.id)).filter(b=>b.active);
+        this.bondsBadge.label.string=`同阵羁绊 · ${bonds.length}`;
         this.inventoryButton.label.string = '行装';
         this.actors.forEach(actor => {
             const unit = actor.unit;
@@ -259,20 +279,20 @@ export class BattlePreview extends Component {
         const mode = this.activeRun?.mode;
         if (!this.activeRun) {
             this.overview.string = this.engine.bossActive ? '秘境进度100% · 击败首领进入下一关' : `秘境进度 ${this.engine.riftEnergy}/100 · 击杀小怪召唤首领`;
-            bar(this.overviewBar, this.engine.riftEnergy / 100, 620, 10, '#D8BC75');
+            bar(this.overviewBar, this.engine.riftEnergy / 100, 690, 10, '#D8BC75');
             this.wave.string = `${phase} · ${Math.floor(this.engine.elapsed)}秒 · 主将+补位兵共${this.engine.heroes.length}人`;
         } else if (mode === 'boss') {
             this.overview.string = `世界Boss ${Math.min(30, Math.floor(this.engine.elapsed))}/30秒 · 伤害${Math.floor(this.engine.damageDealt)}`;
-            bar(this.overviewBar, this.engine.elapsed / 30, 620, 10, '#BE8FCB');
+            bar(this.overviewBar, this.engine.elapsed / 30, 690, 10, '#BE8FCB');
             this.wave.string = `${phase} · ${Math.min(30, Math.floor(this.engine.elapsed))}/30秒 · 今日最高${p.daily.bossBest}`;
         } else if (mode === 'city') {
             const wall = this.engine.enemies.find(u => u.kind === 'wall');
             this.overview.string = this.engine.wallAlive ? `城墙 ${Math.ceil(wall!.hp)}/${wall!.maxHp} · 城上守将减伤60%` : '城墙已破 · 城上减伤解除';
-            bar(this.overviewBar, wall ? wall.hp / wall.maxHp : 0, 620, 10, '#C6A574');
+            bar(this.overviewBar, wall ? wall.hp / wall.maxHp : 0, 690, 10, '#C6A574');
             this.wave.string = `${phase} · ${Math.floor(this.engine.elapsed)}秒 · 本地守军演练`;
         } else {
             this.overview.string = mode === 'trial' ? `${trialTrait(this.activeRun.stage).join(' · ')}` : '护船借宝 · 筹谋加成持续三波';
-            bar(this.overviewBar, (this.engine.waveIndex + 1) / this.engine.waveCount, 620, 10, '#8CBAB1');
+            bar(this.overviewBar, (this.engine.waveIndex + 1) / this.engine.waveCount, 690, 10, '#8CBAB1');
             this.wave.string = `${phase} · ${this.engine.waveIndex + 1}/${this.engine.waveCount}波 · ${Math.floor(this.engine.elapsed)}秒`;
         }
         const ready = this.engine.heroes.filter(u => u.kind !== 'soldier' && u.hp > 0 && u.energy >= 100);
@@ -290,7 +310,7 @@ export class BattlePreview extends Component {
         const reward = won ? this.store.settleVictory(this.battleId, this.stage) : null;
         this.modal = panel(this.root, 'MainlineResult', 0, 60, 600, 380, '#15253A', 24);
         text(this.modal, 'ResultTitle', won ? '首 领 击 破' : '本 关 撤 退', 0, 119, 43, won ? '#E8C580' : '#E5A393', 550);
-        text(this.modal, 'ResultReward', won ? `铜钱+${reward!.coins} · 呆币+${reward!.daibi || 0}` : '秘境进度清零，重新从本关出发', 0, 62, 26, '#C7DACE', 550);
+        text(this.modal, 'ResultReward', won ? `脑铢+${reward!.coins} · 呆币+${reward!.daibi || 0}` : '秘境进度清零，重新从本关出发', 0, 62, 26, '#C7DACE', 550);
         const detail = reward?.heroes?.length ? `剧情入队：${reward.heroes.map(id => getHero(id)!.name).join('、')}`
             : reward?.equipment ? `掉落${RARITY_NAMES[reward.equipment.rarity - 1]}·${reward.equipment.name}` : `用时${this.engine.elapsed.toFixed(1)}秒`;
         text(this.modal, 'ResultDetail', detail, 0, 16, 22, '#B1C4D4', 550);
@@ -325,7 +345,34 @@ export class BattlePreview extends Component {
         button(this.modal, 'ReturnMain', '返回主线行军', 0, -171, 470, 52, '#30465E', () => this.begin(Math.min(MAX_STAGE, this.store.progress.highestCleared + 1)));
         this.statusLine.string = boss ? '个人成绩已保存 · 全服榜单待联机' : won ? '副本通关，奖励已结算' : '调整阵容后再试';
     }
-    private openHall(tab: 'heroes'|'idle' = 'heroes'): void {
+    private openBonds():void {
+        if(this.utility||this.hall||this.inventory)return;const was=this.engine.paused;this.engine.paused=true;
+        const popup=this.utility=panel(this.root,'BattleBonds',0,0,720,1280,'#101C2CFC',0);popup.on(Node.EventType.TOUCH_END,()=>{});
+        text(popup,'BondsTitle','同 阵 · 羁 绊',0,550,38,'#E4CA92');text(popup,'BondsRule','仅实际上阵触发 · 入场生效，阵亡不移除',0,488,21,'#A7C2D2');
+        const ids=this.engine.heroes.filter(u=>u.kind==='hero').map(u=>u.visualId||u.id);
+        bondProgress(ids).forEach((p,i)=>{const row=panel(popup,`Bond-${p.bond.id}`,0,385-i*112,640,96,p.active?'#365344':'#24384F');text(row,'BondName',`${p.active?'已激活':'未激活'} · ${p.bond.name} ${p.count}/${p.bond.need}`,0,21,24,p.active?'#B7E9B5':'#D0C2A7',620);text(row,'BondEffect',p.bond.desc,0,-20,18,'#ABC3D3',620);});
+        button(popup,'CloseBonds','返回战场',0,-554,620,66,'#3C5669',()=>{popup.destroy();this.utility=null;this.engine.paused=was;});
+    }
+    private persistMode(mode:'normal'|'test'):void{try{sys.localStorage.setItem(MODE_KEY,mode);}catch(_){}}
+    private openDeveloper():void {
+        if(!this.localAllowed||this.utility||this.hall||this.inventory)return;
+        const was=this.engine.paused;this.engine.paused=true;const popup=this.utility=panel(this.root,'DeveloperPanel',0,0,720,1280,'#101A2DFD',0);popup.on(Node.EventType.TOUCH_END,()=>{});
+        let level=this.store.progress.heroLevel,stars=this.developer?this.store.progress.stars.guanyu||6:6,stage=this.stage;
+        text(popup,'DeveloperTitle','本 地 · 测 试 台',0,548,38,'#F0CF8C');text(popup,'DeveloperRule','独立测试存档 · 全武将开放 · 正常存档保留',0,481,21,'#AFCBD7');
+        const summary=text(popup,'TestSummary',`Lv.${level} / ${stars}星 / 第${stage}关`,0,408,26,'#D8E9BA');
+        const refresh=()=>{summary.string=`Lv.${level} / ${stars}星 / 第${stage}关`;};
+        text(popup,'LevelLabel','全队等级',0,338,24);[1,30,100,300].forEach((n,i)=>button(popup,`TestLevel-${n}`,`Lv.${n}`,(i-1.5)*157,281,145,56,'#344D63',()=>{level=n;refresh();}));
+        text(popup,'StarLabel','全部武将星级',0,211,24);[1,3,6].forEach((n,i)=>button(popup,`TestStars-${n}`,`${n}星`,(i-1)*205,155,190,56,'#344D63',()=>{stars=n;refresh();}));
+        text(popup,'StageLabel','主线测试关卡',0,85,24);[1,100,500,999].forEach((n,i)=>button(popup,`TestStage-${n}`,`${n}关`,(i-1.5)*157,29,145,56,'#344D63',()=>{stage=n;refresh();}));
+        const dismiss=()=>{popup.destroy();this.utility=null;};
+        button(popup,'ApplyDeveloper',this.developer?'应用测试参数':'进入测试档',0,-66,620,72,'#8A6B3F',()=>{dismiss();this.store=configureDeveloper(sys.localStorage,{level,stars,stage});this.developer=true;this.persistMode('test');this.autoSkill=false;this.begin(stage);});
+        button(popup,'ChargeDeveloper','充满我方技能',-161,-164,302,64,'#456B5C',()=>{dismiss();this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});this.engine.paused=was;});
+        button(popup,'BossDeveloper','讨董技能测试',161,-164,302,64,'#456B5C',()=>{dismiss();if(!this.developer){this.store=createDeveloperStore(sys.localStorage);this.developer=true;this.persistMode('test');}this.store.abandonActivity();this.autoSkill=false;this.begin(stage,this.store.startActivity('boss'));});
+        button(popup,'ResetDeveloper','重置测试档 · 全满级满星',0,-263,620,64,'#604557',()=>{dismiss();this.store=createDeveloperStore(sys.localStorage,Date.now,Math.random,true);this.developer=true;this.persistMode('test');this.autoSkill=false;this.begin(999);});
+        button(popup,'UseNormalSave','切换常规存档',0,-366,620,64,'#354D63',()=>{dismiss();this.store=new ProgressStore(sys.localStorage);this.developer=false;this.persistMode('normal');this.autoSkill=true;this.begin(Math.min(MAX_STAGE,this.store.progress.highestCleared+1));});
+        button(popup,'CloseDeveloper','返回战场',0,-554,620,64,'#3B5669',()=>{dismiss();this.engine.paused=was;});
+    }
+    private openHall(tab: 'heroes'|'idle'|'draw'|'activities'|'exchange' = 'heroes'): void {
         if (this.hall || this.inventory) return;
         const wasPaused = this.engine.paused; this.engine.paused = true;
         this.hall = new MetaPanel(this.root, this.store, () => { this.hall = null; this.engine.paused = wasPaused; this.refresh(); }, run => { this.hall = null; this.begin(this.stage, run); }, tab);

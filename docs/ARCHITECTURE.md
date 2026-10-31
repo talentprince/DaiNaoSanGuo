@@ -1,4 +1,4 @@
-# Demo 0.9 技术结构
+# Demo 0.10 技术结构
 
 Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留，UI运行时生成。
 
@@ -6,7 +6,7 @@ Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留�
 | --- | --- | --- |
 | 规则 | BattleEngine | 固定步长、独立能量、分档目标/治疗、盾/增攻、星级/专武战斗效果、秘境与首领、城防与胜负 |
 | 参数 | GrowthConfig | 999/300边界、等级/地图/经验曲线、日上限、星级与兑换参数、大数格式 |
-| 内容 | HeroCatalog / EquipmentConfig | 40将、品级/来源、专武/部位/归属和效果说明 |
+| 内容 | HeroCatalog / EquipmentConfig | 44将、品级/来源、专武/部位/归属和效果说明 |
 | 关卡 | BattleConfig / ActivityConfig | 属性合成、独立兵种、主线与副本快照；副本地图档与特性 |
 | 状态 | ProgressStore | 本地账本、经验、升星、三槽归属/兼容单武器、招募/兑换、日上限/去重、旧档迁移 |
 | 阵型 | FormationConfig / FormationPanel | 站位、校验/自动排阵、品级变化修复、拖动交换与撤下 |
@@ -19,3 +19,15 @@ Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留�
 旧存档键不变；新增growthVersion1字段，points继续作为脑勋余额；equipped是loadouts.weapon兼容投影。挑战入场把等级、装备/星级/专武、阵型、日档复制成快照，途中养成不回写。UI只通过Store方法改变资源。
 
 测试使用Node类型擦除和test-support.mjs解析Cocos无扩展名导入，未新增npm依赖。所有账本、时钟和随机当前本地执行，不能代替正式服务器；真实身份/攻守/榜单另见SPEC R06。
+
+## 0.10模块
+
+- HeroIdentity：统一性别/配色/元素；ComicHead：战斗、头像、卡牌共用头部，HeroPortrait提供圆形裁切。
+- BondConfig：纯规则、实际同阵与成员受益、封顶、幂等；BattleConfig/ActivityConfig在最终阵型上应用。
+- BattleEngine：灼烧/冰缓/中毒/抑疗与治疗光环计时，真实盾/伤害/治疗结算；UI不计算伤害。
+- WeatherEffects：独立4秒天气层，与1.5秒横幅分离；UnitActor随身状态环。暂停时两者时钟冻结。
+- HeroCard/UnitPreview：统一人物卡、招募结果、兑换前属性与羁绊；不持有独立账本。
+- DeveloperMode：本机/微信devtools检测、独立存档/背包上限、全44将配装与预设；BattlePreview测试台调用。
+- resources/battle-art：4幅600×900 JPG，BattleStage异步加载并缓存Texture/SpriteFrame，失败保留程序地景；背景和裁剪层分离。
+
+常规存档键不变，开发档另键；不通过URL种子注入，不打包浏览器存档。

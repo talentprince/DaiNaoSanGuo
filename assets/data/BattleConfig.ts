@@ -1,3 +1,4 @@
+import { applyBonds } from './BondConfig';
 import { MAX_STAGE, MAX_LEVEL, levelFactor, stageFactor, starFactor } from './GrowthConfig';
 import type { CombatBonus } from '../battle/BattleEngine';
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
@@ -37,7 +38,7 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
         }
         waves.push(units);
     }
-    return { heroes: createHeroes(party, heroLevel, equipment), waves, seed, timeLimit: 120 };
+    return { heroes: applyBonds(createHeroes(party, heroLevel, equipment)), waves, seed, timeLimit: 120 };
 }
 
 export function createHeroes(party: readonly HeroId[], heroLevel = 1,
@@ -86,9 +87,9 @@ export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
 
 export function createLineup(entries: readonly FormationEntry[], level: number,
     equipment: Record<string, CombatBonus> = {}, prefix = 'ally'): UnitConfig[] {
-    return entries.map((entry, i) => {
+    return applyBonds(entries.map((entry, i) => {
         const base = entry.hero ? createHeroes([entry.hero], level, equipment)[0] : withSoldiers([], 1, level, entry.troop || 'sword', `${prefix}-${i}`)[0];
         const front = /^r[0-2]c2$/.test(entry.spot);
         return { ...base, formationSpot: entry.spot, priority: front ? 0 : base.priority + 1 };
-    });
+    }));
 }

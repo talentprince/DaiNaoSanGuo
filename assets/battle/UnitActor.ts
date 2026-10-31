@@ -1,3 +1,5 @@
+import { comicHead } from './ComicHead';
+import { heroColor, isFemaleHero } from '../data/HeroIdentity';
 import { Color, Graphics, Node, UIOpacity, UITransform } from 'cc';
 import type { Label } from 'cc';
 import type { Unit, WeaponKind } from './BattleEngine';
@@ -20,6 +22,7 @@ export class UnitActor {
     private weaponNode!: Node;
     private shadow: Node;
     private buffIcons: Graphics;
+    private statusAura:Graphics;
     private clock = 0;
     private action = 0;
     private hit = 0;
@@ -42,6 +45,7 @@ export class UnitActor {
         this.shadow = makeNode('Shadow', this.node, 0, -42 * scale);
         const shadow = this.shadow.addComponent(Graphics);
         shadow.fillColor = new Color(0, 0, 0, 65); shadow.ellipse(0, 0, 31 * scale, 8 * scale); shadow.fill();
+        this.statusAura=makeNode('StatusAura',this.node,0,-35*scale).addComponent(Graphics);
         this.body = makeNode('JointedBody', this.node);
         this.body.setScale(face * scale, scale, 1);
         if (unit.kind === 'wall') this.wallModel(); else this.personModel();
@@ -66,6 +70,7 @@ export class UnitActor {
 
     update(dt: number, march: boolean): void {
         this.clock += dt;
+        this.drawStatus();
         const badge = this.buffIcons; badge.clear();
         if (this.unit.shield > 0) { badge.fillColor = new Color('#8BD4DF'); badge.moveTo(-7, 7); badge.lineTo(7, 7); badge.lineTo(6, -5); badge.lineTo(0, -11); badge.lineTo(-6, -5); badge.close(); badge.fill(); }
         if (this.unit.attackBuff > 0) { badge.fillColor = new Color('#F3CD79'); badge.moveTo(17, 10); badge.lineTo(25, -1); badge.lineTo(21, -1); badge.lineTo(21, -10); badge.lineTo(13, -10); badge.lineTo(13, -1); badge.lineTo(9, -1); badge.close(); badge.fill(); }
@@ -107,12 +112,24 @@ export class UnitActor {
         this.body.setScale(this.face * this.scale, this.scale * (1 + Math.sin(this.clock * 2) * 0.01), 1);
     }
 
+    private drawStatus():void {
+        const g=this.statusAura;g.clear();const u=this.unit;if(u.hp<=0)return;
+        const t=this.clock;
+        const ring=(color:string,r:number)=>{g.strokeColor=new Color(color);g.lineWidth=3;g.ellipse(0,0,r*this.scale,12*this.scale);g.stroke();};
+        if(u.healGlowRemaining>0){ring('#79F0B1',35+Math.sin(t*5)*4);g.strokeColor=new Color('#BAFFD1');g.lineWidth=3;for(let i=0;i<4;i++){const x=Math.sin(t*2+i*1.57)*25;const y=12+(t*18+i*17)%65;g.moveTo(x-4,y);g.lineTo(x+4,y);g.moveTo(x,y-4);g.lineTo(x,y+4);g.stroke();}}
+        if(u.shield>0){ring('#79D6F0',39);g.strokeColor=new Color('#B4EBFF99');g.lineWidth=2;g.ellipse(0,37*this.scale,37*this.scale,58*this.scale);g.stroke();}
+        if(u.attackBuff>0)ring('#FFD06E',42);
+        if(u.slowRemaining>0){ring('#9DE8FF',36);g.strokeColor=new Color('#D1F4FF');g.lineWidth=2;for(let i=0;i<4;i++){const x=-26+i*17;g.moveTo(x,-2);g.lineTo(x+3,13);g.lineTo(x+9,-2);g.stroke();}}
+        if(u.burnRemaining>0){g.fillColor=new Color('#F59E4499');for(let i=0;i<5;i++){const x=-30+i*14;const h=20+Math.sin(t*7+i)*9;g.moveTo(x,0);g.quadraticCurveTo(x-6,h,x+3,h+10);g.quadraticCurveTo(x+16,h,x+9,0);g.close();g.fill();}}
+        if(u.poisonRemaining>0){ring('#A5D66F',38);g.strokeColor=new Color('#C495DD');g.lineWidth=2;for(let i=0;i<4;i++)g.circle(Math.sin(t*2+i)*24,15+(t*15+i*19)%60,4);g.stroke();}
+    }
+
     private personModel(): void {
         const id = this.unit.visualId || this.unit.id;
         const tier = this.unit.heroTier || 1;
         const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier';
         const comic:Record<string,string>={guanyu:'#168D63',zhangfei:'#C95332',zhaoyun:'#58A7ED',zhugeliang:'#8054C9',lvbu:'#C73148',caocao:'#4D3E92',zhouyu:'#ED6736',simayi:'#5850A1',huatuo:'#4FB58D',sunce:'#EB972F',diaochan:'#D65C9A'};
-        const armor = new Color(comic[id] || this.unit.color);
+        const armor = new Color(heroColor(id,this.unit.color));
         const ink = new Color('#171B2A');
         const polygon=(g:Graphics,points:number[][],fill:Color)=>{g.fillColor=fill;g.strokeColor=ink;g.lineWidth=4;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
         if (tier >= 3) {
@@ -151,49 +168,20 @@ export class UnitActor {
             shield.fillColor = new Color('#4D6774'); shield.roundRect(-12, -16, 24, 32, 9); shield.fill();
             shield.strokeColor = new Color('#D6BC83'); shield.lineWidth = 3; shield.roundRect(-12, -16, 24, 32, 9); shield.stroke();
         }
-        this.head = makeNode('Head', this.body, 0, 34); const h = this.head.addComponent(Graphics);
-        polygon(h,[[-25,17],[-31,-1],[-23,-22],[0,-29],[25,-20],[30,1],[22,21]],id==='zhaoyun'||id==='machao'?new Color('#D6E7F2'):armor);
-        if(!this.rear){
-            polygon(h,[[-22,11],[-23,-7],[-12,-22],[12,-23],[24,-7],[21,12],[0,18]],new Color(id==='guanyu'?'#D87554':id==='zhangfei'?'#D89A5E':'#F5C389'));
-            h.fillColor=new Color(id==='guanyu'?'#AC483F':'#DD9F65');h.moveTo(5,9);h.lineTo(17,-14);h.lineTo(5,-19);h.lineTo(-3,-4);h.close();h.fill();
-            h.fillColor=new Color('#FFF9E7');h.moveTo(-19,5);h.lineTo(-4,2);h.lineTo(-5,-4);h.lineTo(-17,-3);h.close();h.fill();h.moveTo(4,2);h.lineTo(19,6);h.lineTo(17,-3);h.lineTo(5,-4);h.close();h.fill();
-            h.fillColor=ink;h.rect(-10,-3,4,8);h.rect(9,-3,4,8);h.fill();
-            h.strokeColor=ink;h.lineWidth=4;h.moveTo(-22,11);h.lineTo(-4,6);h.moveTo(4,6);h.lineTo(22,12);h.stroke();
-            h.lineWidth=2;h.moveTo(0,3);h.lineTo(-3,-8);h.lineTo(3,-8);h.stroke();
-            polygon(h,[[-12,-13],[13,-12],[8,-20],[-6,-21]],new Color('#FFF8DD'));
-            h.strokeColor=new Color('#FFEAAD');h.lineWidth=2;h.moveTo(-22,-4);h.lineTo(-16,-10);h.moveTo(-23,-7);h.lineTo(-17,-13);h.stroke();
-        }else{
-            polygon(h,[[-24,5],[-23,-20],[0,-29],[23,-20],[25,5]],new Color('#25314B'));
-            h.strokeColor=new Color('#D9C28D');h.lineWidth=4;h.moveTo(0,-18);h.lineTo(0,23);h.stroke();
-        }
-        h.fillColor = new Color(tier === 4 || boss ? '#D8B46B' : '#596C78'); h.roundRect(-25, 13, 50, 6, 3); h.fill();
-        if (boss) {
-            h.moveTo(-18, 19); h.lineTo(-29, 35); h.lineTo(-5, 23); h.close(); h.fill();
-            h.moveTo(18, 19); h.lineTo(29, 35); h.lineTo(5, 23); h.close(); h.fill();
-        }
-        if (!this.rear && ['guanyu', 'zhangfei', 'caocao', 'huangzhong', 'huatuo'].indexOf(id) >= 0) {
-            h.fillColor = new Color(id === 'huangzhong' || id === 'huatuo' ? '#D9DFD6' : '#253637');
-            h.moveTo(-14, -9); h.lineTo(14, -9); h.lineTo(0, id === 'guanyu' ? -42 : -29); h.close(); h.fill();
-            if (id === 'zhangfei') { h.strokeColor = new Color('#232C2D'); h.lineWidth = 4; h.moveTo(-14, 7); h.lineTo(-4, 3); h.moveTo(4, 3); h.lineTo(14, 7); h.stroke(); }
-        }
-        if (id === 'lvbu') {
-            h.strokeColor = new Color('#D8A65B'); h.lineWidth = 4;
-            h.moveTo(-11, 21); h.bezierCurveTo(-5, 91, -76, 99, -54, 42); h.stroke();
-            h.moveTo(11, 21); h.bezierCurveTo(5, 91, 76, 99, 54, 42); h.stroke();
-        } else if (id === 'zhugeliang' || id === 'simayi' || id === 'caocao' || id === 'jiaxu' || id === 'sunquan') {
-            h.fillColor = new Color(id === 'zhugeliang' ? '#304B62' : '#2C2A3A'); h.roundRect(-18, 17, 36, 24, 5); h.fill();
-            h.strokeColor = new Color('#C9B87F'); h.lineWidth = 2; h.moveTo(-18, 22); h.lineTo(18, 22); h.stroke();
-        } else if (id === 'zhaoyun' || id === 'machao' || id === 'zhangliao' || id === 'sunce') {
-            h.fillColor = new Color(id === 'machao' ? '#E9D28F' : '#E6ECE9');
-            h.moveTo(-10, 22); h.quadraticCurveTo(-19, 56, 15, 43); h.lineTo(8, 22); h.close(); h.fill();
-        } else if (id === 'diaochan' || id === 'sunshangxiang' || id === 'caiwenji') {
-            h.fillColor = new Color('#C99BB1'); h.circle(-23, 16, 9); h.circle(23, 16, 9); h.fill();
-            h.strokeColor = new Color('#E7BCD2'); h.lineWidth = 3; h.moveTo(-23, 9); h.quadraticCurveTo(-40, -3, -29, -26); h.stroke();
-        }
+        this.head = comicHead(this.body,id,this.unit.color,tier,this.rear,boss);
+        if(isFemaleHero(id)){this.torso.setScale(.86,1,1);}
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);
         this.weaponNode.setScale(this.unit.signature?1.32:soldier?1:1.12,this.unit.signature?1.32:soldier?1:1.12,1);
         if(this.unit.signature){
-            const glow=makeNode('ExclusiveWeaponGlow',this.weaponNode).addComponent(Graphics);glow.strokeColor=new Color('#FFD65377');glow.lineWidth=12;glow.moveTo(3,-10);glow.lineTo(3,76);glow.stroke();
+            const glow=makeNode('ExclusiveWeaponGlow',this.weaponNode).addComponent(Graphics);glow.strokeColor=new Color('#FFD65377');glow.lineWidth=6;
+            if(this.weapon==='fan'){glow.ellipse(0,24,26,22);}
+            else if(this.weapon==='bow'){glow.arc(7,15,32,-1.2,1.2,false);}
+            else if(this.weapon==='staff'){glow.circle(0,62,16);}
+            else if(this.weapon==='ribbon'){glow.moveTo(0,-5);glow.bezierCurveTo(63,12,-20,76,45,57);}
+            else if(this.weapon==='qin'){glow.roundRect(-14,-8,36,62,9);}
+            else if(['spear','glaive','serpent','halberd','axe'].indexOf(this.weapon)>=0){glow.moveTo(4,-16);glow.lineTo(4,79);}
+            else{glow.moveTo(3,1);glow.lineTo(3,52);}
+            glow.stroke();
             const sig=makeNode('SignatureSeal',this.body,0,-45).addComponent(Graphics);sig.strokeColor=new Color('#FFD474');sig.lineWidth=3;sig.ellipse(0,0,46,15);sig.stroke();sig.moveTo(-44,0);sig.lineTo(-57,0);sig.moveTo(44,0);sig.lineTo(57,0);sig.stroke();
         }
         const w = this.weaponNode.addComponent(Graphics); w.fillColor = new Color('#DFEAE8'); w.strokeColor = new Color('#D9E5E3'); w.lineWidth = 3;
