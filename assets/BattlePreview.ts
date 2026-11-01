@@ -1,3 +1,5 @@
+import { battleMusic } from './data/MusicRouting';
+import { mobPosition } from './data/EnemyCatalog';
 import { worldBossPresentation } from './data/BossPresentation';
 import { mainlineTheme } from './data/MainlineThemes';
 import { BossWarning } from './battle/BossWarning';
@@ -45,7 +47,7 @@ export class BattlePreview extends Component {
     private utility:Node|null=null;
     private controls!:Node;
     private controlsOpen=false;
-    private signatureShortcut!:UIButton;
+    private signatureShortcut!:UIButton;private mainlineShortcut!:UIButton;
     private modeBadge!:UIButton;
     private bondsBadge!:UIButton;
     private field!: Node;
@@ -129,6 +131,7 @@ export class BattlePreview extends Component {
         this.statusLine=text(this.bottomHUD,'BattleLog','',0,-409,16,'#E2E8ED',700);
         this.bondsBadge=button(this.field,'BondsBadge','羁绊',-231,437,202,36,'#2D4754',()=>this.openBonds());
         iconButton(this.topHUD,'SceneShortcut','副本','scene',313,338,68,72,()=>this.openHall('activities'));
+        this.mainlineShortcut=iconButton(this.topHUD,'MainlineShortcut','推图','restart',-313,338,68,72,()=>this.returnToMainline());
         this.signatureShortcut=iconButton(this.topHUD,'SignatureShortcut','专武','bag',313,154,68,72,()=>this.openInventory(true));
         this.soundButton=iconButton(this.topHUD,'SoundButton','声音','sound',313,246,68,72,()=>{this.audio.toggle();this.refresh();});
         this.controls=makeNode('FoldableBattleControls',this.bottomHUD);
@@ -175,7 +178,7 @@ export class BattlePreview extends Component {
 
     update(dt: number): void {
         if (!this.engine) return;
-        this.audio.update(dt);
+        this.syncMusic();this.audio.update(dt);
         this.warning.update(Math.min(.25,Math.max(0,dt)),!!(this.hall||this.inventory||this.utility||this.modal)||this.engine.bossWarningRemaining<=0);
         const frame = Math.min(0.25, Math.max(0, dt));
         const pace = this.activeRun?.mode === 'boss' ? 1 : this.speed;
@@ -184,7 +187,8 @@ export class BattlePreview extends Component {
         if (!this.engine.paused) {
             const presentation=encounterPresentation(!this.activeRun?'main':this.activeRun.mode==='city'?'city':'other',this.engine.approachRemaining,this.engine.bossWarningRemaining,this.engine.transitioning);
             const march=presentation.marching||this.autoNext>0;
-            this.enemyUnits.setPosition(presentation.enemyX,0,0);this.enemyUnits.active=presentation.enemyVisible;this.enemyOpacity.opacity=this.activeRun?.mode==='city'?Math.round(Math.max(0,Math.min(1,(1.05-this.engine.approachRemaining)/.65))*255):255;
+            const camera=this.activeRun?.mode==='city'?cityFortressPresentation(this.engine.approachRemaining):null;
+            this.enemyUnits.setPosition(camera?.offset??presentation.enemyX,0,0);this.enemyUnits.active=presentation.enemyVisible;this.enemyOpacity.opacity=255;
             this.scenery?.update(frame * pace, march);
             if(!this.activeRun&&this.scenery)this.mainlineDistance=this.scenery.travelled;
             if(this.fortress){const f=cityFortressPresentation(this.engine.approachRemaining);this.fortress.setPosition(f.x,f.y,0);this.fortress.setScale(f.scale,f.scale,1);this.fortress.getComponent(UIOpacity)!.opacity=f.opacity;}
@@ -205,7 +209,6 @@ export class BattlePreview extends Component {
     }
 
     private begin(stage: number, run: ActivityRun | null = null): void {
-        this.audio.scene(!run?'main':run.mode==='boss'?(run.worldBoss||bossRotation(run.day*86400000).boss.id)==='zhangjiao'?'boss-zhangjiao':(run.worldBoss||bossRotation(run.day*86400000).boss.id)==='menghuo'?'boss-menghuo':'boss':run.mode);
         this.activeRun = run; this.stage = stage; this.sequence += 1;
         this.battleId = `${Date.now()}-${this.sequence}`;
         const p = this.store.progress;
@@ -216,18 +219,20 @@ export class BattlePreview extends Component {
         if(!run){const carried=this.store.mainlineEnergyFor(stage);this.engine.heroes.forEach(u=>{const value=carried[u.visualId||u.id];if(value!==undefined&&u.kind!=='soldier')u.energy=value;});}
         if(run?.mode==='trial'){const carried=this.store.trialEnergyFor(run.stage);this.engine.heroes.forEach(u=>{const value=carried[u.visualId||u.id];if(value!==undefined&&u.kind!=='soldier')u.energy=value;});}
         if(this.developer&&this.sequence===1&&Object.keys(this.store.mainlineEnergyFor(stage)).length===0)this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});
+        this.controlsOpen=false;this.controls.active=false;
         this.resultShown = false; this.autoNext = 0; this.nextLabel = null;this.warning.clear();this.visualStop=0;
         if (this.modal) { this.modal.destroy(); this.modal = null; }
         this.units.destroyAllChildren();this.fortress=null; this.enemyUnits = makeNode('EnemyArmy', this.units);this.enemyOpacity=this.enemyUnits.addComponent(UIOpacity);
         if(run?.mode==='city'){this.fortress=makeNode('FixedFortress',this.units,300,20);this.fortress.addComponent(UIOpacity);const f=cityFortressPresentation(3.3);this.fortress.setScale(f.scale,f.scale,1);this.fortress.getComponent(UIOpacity)!.opacity=f.opacity;} this.fx.clear(); this.actors.clear();
         this.skillHud?.destroy(); this.skillHud = null;
-        this.enemyUnits.active=!(run?.mode==='city'||!run);this.enemyUnits.setPosition(0,0,0);
+        this.enemyUnits.active=!!run;this.enemyUnits.setPosition(run?.mode==='city'?cityFortressPresentation(3.3).offset:0,0,0);
         this.scenery?.destroy();
         const style: StageStyle = !run ? 'rift' : run.mode === 'boss' ? 'boss' : run.mode === 'city' ? 'city' : run.mode === 'boat' ? 'boat' : 'trial';
         this.scenery = new BattleStage(this.field, style,stage,this.mainlineDistance); this.scenery.node.setSiblingIndex(0);this.scenery.resize(this.fieldWidth,this.fieldHeight);this.applyViewport();
         this.bossScore.node.active=run?.mode==='boss';this.teamLabel.node.active=false;this.enemyLabel.node.active=false;this.wave.node.active=false;
         this.engine.heroes.forEach((unit, i) => this.createActor(unit, i));
         this.statusLine.string = run ? `${ACTIVITY_NAMES[run.mode]} · 准备接战` : '一路向右 · 清怪攒秘境进度，满100召首领';
+        this.syncMusic();if(run?.mode==='boss')this.audio.effect('boss-arrive');
         this.processEvents();
         this.skillHud = new SkillHud(this.field, this.engine, id => {
             if (this.engine.castSkill(id)) this.processEvents();
@@ -262,12 +267,14 @@ export class BattlePreview extends Component {
             if (!hero && !unit.formationSpot) ({ x, y } = battlePosition(['r0c2', 'r1c2', 'r2c2', 'r0c0', 'r2c0'][index], 'trial', true));
             fromX = hero ? -310 : 320; fromY = y;
         } else if (unit.kind === 'boss') { x = 185; y = 55; fromX = 325; fromY = y; scale = 1.95; }
+        if(!hero&&!mode&&unit.kind!=='boss'){const p=mobPosition(index);x=p.x;y=p.y;scale=unit.elite?.91:p.scale;}
         if(!hero&&!mode){fromX=x;fromY=y;}
         let parent=hero?this.units:this.enemyUnits;
         if(mode==='city'&&!hero&&(unit.kind==='wall'||unit.onWall)&&this.fortress){parent=this.fortress;x-=300;fromX-=300;y-=20;fromY-=20;}
         const actor = new UnitActor(parent, unit, x, y, fromX, fromY, scale, hero ? 1 : -1,
             mode === 'boss' && hero, mode === 'boss' || (mode === 'city' && !hero));
         if (mode === 'boss' && !hero) {actor.node.getChildByName('Name')!.active = false;actor.hp.node.active=false;}
+        if(!hero&&!mode&&unit.kind!=='boss'){actor.node.getChildByName('Name')!.active=!!unit.elite;const name=actor.node.getChildByName('Name')!.getComponent(Label)!;name.fontSize=16;name.color=new Color('#FFE1A0');}
         this.actors.set(unit.id, actor);
     }
 
@@ -289,7 +296,7 @@ export class BattlePreview extends Component {
         } else if (event.type === 'boss') {
             this.actors.forEach((actor, id) => { if (actor.unit.team === 'enemy' && actor.unit.kind !== 'boss') { actor.node.destroy(); this.actors.delete(id); } });
             this.engine.enemies.forEach((unit, i) => { if (unit.kind === 'boss' && !this.actors.has(unit.id)) this.createActor(unit, i); });
-            this.warning.show(1.25);this.audio.scene('mainboss');
+            this.warning.show(1.25);this.syncMusic();this.audio.effect('boss-arrive');
             this.statusLine.string = '首领来袭！预警后继续行军接战';
         }
         else if (event.type === 'attack' && event.source && event.target) {
@@ -331,7 +338,7 @@ export class BattlePreview extends Component {
 
     onDestroy():void{view.off('canvas-resize',this.applyViewport,this);this.audio?.destroy();}
     private refresh(): void {
-        this.soundButton.label.string=this.audio.caption;this.signatureShortcut.node.active=!this.activeRun;
+        this.soundButton.label.string=this.audio.caption;this.signatureShortcut.node.active=!this.activeRun;this.mainlineShortcut.node.active=!!this.activeRun;
         this.title.string = this.activeRun ? `${ACTIVITY_NAMES[this.activeRun.mode]}${this.activeRun.mode === 'trial' ? ` · 第${this.activeRun.stage}关` : this.activeRun.mode === 'city' ? ' · 演练' : ''}`
             : `第${this.stage}/${MAX_STAGE}关 · ${mainlineTheme(this.stage).name}`;
         if(this.activeRun?.mode==='boss'){const b=worldBoss(this.activeRun.worldBoss||this.store.currentBoss.boss.id);this.title.string=`${b.name} · ${b.title}`;}
@@ -343,7 +350,7 @@ export class BattlePreview extends Component {
         this.inventoryButton.label.string = '行装';
         this.actors.forEach(actor => {
             const unit = actor.unit;
-            bar(actor.hp, unit.hp / unit.maxHp, unit.kind === 'boss' ? 175 : unit.formationSpot ? 64 : 85, 8, unit.team === 'hero' ? '#7CC69E' : '#E0B76A');
+            bar(actor.hp, unit.hp / unit.maxHp, unit.kind === 'boss' ? 175 : unit.team==='enemy'&&!this.activeRun?(unit.elite?74:48):unit.formationSpot ? 64 : 85, 8, unit.team === 'hero' ? '#7CC69E' : '#E0B76A');
             actor.hpText.node.active=false;
         });
         const phase = this.engine.paused ? '已暂停' : this.engine.bossWarningRemaining>0?'首领预警':this.engine.approachRemaining > 0 ? '正在接敌' : this.engine.status === 'fighting' ? '交战中' : '战斗结束';
@@ -416,7 +423,7 @@ export class BattlePreview extends Component {
             try { this.begin(this.stage, this.store.startActivity(run.mode, run.choices)); }
             catch (error) { this.statusLine.string = error instanceof Error ? error.message : '无法进入副本'; }
         });
-        button(this.modal, 'ReturnMain', '返回主线行军', 0, -171, 470, 52, '#30465E', () => this.begin(Math.min(MAX_STAGE, this.store.progress.highestCleared + 1)));
+        button(this.modal, 'ReturnMain', '返回主线行军', 0, -171, 470, 52, '#30465E', () => this.returnToMainline());
         this.statusLine.string = boss ? '个人成绩已保存 · 全服榜单待联机' : won ? '副本通关，奖励已结算' : '调整阵容后再试';
     }
     private openBonds():void {
@@ -462,10 +469,21 @@ export class BattlePreview extends Component {
         button(popup,'CloseDeveloper','返回战场',0,-554,620,64,'#3B5669',()=>{dismiss();this.engine.paused=was;});
     }
     private startDeveloperBoss(id:WorldBossId,stage:number):void{if(!this.localAllowed)return;if(!this.developer){this.store=this.session.test();this.developer=true;this.persistMode('test');}this.store.abandonActivity();this.autoSkill=false;this.begin(stage,this.store.startActivity('boss',[],id));this.engine.heroes.forEach(u=>{if(u.kind!=='soldier')u.energy=100;});}
+    private syncMusic():void{
+        if(!this.engine)return;const menu=!!(this.hall||this.inventory||this.utility||this.controlsOpen||this.root.getChildByName('FormationEditor'));
+        const run=this.activeRun;this.audio.scene(battleMusic(run?.mode,this.engine.bossActive,menu,run?.worldBoss||(run?bossRotation(run.day*86400000).boss.id:undefined)));
+    }
+    private returnToMainline():void{
+        this.hall?.node.destroy();this.hall=null;this.inventory?.node.destroy();this.inventory=null;
+        this.utility?.destroy();this.utility=null;this.root.getChildByName('FormationEditor')?.destroy();
+        // Keep an unfinished activity snapshot: resume via the dungeon hall, no refund or reward.
+        this.begin(Math.min(MAX_STAGE,this.store.progress.highestCleared+1));
+        if(this.store.progress.pending)this.statusLine.string='已回主线 · 未完副本可在副本页继续，不重复扣次数';
+    }
     private openHall(tab: 'heroes'|'idle'|'draw'|'activities'|'exchange' = 'heroes'): void {
         if (this.hall || this.inventory) return;
         const wasPaused = this.engine.paused; this.engine.paused = true;
-        this.hall = new MetaPanel(this.root, this.store, () => { this.hall = null; this.engine.paused = wasPaused; this.refresh(); }, run => { this.hall = null; this.begin(this.stage, run); }, tab);
+        this.hall = new MetaPanel(this.root, this.store, () => { this.hall = null; this.engine.paused = wasPaused; this.refresh(); }, run => { this.hall = null; this.begin(this.stage, run); }, tab,()=>this.returnToMainline());
         this.refresh();
     }
     private openInventory(signatureShop=false): void {

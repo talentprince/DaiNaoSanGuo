@@ -1,4 +1,4 @@
-# Demo 0.12 技术结构
+# Demo 0.13 技术结构
 
 Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留，UI运行时生成。
 
@@ -62,3 +62,11 @@ ExperienceMode用独立键/带grantVersion的信封保存体验进度，首次�
 - AudioDirector增加8场景选曲、兵器音效变体/限频/优先级、分包ready门禁与场景播放位置缓存；GameAudio接HTML或wx平台、seek/onCanplay和生命周期。audio-package.mjs打包音频及game.js入口，预检分别计算主包/分包。
 
 短打击顿挫仅冻结视觉，不冻结引擎计分。原创程序绘制与音频不意味着最终角色骨骼/全部独立机制已经完成；当前仍无云端权威状态。
+
+## 0.13
+
+EnemyCatalog生成5波×8名真实敌军，6种身份及精英标记；UnitConfig.riftValue允许每个敌人不同秘境值，缺省10兼容旧配置。主线普通2/精英10，满100沿用引擎唯一Boss生成。普通/精英仍是小兵战斗类别，无武将主动技；精英增加体型/护甲/血攻/标记。
+
+SiegeLayout定义横版城池锚点、镜头平移、上下城楼与门前位置；FormationConfig从同一位置推导编辑器坐标，旧阵位ID保留。墙和守军共享镜头偏移、演员初始/目标均保持原世界位置，不叠加奔跑。
+
+MusicRouting统一由模式/Boss阶段/菜单状态选曲；GameAudio只在变曲时记录与调用，Boss提示由入场事件独立触发。AudioDirector负责菜单静音战斗残音、260/600ms限频与0.95秒警报保护。主线入口保留未完ActivityRun，由原Store继续/放弃流程处理，不新增奖励或退次数。

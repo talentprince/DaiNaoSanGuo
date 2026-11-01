@@ -4,10 +4,10 @@ test('背景音乐首次交互后播放，换场景切换曲目，相同场景�
 test('全局静音保存，关闭后背景/技能均不播放，重新开启恢复',()=>{const {a,channels:c,value}=setup();a.scene('main');a.unlock();a.toggle();assert.equal(value(),'off');const before=c.reduce((n,s)=>n+s.played,0);a.effect('fire');assert.equal(c.reduce((n,s)=>n+s.played,0),before);a.toggle();assert.equal(value(),'on');assert.ok(c[0].played>1);assert.equal(setup('off').a.enabled,false);});
 test('技能音效最多三个声道，同种短间隔去重，终结技压低音乐后恢复',()=>{const {a,channels:c,advance}=setup();a.scene('boss');a.unlock();a.effect('fire');a.effect('fire');assert.equal(c.slice(1).reduce((n,s)=>n+s.played,0),1);advance(200);for(const kind of ['heal','wind','poison','finale'])a.effect(kind);assert.equal(c.length,4);a.update(.1);assert.equal(c[0].volume,.11);a.update(3);assert.equal(c[0].volume,.28);assert.ok(c.slice(1).every(s=>s.stopped>0));});
 test('切后台停止音效并暂停背景，恢复后接着播放；销毁只释放一次',()=>{const {a,channels:c}=setup();a.scene('main');a.unlock();a.hide();const before=c[0].played;a.effect('heal');a.show();assert.equal(c[0].played,before+1);a.destroy();a.destroy();assert.ok(c.every(s=>s.destroyed===1));a.unlock();assert.equal(c[0].played,before+1);});
-test('八种场景分别选曲且同场景不重启，普攻两种变体并限制密集播放',()=>{
+test('九种场景分别选曲且同场景不重启，普攻两种变体并限制密集播放',()=>{
  const {a,channels:c,advance}=setup();a.unlock();
- for(const scene of ['main','city','trial','boat','mainboss','boss','boss-zhangjiao','boss-menghuo']){a.scene(scene);assert.equal(c[0].src,`audio/${scene}.mp3`);}
- a.effect('hit-slash');const first=c[1].src;a.effect('hit-bow');assert.equal(c[2].played,0);advance(200);a.effect('hit-slash');assert.notEqual(c[2].src,first);
+ for(const scene of ['menu','main','city','trial','boat','mainboss','boss','boss-zhangjiao','boss-menghuo']){a.scene(scene);assert.equal(c[0].src,`audio/${scene}.mp3`);}
+ a.effect('hit-slash');const first=c[1].src;a.effect('hit-bow');assert.equal(c[2].played,0);advance(300);a.effect('hit-slash');assert.notEqual(c[2].src,first);
  a.effect('fire');advance(200);const count=c.slice(1).reduce((n,s)=>n+s.played,0);a.effect('hit-slash');assert.equal(c.slice(1).reduce((n,s)=>n+s.played,0),count);a.update(.3);advance(200);a.effect('hit-bow');assert.ok(c.slice(1).reduce((n,s)=>n+s.played,0)>count);
 });
 test('分包未加载不设置音频路径也不播放，加载成功恢复音乐并只播放一次登场提示',()=>{

@@ -28,7 +28,7 @@ export class MetaPanel {
     private onClose: () => void;
     private onStart: (run: ActivityRun) => void;
 
-    constructor(parent: Node, store: ProgressStore, onClose: () => void, onStart: (run: ActivityRun) => void, initialTab: Tab = 'heroes') {
+    constructor(parent: Node, store: ProgressStore, onClose: () => void, onStart: (run: ActivityRun) => void, initialTab: Tab = 'heroes', private onMainline?:()=>void) {
         this.tab = initialTab; this.store = store; this.onClose = onClose; this.onStart = onStart;
         this.draft = [...store.progress.formation];
         this.node = panel(parent, 'AdventureHall', 0, 0, 720, 1280, '#0C1729', 0);
@@ -53,7 +53,8 @@ export class MetaPanel {
         else if (this.tab === 'exchange') this.exchange();
         else this.activities();
         text(this.node, 'HallNote', this.note + (this.store.storageAvailable ? '' : '（未保存）'), 0, -488, 19, '#CBDBBC', 660);
-        button(this.node, 'CloseHall', '返回战斗', 0, -554, 620, 64, '#3E5D71', () => { this.closed = true; this.node.destroy(); this.onClose(); });
+        button(this.node, 'CloseHall', '返回当前战斗', -160, -554, 300, 64, '#3E5D71', () => { this.closed = true; this.node.destroy(); this.onClose(); });
+        button(this.node,'HallMainline','主线推图',160,-554,300,64,'#78613C',()=>{this.closed=true;this.node.destroy();this.onMainline?.();});
         text(this.node, 'LocalNotice', '本地试玩 · 真实玩家攻守与全服排名待接入', 0, -611, 16, '#7D91AD');
     }
     private pagination(total: number): void {

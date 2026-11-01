@@ -50,7 +50,7 @@ export class UnitActor {
         shadow.fillColor = new Color(0, 0, 0, 65); shadow.ellipse(0, 0, 31 * scale, 8 * scale); shadow.fill();
         this.statusAura=makeNode('StatusAura',this.node,0,-35*scale).addComponent(Graphics);
         this.body = makeNode('JointedBody', this.node);
-        this.body.setScale(face * scale, scale, 1);
+        this.body.setScale(unit.kind==='wall'?1:face * scale, scale, 1);
         if (unit.kind === 'wall') this.wallModel(); else this.personModel();
         this.motionInk=makeNode('ComicMotionInk',this.node).addComponent(Graphics);
         this.buffIcons = makeNode('BuffIcons', this.node, 37, 20).addComponent(Graphics);
@@ -152,7 +152,7 @@ export class UnitActor {
     private personModel(): void {
         const id = this.unit.visualId || this.unit.id;
         const tier = this.unit.kind==='boss'?4:this.unit.heroTier || 1;
-        const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier';
+        const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier'&&!this.unit.elite;
         const comic:Record<string,string>={guanyu:'#168D63',zhangfei:'#C95332',zhaoyun:'#58A7ED',zhugeliang:'#8054C9',lvbu:'#C73148',caocao:'#4D3E92',zhouyu:'#ED6736',simayi:'#5850A1',huatuo:'#4FB58D',sunce:'#EB972F',diaochan:'#D65C9A'};
         const armor = new Color(heroColor(id,this.unit.color));
         const ink = new Color('#171B2A');
@@ -161,6 +161,7 @@ export class UnitActor {
             const pressure=makeNode('BossDreadSilhouette',this.body).addComponent(Graphics);pressure.fillColor=new Color('#321D3A55');pressure.strokeColor=new Color('#251D36');pressure.lineWidth=3;
             pressure.moveTo(-45,-28);pressure.lineTo(-71,3);pressure.lineTo(-52,10);pressure.lineTo(-75,45);pressure.lineTo(-45,34);pressure.lineTo(-52,77);pressure.lineTo(0,53);pressure.lineTo(52,77);pressure.lineTo(45,34);pressure.lineTo(75,45);pressure.lineTo(52,10);pressure.lineTo(71,3);pressure.lineTo(45,-28);pressure.close();pressure.fill();pressure.stroke();
         }
+        if(this.unit.elite){const marker=makeNode('EliteMarker',this.body,0,-43).addComponent(Graphics);marker.strokeColor=new Color('#F4AD55');marker.lineWidth=4;marker.ellipse(0,0,39,12);marker.stroke();marker.fillColor=new Color('#EBA951');marker.moveTo(-8,102);marker.lineTo(0,111);marker.lineTo(8,102);marker.lineTo(0,93);marker.close();marker.fill();}
         if (tier >= 3) {
             const aura = makeNode('EliteAura', this.body, 0, -39).addComponent(Graphics);
             aura.strokeColor = new Color(tier === 4 ? '#DAC17577' : '#B5A3D966'); aura.lineWidth = tier === 4 ? 4 : 2;
@@ -273,26 +274,28 @@ export class UnitActor {
     }
 
     private wallModel(): void {
-        const g = this.body.addComponent(Graphics);
-        // The near plane is the left-facing gate; the narrow rear plane reaches the right edge.
-        g.strokeColor=new Color('#202B3D');g.lineWidth=5;
-        g.fillColor = new Color('#65727C'); g.moveTo(-110, -145); g.lineTo(-32, -115); g.lineTo(-32, 110); g.lineTo(-110, 145); g.close(); g.fill();g.stroke();
-        g.fillColor = new Color('#404D59'); g.moveTo(-32, -115); g.lineTo(30, -130); g.lineTo(30, 128); g.lineTo(-32, 110); g.close(); g.fill();g.stroke();
-        g.strokeColor = new Color('#9CA7AC'); g.lineWidth = 2;
-        for (let y = -120; y < 135; y += 30) { g.moveTo(-108, y); g.lineTo(-34, y - 27); g.stroke(); }
-        for (let y = -105; y < 110; y += 32) { g.moveTo(-30, y); g.lineTo(29, y + 12); g.stroke(); }
-        g.fillColor = new Color('#17222E'); g.moveTo(-100, -126); g.lineTo(-43, -105); g.lineTo(-43, -9); g.quadraticCurveTo(-69, 40, -100, 11); g.close(); g.fill();
-        g.fillColor = new Color('#775B44'); g.moveTo(-94, -124); g.lineTo(-47, -106); g.lineTo(-47, -7); g.quadraticCurveTo(-70, 29, -94, 8); g.close(); g.fill();
-        g.strokeColor = new Color('#CBB77A'); g.lineWidth = 3;
-        g.moveTo(-71, -115); g.lineTo(-71, 18); g.stroke(); g.moveTo(-94, -44); g.lineTo(-48, -59); g.stroke();
-        g.circle(-82, -45, 5); g.stroke(); g.circle(-59, -53, 5); g.stroke();
-        g.fillColor = new Color('#89959E'); g.moveTo(-115, 143); g.lineTo(-30, 165); g.lineTo(34, 128); g.lineTo(-32, 110); g.close(); g.fill();g.stroke();
-        [-108, -79, -50].forEach(x => { g.rect(x, 140, 19, 24); g.fill(); });
-        g.fillColor = new Color('#816A52'); g.rect(-83, 167, 118, 128); g.fill();
-        g.strokeColor = new Color('#D8BC7C'); g.lineWidth = 4; [-69, -25, 20].forEach(x => { g.moveTo(x, 167); g.lineTo(x, 295); g.stroke(); });
-        g.fillColor = new Color('#4D303B'); g.moveTo(-103, 291); g.lineTo(-24, 355); g.lineTo(55, 292); g.close(); g.fill();
-        g.strokeColor = new Color('#CDA86F'); g.lineWidth = 3; g.moveTo(-105, 291); g.lineTo(-24, 355); g.lineTo(57, 292); g.stroke();
-        g.moveTo(31, 128); g.lineTo(31, 325); g.stroke();
-        g.fillColor = new Color('#B86150'); g.moveTo(31, 325); g.lineTo(-15, 310); g.lineTo(31, 295); g.close(); g.fill();
+        const g=this.body.addComponent(Graphics),ink=new Color('#202436');
+        const poly=(points:number[][],fill:string)=>{g.fillColor=new Color(fill);g.strokeColor=ink;g.lineWidth=5;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        // Left-facing front and receding masonry: a tall side-on city gate, never a scaled thumbnail.
+        poly([[-116,-285],[-30,-256],[-30,254],[-116,275]],'#7A8790');
+        poly([[-30,-256],[48,-276],[48,277],[-30,254]],'#465666');
+        g.strokeColor=new Color('#A9B3B7');g.lineWidth=2;
+        for(let y=-255;y<260;y+=36){g.moveTo(-112,y);g.lineTo(-32,y-23);g.stroke();g.moveTo(-27,y-20);g.lineTo(44,y+2);g.stroke();}
+        for(let y=-260;y<255;y+=72){g.moveTo(-75,y);g.lineTo(-75,y+35);g.moveTo(8,y+16);g.lineTo(8,y+50);g.stroke();}
+        poly([[-108,-235],[-42,-216],[-42,20],[-51,52],[-81,70],[-105,52]],'#182332');
+        poly([[-100,-230],[-48,-212],[-48,21],[-60,46],[-81,57],[-99,42]],'#81583F');
+        g.strokeColor=new Color('#E0BB6E');g.lineWidth=4;g.moveTo(-75,-222);g.lineTo(-75,51);g.moveTo(-99,-70);g.lineTo(-49,-84);g.moveTo(-99,-157);g.lineTo(-49,-172);g.stroke();
+        for(const y of [-120,-20]){g.circle(-87,y,5);g.circle(-61,y-7,5);g.stroke();}
+        // Two spaced parapet galleries match the upper/lower saved tower slots.
+        for(const y of [120,-155]){
+            poly([[-69,y-8],[45,y-8],[54,y+10],[-67,y+10]],'#A2ACB2');
+            for(let i=0;i<4;i++){g.fillColor=new Color('#8E9BA4');g.strokeColor=ink;g.lineWidth=3;g.rect(-68+i*29,y+7,19,24);g.fill();g.stroke();}
+        }
+        poly([[-118,275],[-30,296],[50,277],[48,252],[-30,272],[-116,251]],'#A5AFB5');
+        poly([[-82,291],[41,291],[41,345],[-82,345]],'#967558');
+        g.strokeColor=new Color('#E1BB76');g.lineWidth=4;[-68,-20,28].forEach(x=>{g.moveTo(x,292);g.lineTo(x,344);g.stroke();});
+        poly([[-106,341],[-21,388],[63,341]],'#713C48');
+        g.strokeColor=new Color('#E4B365');g.lineWidth=3;g.moveTo(-110,341);g.lineTo(-21,388);g.lineTo(68,341);g.stroke();
+        g.moveTo(35,345);g.lineTo(35,421);g.stroke();poly([[35,419],[-11,403],[35,386]],'#BE4B48');
     }
 }

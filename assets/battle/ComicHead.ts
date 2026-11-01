@@ -24,7 +24,14 @@ export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=fals
         else if(boss){poly([[-16,-10],[18,-9],[15,-25],[-12,-26]],new Color('#542739'));g.fillColor=new Color('#FFF2CE');g.moveTo(-13,-11);g.lineTo(-8,-23);g.lineTo(-3,-11);g.moveTo(5,-11);g.lineTo(10,-23);g.lineTo(16,-10);g.fill();g.strokeColor=ink;g.lineWidth=6;g.moveTo(-23,14);g.lineTo(-4,5);g.moveTo(4,5);g.lineTo(24,15);g.stroke();g.fillColor=new Color('#C94A3B');g.rect(-11,-4,5,8);g.rect(9,-4,5,8);g.fill();}
         else {poly([[-14,-12],[15,-10],[12,-22],[-8,-23]],new Color('#FFF8DD'));g.strokeColor=ink;g.lineWidth=1.5;g.moveTo(-5,-13);g.lineTo(-3,-21);g.moveTo(5,-12);g.lineTo(6,-21);g.stroke();}
     }
-    if(id==='guanyu'){
+    if(id.startsWith('mob-')){
+        const kind=id.slice(4);
+        if(kind==='shield'){poly([[-28,14],[-24,31],[0,39],[25,29],[29,14]],new Color('#7F8C93'));g.strokeColor=new Color('#D6DCE0');g.lineWidth=3;g.moveTo(0,37);g.lineTo(0,16);g.stroke();}
+        else if(kind==='bow'){poly([[-31,14],[-9,36],[5,25],[29,14]],new Color('#AE8853'));}
+        else if(kind==='shaman'){poly([[-22,13],[-14,46],[3,53],[20,13]],new Color('#6D4B91'));poly([[-7,29],[7,28],[5,-2],[-6,0]],new Color('#E6CD6E'));g.strokeColor=new Color('#9D4638');g.lineWidth=2;g.moveTo(0,25);g.lineTo(-3,17);g.lineTo(4,14);g.lineTo(-1,5);g.stroke();}
+        else if(kind==='axe'){poly([[-27,12],[-24,28],[-8,36],[9,24],[26,11]],new Color('#5D5968'));g.strokeColor=new Color('#B94F44');g.lineWidth=3;g.moveTo(-17,0);g.lineTo(-5,-8);g.stroke();}
+        else {poly([[-26,13],[-22,25],[19,23],[27,12]],new Color(kind==='blade'?'#B24A43':'#6D8694'));poly([[23,19],[43,26],[33,8],[24,10]],new Color('#BC6651'));}
+    }else if(id==='guanyu'){
         // A fitted wrapped green kerchief, not a floating gold helmet strip.
         poly([[-26,12],[-23,24],[-11,29],[19,24],[26,13],[8,16],[-9,15]],new Color('#1D7759'));
         poly([[23,18],[36,10],[29,1],[22,10]],new Color('#237E5F'));

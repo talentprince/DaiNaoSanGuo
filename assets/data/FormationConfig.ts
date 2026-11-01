@@ -1,3 +1,4 @@
+import { defensePosition,defenseBoardPosition } from './SiegeLayout';
 import { getHero } from './HeroCatalog';
 import type { HeroId } from './HeroCatalog';
 
@@ -7,10 +8,7 @@ export interface FormationMember { hero?: HeroId; troop?: Troop; }
 export interface FormationEntry extends FormationMember { spot: string; }
 export interface FormationSpot { id: string; x: number; y: number; tower?: boolean; }
 export const FORMATION_SPOTS: FormationSpot[] = Array.from({ length: 9 }, (_, i) => ({ id: `r${Math.floor(i / 3)}c${i % 3}`, x: (i % 3 - 1) * 200, y: 310 - Math.floor(i / 3) * 150 }));
-export const DEFENSE_SPOTS: FormationSpot[] = [
-    { id: 'tower-left', x: 170, y: 315, tower: true }, { id: 'tower-right', x: 270, y: 315, tower: true },
-    ...Array.from({ length: 6 }, (_, i) => ({ id: `ground-${i}`, x: -230 + i % 3 * 150, y: 270 - Math.floor(i / 3) * 190 })),
-];
+export const DEFENSE_SPOTS: FormationSpot[] = ['tower-left','tower-right',...Array.from({length:6},(_,i)=>`ground-${i}`)].map(id=>({id,...defenseBoardPosition(id),tower:id.startsWith('tower-')}));
 export const capacity = (mode: FormationMode): number => mode === 'trial' ? 3 : 5;
 export const spotsFor = (mode: FormationMode): FormationSpot[] => mode === 'defense' ? DEFENSE_SPOTS : FORMATION_SPOTS;
 export const isTroop = (v: unknown): v is Troop => v === 'sword' || v === 'spear' || v === 'bow';
@@ -105,9 +103,7 @@ export function autoFormation(owned: readonly HeroId[], mode: FormationMode): Fo
 
 /** Battle positions are discrete and independent from the drag-board's display coordinates. */
 export function battlePosition(spot: string, mode: 'main' | 'trial' | 'boss' | 'city', enemy = false): { x: number; y: number } {
-    if (spot === 'tower-left') return { x: 235, y: 210 };
-    if (spot === 'tower-right') return { x: 300, y: 210 };
-    if (spot.startsWith('ground-')) { const i = Number(spot.slice(7)); return { x: 10 + i % 3 * 60, y: 100 - Math.floor(i / 3) * 220 }; }
+    if (spot.startsWith('tower-')||spot.startsWith('ground-')) return defensePosition(spot);
     const match = /^r([0-2])c([0-2])$/.exec(spot);
     const row = match ? Number(match[1]) : 1; const col = match ? Number(match[2]) : 1;
     if (mode === 'boss') return { x: (col - 1) * 160, y: -105 - row * 104 };

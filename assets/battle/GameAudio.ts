@@ -4,7 +4,7 @@ import type { SoundChannel,SoundKind,MusicScene } from './AudioDirector';
 import type { WeaponKind } from './BattleEngine';
 declare const wx:{createInnerAudioContext?:()=>SoundChannel;loadSubpackage?:(options:{name:string;success:()=>void;fail:()=>void})=>unknown};
 export class GameAudio {
-    readonly director:AudioDirector;private loading=false;
+    readonly director:AudioDirector;private loading=false;private currentScene='';
     constructor(){
         const native=typeof wx!=='undefined'&&!!wx.createInnerAudioContext;
         this.director=new AudioDirector(()=>{
@@ -23,7 +23,7 @@ export class GameAudio {
     private unlock():void{if(!this.director.ready)this.loadPackage();if(!this.director.unlocked)this.director.unlock();}
     private hide():void{this.director.hide();}
     private show():void{if(!this.director.ready)this.loadPackage();this.director.show();}
-    scene(name:MusicScene):void{this.director.scene(name);if(name==='mainboss'||name.startsWith('boss'))this.director.effect('boss-arrive');}
+    scene(name:MusicScene):void{if(this.currentScene===name)return;this.currentScene=name;this.director.scene(name);console.info(`[Audio] scene ${name}`);}
     effect(kind:SoundKind):void{this.director.effect(kind);}
     hit(weapon:WeaponKind):void{this.director.effect(weapon==='bow'?'hit-bow':['spear','glaive','halberd','serpent'].indexOf(weapon)>=0?'hit-pierce':['fan','staff','qin','ribbon'].indexOf(weapon)>=0?'hit-magic':'hit-slash');}
     toggle():void{if(!this.director.ready&&this.director.lastError){this.loadPackage();if(!this.director.enabled)this.director.toggle();else this.director.unlock();return;}this.director.toggle();if(this.director.enabled&&!this.director.ready)this.loadPackage();}

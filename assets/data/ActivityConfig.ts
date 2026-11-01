@@ -1,3 +1,4 @@
+import { ENEMY_ARCHETYPES } from './EnemyCatalog';
 import { bossRotation,worldBoss } from './WorldBossConfig';
 import type { WorldBossId } from './WorldBossConfig';
 import { applyBonds } from './BondConfig';
@@ -42,7 +43,8 @@ export function createActivityOptions(run: ActivityRun): BattleOptions {
     if (run.mode === 'trial' && !run.layout && validateParty(run.party, run.party, 'trial')) throw new Error('三将阵容无效');
     const foe = (index: number, name: string, hp: number, attack: number, defense: number, interval = 1.5): UnitConfig => ({
         id: `enemy-${index}`, name, role: '副本', maxHp: hp, attack, defense, interval, priority: index,
-        color: '#B79B63',
+        color: ['#8D7B54','#677F91','#A46B51','#6D8B68','#8A6395','#AD6652'][index%6],
+        visualId:`mob-${ENEMY_ARCHETYPES[index%6].id}`,weapon:ENEMY_ARCHETYPES[index%6].weapon,
     });
     if (run.mode === 'boss') {const b=run.worldBoss?worldBoss(run.worldBoss):bossRotation(run.day*86400000).boss;return { heroes,waves:[[{...foe(0,`${b.name}·${b.title}`,1e15,Math.round(b.attack*bandFactor),Math.round(b.defense*bandFactor),b.interval),kind:'boss',weapon:b.weapon,color:b.color,element:b.element,visualId:`world-${b.id}`,weakElement:b.weakElement,weakTactic:b.weakTactic,skillName:`${b.name}·魔王威压`}]],seed:35,timeLimit:30,scoreMode:true,bossFinale:{name:b.finale,element:b.element,duration:2.8}};}
 

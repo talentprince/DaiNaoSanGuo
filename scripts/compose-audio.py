@@ -37,6 +37,7 @@ chords=[['D3','F3','A3'],['Bb2','D3','F3'],['C3','E3','G3'],['A2','C#3','E3']]
 # Twenty-four-bar arrangements: A/B/bridge, with different keys, grooves and pulse colors.
 boat=[['F5','A5','C6',None,'A5','G5','F5','D5'],['Bb4','D5','F5','A5','F5',None,'D5','F5'],['C5','E5','G5','C6','G5','E5','D5','C5'],['A4','C5','E5','G5','E5','C5','A4',None],['D5','F5','A5','C6','A5','F5','E5','D5'],['G4','Bb4','D5','F5','D5','Bb4','A4','G4'],['C5','F5','E5','G5','C6','Bb5','G5','E5'],['F5','A5','C6','A5','G5','F5',None,'C5']]
 themes=[
+ ('menu',boat[:8]+boat[::-1]+boat,100,7,.5,'menu'),
  ('main',main+main[:8],160,0,.25,'march'),
  ('city',boss+main[:8]+boss,144,-5,.125,'siege'),
  ('trial',main[8:]+boss+main[:8],188,2,.25,'rush'),
@@ -56,14 +57,14 @@ for name,bars,bpm,transpose,duty,groove in themes:
    start=o+j*beat*.5+swing
    # A contrasting bridge changes register/spacing rather than repeating one eight-note cell.
    melody=hz(n)*shift*(2 if section==2 and j in [2,5] else 1) if n else None
-   tone(y,start,beat*(.68 if groove=='boat' and j%3==0 else .43),melody,.24 if groove=='boat' else .29,duty=duty)
+   tone(y,start,beat*(.68 if groove=='boat' and j%3==0 else .43),melody,.16 if groove=='menu' else .24 if groove=='boat' else .29,tri=groove=='menu',duty=duty)
    if section==1 and j%2==0:tone(y,start+beat*.03,beat*.4,hz(c[(j+1)%3])*shift*4,.12,duty=.5)
    tone(y,start,beat*.35,hz(c[j%3])*shift,.095,duty=.5)
    bass=hz(c[0])*shift*(1 if j%2==0 else 2)
    tone(y,start,beat*.43,bass,.24,True)
-   if groove!='boat' or j%2==0:drum(y,start,'hat',.04 if groove=='boat' else .07)
+   if groove!='menu' and (groove!='boat' or j%2==0):drum(y,start,'hat',.04 if groove=='boat' else .07)
   for j in range(4):
-   drum(y,o+j*beat,'kick' if j%2==0 else 'snare',.23 if groove in ['siege','heavy'] else .15)
+   drum(y,o+j*beat,'kick' if j%2==0 else 'snare',.05 if groove=='menu' else .23 if groove in ['siege','heavy'] else .15)
    if groove=='tribal':drum(y,o+(j+.5)*beat,'tom',.15)
    if groove=='rush' and j%2==0:drum(y,o+(j+.5)*beat,'kick',.1)
   if bar%4==3:
@@ -72,9 +73,9 @@ for name,bars,bpm,transpose,duty,groove in themes:
    for j in range(3):tone(y,o+j*beat*.2,.09,1400+j*360,.035,duty=.125)
  # Short wraparound echoes add depth while keeping the loop length exact.
  y+=np.roll(y,int(.75*beat*S))*.1+np.roll(y,int(1.5*beat*S))*.04
- write(name,y)
+ if '--only-new' not in __import__('sys').argv or name=='menu':write(name,y)
 
-fx=[('lightning',1.05),('fire',1.15),('blizzard',1.3),('wind',.85),('poison',.95),('heal',1.25),('guard',.8),('slash',.5),('finale',1.8),('impact',.75),('victory',1.35),('defeat',1.1),('boss-arrive',1.5),('critical',.38)]
+fx=[('lightning',1.05),('fire',1.15),('blizzard',1.3),('wind',.85),('poison',.95),('heal',1.25),('guard',.8),('slash',.5),('finale',1.8),('impact',.75),('victory',1.35),('defeat',1.1),('boss-arrive',.95),('critical',.38)]
 for name,d in fx:
  y=np.zeros(round(d*S));t=np.arange(len(y))/S
  if name in ['heal','victory','blizzard']:
@@ -92,9 +93,11 @@ for name,d in fx:
   for i in range(12):tone(y,i*.13,.22,110*2**(i/5),.25,duty=.125)
   y+=G.uniform(-1,1,len(y))*(t/d)**2*.1
  elif name=='boss-arrive':
-  for i in range(3):
-   tone(y,i*.34,.3,'D3',.32,duty=.125);tone(y,i*.34,.3,'Bb3',.25,duty=.125);drum(y,i*.34,'tom',.24)
-  tone(y,1.02,.45,'A2',.34,True)
+  # Two isolated scanner-style electronic pips. No drum/chord/third tail.
+  for start in [0,.42]:
+   i=int(start*S);n=int(.19*S);q=np.arange(n)/S
+   env=np.minimum(1,q/.008)*np.minimum(1,(.19-q)/.018)
+   y[i:i+n]+=(np.sin(2*np.pi*1050*q)+.22*np.sin(2*np.pi*2100*q))*env*.46
  elif name=='critical':
   tone(y,0,.11,960,.3,duty=.125);tone(y,.045,.22,480,.32,duty=.25);drum(y,.015,'snare',.27)
  elif name=='poison':
@@ -104,7 +107,7 @@ for name,d in fx:
   drum(y,0,'snare',.17)
  else:
   for i,n in enumerate(['A4','F4','D4','A3']):tone(y,i*.19,.34,n,.28,True)
- write(name,y,32)
+ if '--only-new' not in __import__('sys').argv or name=='boss-arrive':write(name,y,32)
 
 for kind in ['slash','pierce','bow','magic']:
  for variant in range(2):
@@ -115,4 +118,4 @@ for kind in ['slash','pierce','bow','magic']:
   else:
    noise=G.uniform(-1,1,len(y));y+=noise*np.exp(-t*(35 if kind=='slash' else 48))*.23
    tone(y,0,.13,(220 if kind=='slash' else 740)+variant*90,.24,duty=.125)
-  write(f'hit-{kind}-{variant}',y,32)
+  if '--only-new' not in __import__('sys').argv:write(f'hit-{kind}-{variant}',y,32)

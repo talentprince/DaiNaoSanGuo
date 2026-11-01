@@ -13,9 +13,9 @@ test('越过地景分段边界时，同一世界物件只移动实际距离，�
  for(const item of a){const next=b.find(v=>v.index===item.index);if(next){assert.ok(Math.abs((item.x-next.x)-.2)<1e-8);assert.equal(item.seed,next.seed);}}
  assert.ok(a.some(v=>v.x<=-360)&&a.some(v=>v.x>=360));
 });
-test('攻城远景至近景只改变透视大小，城池锚点始终固定，接战时恢复原比例',()=>{
- let last=0;for(const remaining of [3.3,2.8,2,1,.5,0]){const f=cityFortressPresentation(remaining);assert.equal(f.x,300);assert.equal(f.y,20);assert.ok(f.scale>=last);last=f.scale;}
- assert.equal(cityFortressPresentation(0).scale,1);assert.equal(cityFortressPresentation(3.3).scale,.38);
+test('横版攻城以镜头平移揭示等比例城门，全程无缩放，进入战斗后固定在最右侧',()=>{
+ let last=Infinity;for(const remaining of [3.3,2.8,2,1,.5,0]){const f=cityFortressPresentation(remaining);assert.equal(f.y,20);assert.equal(f.scale,1);assert.equal(f.opacity,255);assert.ok(f.x<=last);last=f.x;}
+ assert.ok(cityFortressPresentation(3.3).x-116>360);assert.equal(cityFortressPresentation(0).x,300);
 });
 test('Boss红色提示使用独立UI时钟自动消退，打开其他面板立即清除且不会自行重现',()=>{
  const n=new BossWarningState();n.show();assert.ok(n.opacity<255);n.advance(.7);n.advance(.7);assert.equal(n.active,false);assert.equal(n.opacity,0);

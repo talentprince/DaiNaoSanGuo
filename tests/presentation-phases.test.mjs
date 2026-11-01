@@ -11,9 +11,9 @@ test('长屏背景按可见高度铺满，安全区内上下HUD扩展，短屏�
     assert.ok(612 + tall.topOffset + tall.centerY < 800 - 80);
     const short = viewportLayout(720, 1000); assert.ok(short.scale < 1); assert.ok(640 * short.scale <= 500);
 });
-test('攻城墙及守军只在行军后固定显露，所有时刻平移均为零；主线只在接近末段入画', () => {
+test('攻城守军随镜头显露、主线只在接近末段入画', () => {
     for (const t of [3.3, 2, 1, .5, 0]) assert.equal(encounterPresentation('city', t).enemyX, 0);
-    assert.equal(encounterPresentation('city', 2).enemyVisible, false);
+    assert.equal(encounterPresentation('city', 2).enemyVisible, true);
     assert.equal(encounterPresentation('city', .5).enemyVisible, true);
     assert.equal(encounterPresentation('main', 1.6).enemyVisible, false);
     assert.equal(encounterPresentation('main', .3).enemyVisible, true);

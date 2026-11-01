@@ -31,6 +31,8 @@ export interface UnitConfig {
     signature?: string;
     formationSpot?: string;
     onWall?: boolean;
+    riftValue?: number;
+    elite?: boolean;
     tactic?: 'cleave' | 'pierce' | 'volley' | 'guard' | 'heal';
 }
 
@@ -140,7 +142,8 @@ export class BattleEngine {
             if (ids.has(unit.id)) throw new Error('单位 ID 不能重复');
             ids.add(unit.id);
             if (![unit.maxHp, unit.attack, unit.defense, unit.interval, unit.priority].every(Number.isFinite)
-                || unit.maxHp <= 0 || unit.attack < 0 || unit.defense < 0 || unit.interval < BattleEngine.STEP) {
+                || unit.maxHp <= 0 || unit.attack < 0 || unit.defense < 0 || unit.interval < BattleEngine.STEP
+                || (unit.riftValue!==undefined&&(!Number.isFinite(unit.riftValue)||unit.riftValue<0||unit.riftValue>100))) {
                 throw new Error('单位数值无效');
             }
         });
@@ -340,7 +343,7 @@ export class BattleEngine {
         if (amount > 0) this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
         if (target.hp === 0) {
             if(target.kind!=='wall'){const team=source.team==='hero'?this.heroes:this.enemies;team.forEach(u=>this.gainEnergy(u,ENERGY_RULES.teamKill+(u.id===source.id?ENERGY_RULES.killerBonus:0)));}
-            if (target.team === 'enemy' && this.riftGoal && !this.bossActive) this.riftEnergy = Math.min(this.riftGoal, this.riftEnergy + 10);
+            if (target.team === 'enemy' && this.riftGoal && !this.bossActive) this.riftEnergy = Math.min(this.riftGoal, this.riftEnergy + (target.riftValue ?? 10));
             this.events.push({ type: 'death', target: target.id });
             if (target.kind === 'wall') this.events.push({ type: 'wall-break', target: target.id });
             if (this.riftGoal && !this.bossActive && this.riftEnergy >= this.riftGoal) this.spawnBoss();

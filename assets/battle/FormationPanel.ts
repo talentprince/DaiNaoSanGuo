@@ -1,3 +1,4 @@
+import { defenseBoardPosition } from '../data/SiegeLayout';
 import { bondProgress } from '../data/BondConfig';
 import { Color, EventTouch, Graphics, Node, UITransform, Vec3 } from 'cc';
 import { ProgressStore } from './ProgressStore';
@@ -39,8 +40,11 @@ export class FormationPanel {
         const lines = makeNode('GridLines', board).addComponent(Graphics);
         lines.strokeColor = new Color('#3B5A6D'); lines.lineWidth = 2;
         if (this.mode === 'defense') {
-            lines.fillColor = new Color('#3A5262'); lines.roundRect(120, -180, 190, 400, 10); lines.fill();
-            lines.moveTo(109, 220); lines.lineTo(215, 250); lines.lineTo(320, 220); lines.stroke();
+            lines.fillColor = new Color('#566477'); lines.roundRect(147, -150, 165, 410, 6); lines.fill();
+            lines.strokeColor=new Color('#CDB27C');lines.moveTo(145,-148);lines.lineTo(145,260);lines.stroke();
+            lines.fillColor=new Color('#263142');lines.roundRect(150,-110,55,230,10);lines.fill();
+            lines.fillColor=new Color('#8D554D');lines.moveTo(148,245);lines.lineTo(230,279);lines.lineTo(315,245);lines.close();lines.fill();
+            for(const id of ['tower-left','tower-right']){const pos=defenseBoardPosition(id);lines.strokeColor=new Color('#D9BF88');lines.lineWidth=5;lines.moveTo(192,pos.y-145-58);lines.lineTo(302,pos.y-145-58);lines.stroke();}
         } else {
             [-100, 100].forEach(x => { lines.moveTo(x, -220); lines.lineTo(x, 220); lines.stroke(); });
             [-60, 90].forEach(y => { lines.moveTo(-290, y); lines.lineTo(290, y); lines.stroke(); });
@@ -76,7 +80,7 @@ export class FormationPanel {
             text(cell, 'TroopName', this.name({ troop }), 37, -1, 20, '#C8D5CD', 83);
             this.bindDrag(cell, { troop });
         });
-        text(this.node, 'FormationNote', this.note || (this.mode === 'defense' ? '共5人：右侧城上2位，门前六个阵位选3位' : this.mode === 'trial' ? '共3人，最多1神将2名将；不足可以补小兵' : '共5人，9个位置自由选；空位保存时补小兵'), 0, -484, 17, '#BFD2B5', 650);
+        text(this.node, 'FormationNote', this.note || (this.mode === 'defense' ? '右侧城墙上下各1位；左侧门前六选3，位置与实战对应' : this.mode === 'trial' ? '共3人，最多1神将2名将；不足可以补小兵' : '共5人，9个位置自由选；空位保存时补小兵'), 0, -484, 17, '#BFD2B5', 650);
         button(this.node, 'AutoArrange', '自动布阵', -215, -554, 196, 66, '#5E704F', () => {
             this.entries = autoFormation(owned, this.mode); this.note = '已按职业与品质自动排布，点击保存生效'; this.render();
         });
