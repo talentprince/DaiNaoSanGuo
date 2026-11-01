@@ -23,7 +23,13 @@ export function equipmentIcon(parent: Node, item: Equipment, size=72): Node {
         else if(w==='qin'){g.roundRect(-15,-31,30,62,8);g.fill();g.strokeColor=new Color('#FFF1CC');g.lineWidth=1.5;[-9,-3,3,9].forEach(x=>{g.moveTo(x,-24);g.lineTo(x,24);g.stroke();});}
         else if(['spear','glaive','serpent','halberd','staff'].indexOf(w)>=0){
             g.strokeColor=new Color('#B9915A');g.lineWidth=6;g.moveTo(0,-33);g.lineTo(0,26);g.stroke();shape([[0,38],[-7,20],[7,20]]);
-            if(w==='glaive'||w==='halberd')shape([[0,27],[24,36],[28,12],[0,9]]);
+            if(w==='glaive'){
+                g.fillColor=new Color(item.exclusive?'#B3ECD0':gold);g.strokeColor=new Color('#19212C');g.lineWidth=2.5;
+                g.moveTo(0,16);g.lineTo(0,34);g.quadraticCurveTo(22,33,19,36);g.quadraticCurveTo(41,15,0,11);g.close();g.fill();g.stroke();
+                g.strokeColor=new Color('#F3FFE8');g.lineWidth=2;g.moveTo(4,16);g.quadraticCurveTo(31,20,21,31);g.stroke();
+                g.fillColor=new Color('#47886C');g.circle(0,8,4);g.fill();
+            }
+            if(w==='halberd'){shape([[0,27],[22,37],[27,16],[0,11]]);shape([[-2,26],[-15,35],[-19,16],[-1,12]]);}
             if(w==='serpent'){g.strokeColor=new Color(gold);g.lineWidth=5;g.moveTo(0,16);g.bezierCurveTo(-21,26,19,28,0,37);g.stroke();}
             if(w==='staff'){g.fillColor=new Color('#65E7B7');g.circle(0,25,11);g.fill();}
         }else{

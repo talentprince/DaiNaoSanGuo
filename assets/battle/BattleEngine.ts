@@ -63,6 +63,8 @@ export interface BattleOptions {
     riftGoal?: number;
     bossWave?: UnitConfig[];
     approachTime?: number;
+    bossWarningTime?: number;
+    interWaveDelay?: number;
 }
 
 export interface BattleEvent {
@@ -108,6 +110,7 @@ export class BattleEngine {
     riftEnergy = 0;
     bossActive = false;
     approachRemaining = 0;
+    bossWarningRemaining = 0;
     finisherActive=false;finisherRemaining=0;
     private finisherHit=false;
     private readonly bossFinale?:BattleOptions['bossFinale'];
@@ -124,6 +127,8 @@ export class BattleEngine {
     readonly riftGoal: number;
     private readonly bossWave: UnitConfig[];
     private readonly approachTime: number;
+    private readonly bossWarningTime: number;
+    private readonly interWaveDelay: number;
 
     constructor(options: BattleOptions) {
         if (!options.heroes.length || !options.waves.length || options.waves.some(w => !w.length)) {
@@ -149,8 +154,12 @@ export class BattleEngine {
         this.riftGoal = options.riftGoal || 0;
         this.bossWave = (options.bossWave || []).map(u => ({ ...u }));
         this.approachTime = options.approachTime || 0;
+        this.bossWarningTime = options.bossWarningTime === undefined ? 0 : options.bossWarningTime;
+        this.interWaveDelay = options.interWaveDelay === undefined ? .9 : options.interWaveDelay;
         if (!Number.isFinite(this.riftGoal) || this.riftGoal < 0 || (this.riftGoal && !this.bossWave.length)
-            || !Number.isFinite(this.approachTime) || this.approachTime < 0) throw new Error('秘境或进场配置无效');
+            || !Number.isFinite(this.approachTime) || this.approachTime < 0
+            || !Number.isFinite(this.bossWarningTime) || this.bossWarningTime < 0
+            || !Number.isFinite(this.interWaveDelay) || this.interWaveDelay < BattleEngine.STEP) throw new Error('秘境或进场配置无效');
         this.randomState = (options.seed >>> 0) || 1;
         this.waves = options.waves.map(wave => wave.map(unit => ({ ...unit })));
         this.heroes = options.heroes.map((unit, index) => this.createUnit(unit, 'hero', index));
@@ -168,7 +177,7 @@ export class BattleEngine {
     get canCastSkill(): boolean { return !!this.primaryHero && this.canCastUnit(this.primaryHero); }
     canCastHeroSkill(id: string): boolean { const unit = this.heroes.find(u => u.id === id); return !!unit && this.canCastUnit(unit); }
     private canCastUnit(unit: Unit): boolean {
-        return this.status === 'fighting' && !this.paused && !this.finisherActive && !this.transitioning && this.approachRemaining <= 0
+        return this.status === 'fighting' && !this.paused && !this.finisherActive && !this.transitioning && this.approachRemaining <= 0 && this.bossWarningRemaining <= 0
             && unit.hp > 0 && (unit.tactic !== 'heal' || (unit.heroTier || 1) >= 2) && unit.kind !== 'soldier' && unit.kind !== 'wall' && unit.energy >= 100
             && (unit.team === 'hero' ? this.enemies : this.heroes).some(u => u.hp > 0);
     }
@@ -239,6 +248,7 @@ export class BattleEngine {
     }
 
     private tick(dt: number): void {
+        if (this.bossWarningRemaining > 0) { this.bossWarningRemaining = Math.max(0, this.bossWarningRemaining - dt); return; }
         if(this.finisherActive){
             this.finisherRemaining=Math.max(0,this.finisherRemaining-dt);
             if(!this.finisherHit&&this.finisherRemaining<=this.bossFinale!.duration*.38){
@@ -338,7 +348,7 @@ export class BattleEngine {
     }
 
     private spawnBoss(): void {
-        this.bossActive = true; this.approachRemaining = this.approachTime;
+        this.bossActive = true; this.approachRemaining = this.approachTime; this.bossWarningRemaining = this.bossWarningTime;
         // Transition to a clean boss encounter once the rift meter is full.
         this.enemies = this.bossWave.map((config, i) => this.createUnit({ ...config, kind: 'boss', id: `enemy-rift-boss-${this.waveIndex}-${i}` }, 'enemy', i));
         this.events.push({ type: 'boss' });
@@ -350,7 +360,7 @@ export class BattleEngine {
         if (this.riftGoal && this.bossActive && !this.enemies.some(u => u.kind === 'boss' && u.hp > 0)) { this.finish('won'); return; }
         if (!this.enemies.some(unit => unit.hp > 0)) {
             if (this.riftGoal ? this.bossActive : this.waveIndex === this.waves.length - 1) this.finish('won');
-            else if (this.waveDelay === 0) this.waveDelay = 0.9;
+            else if (this.waveDelay === 0) this.waveDelay = this.interWaveDelay;
         }
     }
 

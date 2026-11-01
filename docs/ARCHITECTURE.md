@@ -1,4 +1,4 @@
-# Demo 0.11 技术结构
+# Demo 0.12 技术结构
 
 Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留，UI运行时生成。
 
@@ -50,3 +50,15 @@ preflight-wechat.mjs只读本地微信构建，检查AppID/入口/portrait/保�
 ## 0.11.1体验档
 
 ExperienceMode用独立键/带grantVersion的信封保存体验进度，首次从常规档取副本后加五种资源；写入始终只写体验键。LocalSession由构建localProfile选择，不接受URL/玩家存档指定。开发档仍走原隔离方式。开局补给弹层暂停战斗，手机顶部标注内测；公开版本须切回standard，服务器不信任/导入这些本地资源。
+
+## 0.12展示/节奏与音频
+
+- ViewportLayout纯计算竖屏定宽/动态高度和上下安全区；BattlePreview读取微信胶囊下缘补充安全区，TopHUD/BottomHUD最后绘制，全画布主题底色。全屏面板背景随可视高度扩展，固定内容保持居中。
+- MainlineThemes负责10个百关主题；MainlineScenery按连续世界坐标生成山/云/地物/道路，没有整幅贴图拼接。会话镜头距离由BattlePreview跨关保存。
+- EncounterPresentation把行军/敌军进入与城池透视做为纯展示状态；BattleEngine独立持有接近/清场/预警时钟，接近时不能攻击。BossWarningState使用UI时钟，面板/结算关闭提示，避免战斗暂停锁住红屏。
+- 城池与城上守将同属固定Fortress层，地面敌军独立；破城守将保留世界坐标转父层。UnitActor.impactPoint遍历到Units，嵌套节点不导致技能/打击飘字坐标错误。
+- BossPresentation纯计算Boss/我方比例与长屏布局；巨型Boss计分靶不画恒满血条，顶部显示本次/今日伤害。旧挑战缺Boss快照时，展示与引擎同按入场日推导轮值。
+- SignaturePanel与武将来源面板只负责预览/导航，兑换、穿戴、碎片扣费仍走ProgressStore；souls字段兼容，显示脑力。
+- AudioDirector增加8场景选曲、兵器音效变体/限频/优先级、分包ready门禁与场景播放位置缓存；GameAudio接HTML或wx平台、seek/onCanplay和生命周期。audio-package.mjs打包音频及game.js入口，预检分别计算主包/分包。
+
+短打击顿挫仅冻结视觉，不冻结引擎计分。原创程序绘制与音频不意味着最终角色骨骼/全部独立机制已经完成；当前仍无云端权威状态。

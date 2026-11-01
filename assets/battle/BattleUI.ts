@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Layers, Node, UITransform } from 'cc';
+import { Color, Graphics, Label, Layers, Node, UITransform, view } from 'cc';
 
 export function makeNode(name: string, parent: Node, x = 0, y = 0): Node {
     const node = new Node(name);
@@ -10,6 +10,11 @@ export function makeNode(name: string, parent: Node, x = 0, y = 0): Node {
 
 export function panel(parent: Node, name: string, x: number, y: number,
     width: number, height: number, color: string, radius = 16): Node {
+    if (width === 720 && height === 1280) {
+        const visible = view.getVisibleSize(), scale = Math.max(.1, Math.abs(parent.worldScale.y));
+        width = Math.max(720, visible.width / scale + 80);
+        height = Math.max(1280, visible.height / scale + 160);
+    }
     const node = makeNode(name, parent, x, y);
     node.addComponent(UITransform).setContentSize(width, height);
     const graphics = node.addComponent(Graphics);

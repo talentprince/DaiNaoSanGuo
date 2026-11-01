@@ -64,7 +64,7 @@ export class MetaPanel {
         button(this.node, 'PageNext', '下一页', 230, -421, 150, 52, '#2A4058', () => { this.page = (this.page + 1) % pages; this.render(); });
     }
     private openHero(id:HeroId,mode:'roster'|'exchange'|'result'):void {
-        heroDetails(this.node,this.store,id,mode,()=>this.render(),()=>new FormationPanel(this.node,this.store,()=>this.render()));
+        heroDetails(this.node,this.store,id,mode,()=>this.render(),()=>new FormationPanel(this.node,this.store,()=>this.render()),()=>{this.tab='draw';this.page=0;this.results=[];this.render();});
     }
     private heroes():void {
         const p=this.store.progress;
@@ -120,7 +120,7 @@ export class MetaPanel {
         text(this.node,'IdleCoins',`呆币缓存 ${this.store.idlePreview()} / 1000（24h）`,-64,6,22,'#DBCC9D',470);
         button(this.node,'ClaimIdle','领币',247,6,120,52,'#415F6F',()=>this.attempt(()=>{this.note=`领取${this.store.claimIdle()}呆币`;}));
         const goals=panel(this.node,'DailyGoals',0,-143,630,198,'#22364D');
-        text(goals,'DailyMedals',`今日脑勋 ${p.daily.medalEarned}/100 · 将魂 ${p.daily.soulEarned}/20`,0,58,26,'#E4C994',600);
+        text(goals,'DailyMedals',`今日脑勋 ${p.daily.medalEarned}/100 · 脑力 ${p.daily.soulEarned}/20`,0,58,26,'#E4C994',600);
         text(goals,'DailyModes',`攻城${p.daily.cityUsed}/3  讨董${p.daily.modes.indexOf('boss')>=0?'✓':'○'}  借宝${p.daily.boatUsed}/2`,0,10,23,'#B7CBDB',595);
         text(goals,'DailyBonus',p.daily.bonusClaimed?'三种日常已体验 · 额外10脑勋已计入':'完成攻城、讨董、借宝各一次 → 额外10脑勋',0,-34,20,'#A8C6AE',605);
         text(goals,'ExchangeHorizon','满额日：专武7天 · 名将14天 · 神将21天',0,-72,19,'#AA9EC1',605);

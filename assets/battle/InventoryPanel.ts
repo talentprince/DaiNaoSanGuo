@@ -17,8 +17,8 @@ export class InventoryPanel {
     private heroPage=0;private page=0;private filter:EquipmentSlot|'all'='all';private picked='';private shop=false;
     private note='装备拖进人物旁的对应格子；拖回下方背包可卸下';private ghost:Node|null=null;
     private slots:Record<EquipmentSlot,{x:number;y:number}>={weapon:{x:-242,y:267},armor:{x:242,y:267},charm:{x:242,y:129}};
-    constructor(parent:Node,private store:ProgressStore,private onClose:()=>void){
-        this.selected=store.progress.owned[0];this.node=panel(parent,'InventoryOverlay',0,0,720,1280,'#101A2C',0);
+    constructor(parent:Node,private store:ProgressStore,private onClose:()=>void,signatureShop=false){
+        this.shop=signatureShop;this.selected=store.progress.formation.find(h=>store.progress.owned.indexOf(h)>=0)||store.progress.owned[0];this.node=panel(parent,'InventoryOverlay',0,0,720,1280,'#101A2C',0);
         this.node.on(Node.EventType.TOUCH_END,()=>{});this.render();
     }
     private owner(item:Equipment):HeroId|undefined{const p=this.store.progress;return p.owned.find(h=>SLOT_ORDER.map(slot=>p.loadouts[h]?.[slot]).indexOf(item.id)>=0);}
@@ -46,7 +46,7 @@ export class InventoryPanel {
             else{text(cell,'EmptySlot','＋',0,7,36,'#8198A9',90);cell.on(Node.EventType.TOUCH_END,()=>{this.filter=slot;this.shop=false;this.page=0;this.picked='';this.note=`选择下方${SLOT_NAMES[slot]}，再点穿戴或拖入格子`;this.render();});}
             text(cell,'SlotLabel',SLOT_NAMES[slot],slot==='charm'?-91:0,slot==='charm'?0:-64,18,'#B9C8CE',slot==='charm'?74:110);
         });
-        button(this.node,'OpenSignatureShop',this.shop?'返回背包':`专武坊 · 脑勋${p.points}`,-171,51,294,49,this.shop?'#665840':'#3C5266',()=>{this.shop=!this.shop;this.picked='';this.render();});
+        button(this.node,'OpenSignatureShop',this.shop?'返回背包':`专武兑换 · ${SIGNATURE_COST}脑勋`,-171,51,294,49,this.shop?'#665840':'#3C5266',()=>{this.shop=!this.shop;this.picked='';this.render();});
         if(!this.shop)button(this.node,'EquipBest','一键配装',171,51,294,49,'#53654A',()=>{SLOT_ORDER.forEach(slot=>this.store.equipBest(this.selected,slot));this.note='已按评分配装，下一场生效';this.render();});
         if(this.shop){this.signatureShop();return;}
         (['all',...SLOT_ORDER] as const).forEach((slot,i)=>button(this.node,`Filter-${slot}`,slot==='all'?'全部':SLOT_NAMES[slot],(i-1.5)*159,-9,145,40,this.filter===slot?'#776340':'#293F56',()=>{this.filter=slot;this.page=0;this.render();}));
@@ -81,6 +81,7 @@ export class InventoryPanel {
         const card=panel(this.node,'SignatureOffer',0,-160,636,330,'#3C3040',20);equipmentIcon(card,item,124).setPosition(-183,44);
         text(card,'SignatureName',item.name,65,104,30,'#FFD378',420);text(card,'SignatureOwner',`${getHero(this.selected)!.name}专属 · 武器发光外观`,65,52,20,'#DFCDB0',420);
         text(card,'SignatureEffect',signatureEffect(this.selected),65,-2,20,'#B9D7D0',420);text(card,'SignatureCost',`${SIGNATURE_COST}脑勋 · 约7天满额收益`,0,-79,23,'#E9C78B',580);
+        text(card,'SignatureBalance',`脑勋余额 ${p.points}`,0,-121,19,'#BFD1CB',590);
         button(this.node,'RedeemSignature',owned?'已拥有 · 穿戴':`兑换专武 · ${SIGNATURE_COST}脑勋`,0,-381,590,68,'#83693F',()=>{
             const error=owned?null:this.store.redeemSignature(this.selected);if(!error){this.store.equip(this.selected,item.id);this.shop=false;this.filter='weapon';this.picked=item.id;}
             this.note=error||'专武已穿戴，下一场触发专属效果';this.render();

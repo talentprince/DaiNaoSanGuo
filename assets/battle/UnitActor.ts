@@ -36,7 +36,8 @@ export class UnitActor {
     private rubble = false;
     private rear: boolean;
     private compact: boolean;
-    private fallSpeed = 0;
+    private fallSpeed = 0;private walkBlend=0;
+    private cape:Node|null=null;private motionInk!:Graphics;private attackX=1;private attackY=0;private strong=false;private headBase=1;
 
     constructor(parent: Node, unit: Unit, x: number, y: number, fromX: number, fromY: number, scale = 1, face = 1, rear = false, compact = false) {
         this.rear = rear; this.compact = compact;
@@ -51,6 +52,7 @@ export class UnitActor {
         this.body = makeNode('JointedBody', this.node);
         this.body.setScale(face * scale, scale, 1);
         if (unit.kind === 'wall') this.wallModel(); else this.personModel();
+        this.motionInk=makeNode('ComicMotionInk',this.node).addComponent(Graphics);
         this.buffIcons = makeNode('BuffIcons', this.node, 37, 20).addComponent(Graphics);
         const health = makeNode('Health', this.node, 0, unit.kind === 'boss' ? -125 : compact ? scale >= 0.95 ? -68 : -55 : scale >= 1.05 ? -82 : -69);
         this.hp = health.addComponent(Graphics);
@@ -60,13 +62,18 @@ export class UnitActor {
         if (unit.kind === 'wall') { health.active = false; this.hpText.node.active = false; this.node.getChildByName('Name')!.active = false; }
     }
 
-    get impactPoint(): { x: number; y: number } { return { x: this.node.position.x - (this.unit.kind === 'wall' ? 65 : 0), y: this.node.position.y - (this.unit.kind === 'wall' ? 25 : 0) }; }
+    get impactPoint(): {x:number;y:number} {
+        let x=this.node.position.x+this.body.position.x-(this.unit.kind==='wall'?65:0),y=this.node.position.y+this.body.position.y-(this.unit.kind==='wall'?25:0);
+        let parent=this.node.parent;
+        while(parent&&parent.name!=='Units'){x=x*parent.scale.x+parent.position.x;y=y*parent.scale.y+parent.position.y;parent=parent.parent;}
+        return{x,y};
+    }
     setGoal(x: number, y: number): void { this.goalX = x; this.goalY = y; }
     fallTo(x: number, y: number): void { this.goalX = x; this.goalY = y; this.fallSpeed = 20; }
     get moving(): boolean { return Math.abs(this.node.position.x - this.goalX) + Math.abs(this.node.position.y - this.goalY) > 2; }
     get weapon(): WeaponKind { return weaponPresentation(this.unit).weapon; }
-    attack(): void { this.action = 0.42; }
-    hurt(): void { this.hit = 0.15; }
+    attack(targetX?:number,targetY?:number,strong=false): void { this.action = .48;this.strong=strong;const dx=targetX===undefined?this.face:targetX-this.impactPoint.x,dy=targetY===undefined?0:targetY-this.impactPoint.y;const length=Math.max(1,Math.hypot(dx,dy));this.attackX=dx/length;this.attackY=dy/length; }
+    hurt(critical=false): void { this.hit = critical?.3:.23; }
     die(): void { this.dying = true; }
     breakWall(): void { this.rubble = true; }
 
@@ -95,23 +102,39 @@ export class UnitActor {
             return;
         }
         if (this.dying) {
-            this.body.angle += (-78 - this.body.angle) * Math.min(1, dt * 8);
+            this.body.angle += (-84*this.face - this.body.angle) * Math.min(1, dt * 8);
             this.opacity.opacity = Math.max(55, this.opacity.opacity - dt * 600);
             this.body.setPosition(0, -14);
             return;
         }
         const walking = march || this.moving;
-        const stride = Math.sin(this.clock * (walking ? 11 : 2.2) + this.goalY * 0.02);
-        const attack = this.action > 0 ? Math.sin((1 - this.action / 0.42) * Math.PI) : 0;
-        this.leftLeg.angle = walking ? stride * 28 : 0;
-        this.rightLeg.angle = walking ? -stride * 28 : 0;
-        this.leftArm.angle = walking ? -stride * 18 : Math.sin(this.clock * 2) * 3;
-        this.rightArm.angle = this.weapon === 'bow' ? attack * 28 : -attack * 105 + (walking ? stride * 12 : -8);
-        this.weaponNode.angle = (this.rear && this.weapon === 'bow' ? 90 : 0) + (this.weapon === 'fan' ? attack * 35 : ['spear', 'glaive', 'serpent', 'halberd'].indexOf(this.weapon) >= 0 ? -attack * 35 : 0);
-        this.body.setPosition(this.hit ? -this.face * 5 : attack * this.face * 4, walking ? Math.abs(stride) * 3 : Math.sin(this.clock * 2) * 1.3);
-        this.head.angle = walking ? stride * 2 : -attack * 4;
-        this.torso.angle = -attack * 7;
-        this.body.setScale(this.face * this.scale, this.scale * (1 + Math.sin(this.clock * 2) * 0.01), 1);
+        this.walkBlend+=((walking?1:0)-this.walkBlend)*Math.min(1,dt*11);
+        const stride = Math.sin(this.clock * 12 + this.goalY * .02),walk=this.walkBlend;
+        const progress=this.action>0?1-this.action/.48:1;
+        const strike=this.action>0?(progress<.18?progress/.18:Math.pow(Math.max(0,1-(progress-.18)/.82),2)):0;
+        const recoil=this.hit>0?Math.sin(Math.min(1,this.hit/.23)*Math.PI/2):0;
+        const power=this.strong?1.45:1;
+        this.leftLeg.angle = stride*38*walk-strike*13;
+        this.rightLeg.angle = -stride*38*walk+strike*18;
+        this.leftArm.angle = -stride*27*walk+strike*28+Math.sin(this.clock*2)*4*(1-walk);
+        this.rightArm.angle = this.weapon === 'bow' ? strike*49 : -strike*142+(stride*22*walk-15*(1-walk));
+        this.weaponNode.angle = (this.rear&&this.weapon==='bow'?90:0)+(this.weapon==='fan'?strike*72:['spear','glaive','serpent','halberd'].indexOf(this.weapon)>=0?-strike*57:0);
+        const lunge=strike*power*(this.weapon==='bow'?8:22);
+        this.body.setPosition(this.attackX*lunge-this.face*recoil*12,this.attackY*lunge+(Math.abs(stride)*7*walk+Math.sin(this.clock*2)*1.8*(1-walk)));
+        this.body.angle=this.hit>0?this.face*recoil*10:-this.face*strike*5-this.face*walk*4;
+        this.head.angle=stride*5*walk-strike*12+recoil*8;
+        this.torso.angle=-strike*13;
+        this.head.setScale(this.headBase*(1+recoil*.06),this.headBase*(1-recoil*.05),1);
+        this.body.setScale(this.face*this.scale*(1+strike*.12+recoil*.16),this.scale*(1-strike*.065-recoil*.12+(Math.abs(stride)*.035*walk+Math.sin(this.clock*2)*.012*(1-walk))),1);
+        if(this.cape){this.cape.angle=stride*-9*walk+strike*14;this.cape.setScale(1+strike*.22,1,1);}
+        const ink=this.motionInk;ink.clear();
+        if(walk>.12){
+            ink.fillColor=new Color('#F3DBC5A0');ink.strokeColor=new Color('#4D3D3980');ink.lineWidth=2;
+            for(let i=0;i<3;i++){const q=(this.clock*2+i*.33)%1;const x=-this.face*(18+q*38),y=-42+Math.sin(q*Math.PI)*7;ink.ellipse(x,y,4+q*8,2+q*3);ink.fill();ink.stroke();}
+        }
+        if(strike>.55&&this.weapon!=='bow'){
+            ink.strokeColor=new Color('#FFF3CF99');ink.lineWidth=7;ink.arc(this.attackX*25,this.attackY*25+22,54,-1.2,1.1,false);ink.stroke();
+        }
     }
 
     private drawStatus():void {
@@ -128,19 +151,23 @@ export class UnitActor {
 
     private personModel(): void {
         const id = this.unit.visualId || this.unit.id;
-        const tier = this.unit.heroTier || 1;
+        const tier = this.unit.kind==='boss'?4:this.unit.heroTier || 1;
         const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier';
         const comic:Record<string,string>={guanyu:'#168D63',zhangfei:'#C95332',zhaoyun:'#58A7ED',zhugeliang:'#8054C9',lvbu:'#C73148',caocao:'#4D3E92',zhouyu:'#ED6736',simayi:'#5850A1',huatuo:'#4FB58D',sunce:'#EB972F',diaochan:'#D65C9A'};
         const armor = new Color(heroColor(id,this.unit.color));
         const ink = new Color('#171B2A');
-        const polygon=(g:Graphics,points:number[][],fill:Color)=>{g.fillColor=fill;g.strokeColor=ink;g.lineWidth=4;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        const polygon=(g:Graphics,points:number[][],fill:Color)=>{g.fillColor=fill;g.strokeColor=ink;g.lineWidth=5;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        if(boss){
+            const pressure=makeNode('BossDreadSilhouette',this.body).addComponent(Graphics);pressure.fillColor=new Color('#321D3A55');pressure.strokeColor=new Color('#251D36');pressure.lineWidth=3;
+            pressure.moveTo(-45,-28);pressure.lineTo(-71,3);pressure.lineTo(-52,10);pressure.lineTo(-75,45);pressure.lineTo(-45,34);pressure.lineTo(-52,77);pressure.lineTo(0,53);pressure.lineTo(52,77);pressure.lineTo(45,34);pressure.lineTo(75,45);pressure.lineTo(52,10);pressure.lineTo(71,3);pressure.lineTo(45,-28);pressure.close();pressure.fill();pressure.stroke();
+        }
         if (tier >= 3) {
             const aura = makeNode('EliteAura', this.body, 0, -39).addComponent(Graphics);
             aura.strokeColor = new Color(tier === 4 ? '#DAC17577' : '#B5A3D966'); aura.lineWidth = tier === 4 ? 4 : 2;
             aura.ellipse(0, 0, tier === 4 ? 42 : 34, 12); aura.stroke();
         }
         if (!soldier) {
-            const cape = makeNode('SignatureCape', this.body).addComponent(Graphics);
+            this.cape=makeNode('SignatureCape',this.body);const cape=this.cape.addComponent(Graphics);
             cape.fillColor = new Color(id === 'lvbu' || id === 'zhouyu' ? '#8E3F43' : id === 'zhaoyun' || id === 'machao' ? '#D5E0DE' : this.unit.color);
             polygon(cape,[[-18,25],[-42,-34],[-22,-31],[-28,-48],[10,-37],[42,-44],[24,25]],new Color(id==='lvbu'||id==='zhouyu'?'#A82D45':comic[id]||this.unit.color));
             cape.strokeColor = new Color(tier === 4 ? '#E7C879' : '#BCCFC377'); cape.lineWidth = 2; cape.moveTo(-17, 24); cape.lineTo(-32, -42); cape.lineTo(32, -42); cape.stroke();
@@ -173,8 +200,9 @@ export class UnitActor {
         if(id==='world-dongzhuo'){g.fillColor=new Color('#D9A26A');g.ellipse(0,-2,24,24);g.fill();g.strokeColor=new Color('#8B4936');g.lineWidth=3;g.arc(0,0,17,3.5,5.9,false);g.stroke();}
         if(id==='world-zhangjiao'){g.fillColor=new Color('#D6B74E');g.moveTo(0,24);g.lineTo(-18,-22);g.lineTo(18,-22);g.close();g.fill();g.strokeColor=new Color('#574579');g.lineWidth=3;g.moveTo(0,13);g.lineTo(-7,-2);g.lineTo(5,-5);g.lineTo(-2,-20);g.stroke();}
         if(id==='world-menghuo'){g.fillColor=new Color('#E7D6A9');for(let i=0;i<5;i++){g.moveTo(-22+i*11,17);g.lineTo(-18+i*11,5);g.lineTo(-14+i*11,17);g.close();g.fill();}}
-        this.head = comicHead(this.body,id,this.unit.color,tier,this.rear,boss);
+        this.head = comicHead(this.body,id,this.unit.color,tier,this.rear,boss);this.headBase=soldier?1.06:boss?1.2:tier>=3?1.22:1.16;this.head.setScale(this.headBase,this.headBase,1);
         if(isFemaleHero(id)){this.torso.setScale(.86,1,1);}
+        if(boss){this.torso.setScale(id==='world-zhangjiao'?1.08:1.4,id==='world-zhangjiao'?1.3:1.15,1);this.leftArm.setScale(1.25,1.15,1);this.rightArm.setScale(1.25,1.15,1);}
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);
         const presentation=weaponPresentation(this.unit);this.weaponNode.setScale(presentation.scale,presentation.scale,1);
         if(presentation.exclusive){
@@ -247,8 +275,9 @@ export class UnitActor {
     private wallModel(): void {
         const g = this.body.addComponent(Graphics);
         // The near plane is the left-facing gate; the narrow rear plane reaches the right edge.
-        g.fillColor = new Color('#65727C'); g.moveTo(-110, -145); g.lineTo(-32, -115); g.lineTo(-32, 110); g.lineTo(-110, 145); g.close(); g.fill();
-        g.fillColor = new Color('#404D59'); g.moveTo(-32, -115); g.lineTo(30, -130); g.lineTo(30, 128); g.lineTo(-32, 110); g.close(); g.fill();
+        g.strokeColor=new Color('#202B3D');g.lineWidth=5;
+        g.fillColor = new Color('#65727C'); g.moveTo(-110, -145); g.lineTo(-32, -115); g.lineTo(-32, 110); g.lineTo(-110, 145); g.close(); g.fill();g.stroke();
+        g.fillColor = new Color('#404D59'); g.moveTo(-32, -115); g.lineTo(30, -130); g.lineTo(30, 128); g.lineTo(-32, 110); g.close(); g.fill();g.stroke();
         g.strokeColor = new Color('#9CA7AC'); g.lineWidth = 2;
         for (let y = -120; y < 135; y += 30) { g.moveTo(-108, y); g.lineTo(-34, y - 27); g.stroke(); }
         for (let y = -105; y < 110; y += 32) { g.moveTo(-30, y); g.lineTo(29, y + 12); g.stroke(); }
@@ -257,13 +286,13 @@ export class UnitActor {
         g.strokeColor = new Color('#CBB77A'); g.lineWidth = 3;
         g.moveTo(-71, -115); g.lineTo(-71, 18); g.stroke(); g.moveTo(-94, -44); g.lineTo(-48, -59); g.stroke();
         g.circle(-82, -45, 5); g.stroke(); g.circle(-59, -53, 5); g.stroke();
-        g.fillColor = new Color('#89959E'); g.moveTo(-115, 143); g.lineTo(-30, 165); g.lineTo(34, 128); g.lineTo(-32, 110); g.close(); g.fill();
+        g.fillColor = new Color('#89959E'); g.moveTo(-115, 143); g.lineTo(-30, 165); g.lineTo(34, 128); g.lineTo(-32, 110); g.close(); g.fill();g.stroke();
         [-108, -79, -50].forEach(x => { g.rect(x, 140, 19, 24); g.fill(); });
-        g.fillColor = new Color('#816A52'); g.rect(-70, 158, 92, 55); g.fill();
-        g.strokeColor = new Color('#D8BC7C'); g.lineWidth = 4; [-59, -25, 10].forEach(x => { g.moveTo(x, 158); g.lineTo(x, 213); g.stroke(); });
-        g.fillColor = new Color('#4D303B'); g.moveTo(-88, 210); g.lineTo(-24, 246); g.lineTo(42, 211); g.close(); g.fill();
-        g.strokeColor = new Color('#CDA86F'); g.lineWidth = 3; g.moveTo(-91, 210); g.lineTo(-24, 246); g.lineTo(44, 211); g.stroke();
-        g.moveTo(21, 128); g.lineTo(21, 218); g.stroke();
-        g.fillColor = new Color('#B86150'); g.moveTo(21, 216); g.lineTo(-15, 199); g.lineTo(21, 183); g.close(); g.fill();
+        g.fillColor = new Color('#816A52'); g.rect(-83, 167, 118, 128); g.fill();
+        g.strokeColor = new Color('#D8BC7C'); g.lineWidth = 4; [-69, -25, 20].forEach(x => { g.moveTo(x, 167); g.lineTo(x, 295); g.stroke(); });
+        g.fillColor = new Color('#4D303B'); g.moveTo(-103, 291); g.lineTo(-24, 355); g.lineTo(55, 292); g.close(); g.fill();
+        g.strokeColor = new Color('#CDA86F'); g.lineWidth = 3; g.moveTo(-105, 291); g.lineTo(-24, 355); g.lineTo(57, 292); g.stroke();
+        g.moveTo(31, 128); g.lineTo(31, 325); g.stroke();
+        g.fillColor = new Color('#B86150'); g.moveTo(31, 325); g.lineTo(-15, 310); g.lineTo(31, 295); g.close(); g.fill();
     }
 }

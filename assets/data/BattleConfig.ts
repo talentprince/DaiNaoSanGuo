@@ -1,3 +1,4 @@
+import { mainlineTheme } from './MainlineThemes';
 import { applyBonds } from './BondConfig';
 import { MAX_STAGE, MAX_LEVEL, levelFactor, stageFactor, starFactor } from './GrowthConfig';
 import type { CombatBonus } from '../battle/BattleEngine';
@@ -80,9 +81,9 @@ export function createMainlineOptions(stage: number, seed = 20261030, level = 1,
     equipment: Record<string, CombatBonus> = {},
     party: readonly HeroId[] = LEGACY_PARTY, troopType: SoldierType = 'mixed', layout?: FormationEntry[]): BattleOptions {
     const base = createBattleOptions(stage, seed, level, equipment, party);
-    const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: '黄巾魔将' };
+    const boss = { ...base.waves[2][0], kind: 'boss' as const, maxHp: base.waves[2][0].maxHp * 2, name: `${mainlineTheme(stage).name}·魔将` };
     return { ...base, heroes: layout ? createLineup(layout, level, equipment) : withSoldiers(base.heroes, 5, level, troopType), waves: base.waves.slice(0, 2),
-        bossWave: [boss], riftGoal: 100, approachTime: 1.1, timeLimit: 150, energyRate: .8 };
+        bossWave: [boss], riftGoal: 100, approachTime: 1.6, bossWarningTime: 1.25, interWaveDelay: .3, timeLimit: 150, energyRate: .8 };
 }
 
 export function createLineup(entries: readonly FormationEntry[], level: number,

@@ -291,7 +291,7 @@ export class ProgressStore {
         const star = this.state.stars[hero] || 1;
         if (star >= MAX_STARS) return '已达6星';
         const cost = STAR_COSTS[star - 1]; const own = this.state.fragments[hero] || 0;
-        if (own + this.state.souls < cost) return `需要${cost}碎片（专属碎片优先，不足用通用将魂）`;
+        if (own + this.state.souls < cost) return `需要${cost}碎片（专属碎片优先，不足用通用脑力）`;
         const paid = Math.min(own, cost); this.state.fragments[hero] = own - paid; this.state.souls -= cost - paid;
         this.state.stars[hero] = star + 1; this.save(); return null;
     }

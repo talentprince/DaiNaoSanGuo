@@ -107,10 +107,10 @@ export function autoFormation(owned: readonly HeroId[], mode: FormationMode): Fo
 export function battlePosition(spot: string, mode: 'main' | 'trial' | 'boss' | 'city', enemy = false): { x: number; y: number } {
     if (spot === 'tower-left') return { x: 235, y: 210 };
     if (spot === 'tower-right') return { x: 300, y: 210 };
-    if (spot.startsWith('ground-')) { const i = Number(spot.slice(7)); return { x: 10 + i % 3 * 75, y: 100 - Math.floor(i / 3) * 220 }; }
+    if (spot.startsWith('ground-')) { const i = Number(spot.slice(7)); return { x: 10 + i % 3 * 60, y: 100 - Math.floor(i / 3) * 220 }; }
     const match = /^r([0-2])c([0-2])$/.exec(spot);
     const row = match ? Number(match[1]) : 1; const col = match ? Number(match[2]) : 1;
-    if (mode === 'boss') return { x: (col - 1) * 142, y: -65 - row * 85 };
+    if (mode === 'boss') return { x: (col - 1) * 160, y: -105 - row * 104 };
     return { x: enemy ? 215 - col * 76 : -215 + col * 76, y: 150 - row * 160 };
 }
 

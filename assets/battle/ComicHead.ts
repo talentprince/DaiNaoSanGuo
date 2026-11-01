@@ -5,7 +5,7 @@ import { makeNode } from './BattleUI';
 export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=false,boss=false):Node {
     const node=makeNode('Head',parent,0,34);const g=node.addComponent(Graphics);
     const ink=new Color('#171B2A'),armor=new Color(heroColor(id,fallback)),female=isFemaleHero(id);
-    const poly=(points:number[][],color:Color)=>{g.fillColor=color;g.strokeColor=ink;g.lineWidth=3;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+    const poly=(points:number[][],color:Color)=>{g.fillColor=color;g.strokeColor=ink;g.lineWidth=4;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
     const scholarly=['zhugeliang','simayi','jiaxu','pangtong','xunyu','mizhu','jianyong'].indexOf(id)>=0;
     const hair=new Color(female?'#252138':'#202A31');
     if(female){poly([[-22,20],[-32,4],[-29,-38],[-18,-48],[-15,-12],[16,-12],[23,-43],[31,-35],[29,7],[20,23]],hair);}
@@ -15,13 +15,14 @@ export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=fals
         poly(female?[[-19,11],[-21,-5],[-11,-20],[3,-24],[18,-13],[21,9],[0,17]]:[[-22,11],[-23,-7],[-12,-22],[12,-23],[24,-7],[21,12],[0,18]],new Color(id==='guanyu'?'#D47451':id==='zhangfei'?'#D79A61':'#F4C58F'));
         if(id==='liubei'){g.fillColor=new Color('#E8AB73');g.ellipse(-24,-5,6,12);g.ellipse(24,-5,6,12);g.fill();}
         g.fillColor=new Color('#FFF9E7');g.moveTo(-18,4);g.lineTo(-5,2);g.lineTo(-6,-4);g.lineTo(-17,-3);g.close();g.fill();g.moveTo(5,2);g.lineTo(18,5);g.lineTo(16,-3);g.lineTo(6,-4);g.close();g.fill();
-        g.fillColor=ink;g.rect(-10,-3,4,7);g.rect(9,-3,4,7);g.fill();
+        g.fillColor=ink;g.rect(-11,-4,6,9);g.rect(9,-4,6,9);g.fill();g.fillColor=new Color('#FFFFFF');g.circle(-8,2,1.8);g.circle(12,2,1.8);g.fill();
         g.strokeColor=ink;g.lineWidth=female?2:3.6;
         if(id==='liubei'||id==='huatuo'){g.moveTo(-20,10);g.quadraticCurveTo(-10,15,-4,7);g.moveTo(4,7);g.quadraticCurveTo(13,15,21,10);}
         else {g.moveTo(-21,10);g.lineTo(-4,6);g.moveTo(4,6);g.lineTo(21,11);}g.stroke();
         g.lineWidth=1.5;g.moveTo(0,3);g.lineTo(-3,-8);g.lineTo(3,-8);g.stroke();
         if(female){g.strokeColor=new Color('#A94760');g.lineWidth=2;g.moveTo(-4,-15);g.quadraticCurveTo(2,-19,7,-14);g.stroke();g.fillColor=new Color('#EE9F8C80');g.ellipse(-16,-10,4,2);g.ellipse(16,-10,4,2);g.fill();}
-        else poly([[-11,-13],[13,-12],[8,-20],[-6,-20]],new Color('#FFF8DD'));
+        else if(boss){poly([[-16,-10],[18,-9],[15,-25],[-12,-26]],new Color('#542739'));g.fillColor=new Color('#FFF2CE');g.moveTo(-13,-11);g.lineTo(-8,-23);g.lineTo(-3,-11);g.moveTo(5,-11);g.lineTo(10,-23);g.lineTo(16,-10);g.fill();g.strokeColor=ink;g.lineWidth=6;g.moveTo(-23,14);g.lineTo(-4,5);g.moveTo(4,5);g.lineTo(24,15);g.stroke();g.fillColor=new Color('#C94A3B');g.rect(-11,-4,5,8);g.rect(9,-4,5,8);g.fill();}
+        else {poly([[-14,-12],[15,-10],[12,-22],[-8,-23]],new Color('#FFF8DD'));g.strokeColor=ink;g.lineWidth=1.5;g.moveTo(-5,-13);g.lineTo(-3,-21);g.moveTo(5,-12);g.lineTo(6,-21);g.stroke();}
     }
     if(id==='guanyu'){
         // A fitted wrapped green kerchief, not a floating gold helmet strip.
@@ -52,7 +53,7 @@ export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=fals
         if(['zhaoyun','machao','zhangliao','sunce'].indexOf(id)>=0){poly([[-5,28],[-15,49],[-3,57],[12,52],[9,34]],new Color(id==='sunce'?'#E3733B':'#F5F2DC'));}
     }
     if(!rear&&['zhangfei','caocao','huangzhong','huatuo'].indexOf(id)>=0){poly([[-14,-11],[14,-11],[9,-27],[0,-34],[-10,-26]],new Color(id==='huangzhong'||id==='huatuo'?'#E5E4CE':'#273239'));}
-    if(id==='world-dongzhuo'){poly([[-22,-8],[-18,-36],[0,-43],[21,-31],[23,-8],[8,-21],[-8,-21]],new Color('#422B26'));poly([[-26,20],[-23,35],[-9,29],[0,41],[11,29],[24,35],[26,20]],new Color('#E1B147'));}
+    if(id==='world-dongzhuo'){poly([[-22,-8],[-16,-18],[-12,-28],[0,-35],[12,-26],[17,-15],[23,-8],[21,-35],[0,-45],[-20,-35]],new Color('#422B26'));poly([[-26,20],[-23,35],[-9,29],[0,41],[11,29],[24,35],[26,20]],new Color('#E1B147'));}
     if(id==='world-zhangjiao'){poly([[-19,23],[-12,51],[0,58],[13,49],[20,23]],new Color('#DDBF56'));g.strokeColor=new Color('#C6DFFF');g.lineWidth=3;g.moveTo(-8,29);g.lineTo(4,44);g.lineTo(-1,38);g.lineTo(9,48);g.stroke();poly([[-8,-17],[-6,-42],[0,-51],[7,-39],[8,-17]],new Color('#DAD6C3'));}
     if(id==='world-menghuo'){poly([[-28,17],[-40,38],[-19,31],[0,48],[19,31],[41,39],[27,16]],new Color('#8FC177'));g.fillColor=new Color('#E8DBB3');g.moveTo(-20,-13);g.lineTo(-28,0);g.lineTo(-12,-9);g.moveTo(20,-13);g.lineTo(28,0);g.lineTo(12,-9);g.fill();}
     if(boss){g.fillColor=new Color('#DDB34D');g.moveTo(-20,23);g.lineTo(-34,42);g.lineTo(-9,29);g.moveTo(20,23);g.lineTo(34,42);g.lineTo(9,29);g.fill();}
