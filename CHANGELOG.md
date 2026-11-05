@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased design notes
+## 0.16.0 — Longban idle loot prototype
+
+- Add four Longban maps and three difficulties to the existing marching battle flow. Reuse formations, officer cards, inventory, and signature weapon effects.
+- Add a permanent armored protagonist with a single-target skill and four companion slots. Share the existing level and daily experience cap across the protagonist and companions.
+- Award story gear and officer cards, raise targeted drop odds with difficulty, and add two independent guarantees to the chapter treasure encounter. Reserve equipment when the inventory is full.
+- Add five-run foreground batches and capped offline farming for cleared maps. Keep chapter rewards, unlocks, and material claims in the same local save.
+- Rotate three workshop battles on two-day Shanghai calendar windows. Add polishing, opening runes, and stamps that affect the next battle.
+- Apply a silver, cyan, purple, and gold officer palette, with matching equipment rarity labels and art accents.
+- Cover the starter-to-treasure path, save retries, full inventory recovery, and workshop rollover. Update the unified single-player SPEC.
+
+## Earlier design notes
 
 - Consolidate the single-player direction in one SPEC section. Define the ten-chapter map plan, three difficulty tiers, chapter treasure encounters, and two-day material rotations. Keep equipment growth, original player-facing terminology, idle replay, and the first playable chapter in the same design.
 

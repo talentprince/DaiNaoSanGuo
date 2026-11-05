@@ -45,6 +45,7 @@ export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,mode:'rost
     text(overlay,'SkillRule',rule,0,-101,19,'#B4CADD',640);
     const signature=signatureFor(id);text(overlay,'Exclusive',`${signature.name}：${signatureEffect(id)}`,0,-147,18,'#CDBA93',640);
     button(overlay,'GetHeroSignature',`获取专武 · ${SIGNATURE_COST}脑勋 / 查看造型`,0,-193,600,47,'#6C553D',()=>showSignature(overlay,store,id,onChanged));
+    if (id === 'zhaoyun') text(overlay, 'ChapterSignatureSource', '奇阵夺宝也可定向刷龙胆亮银枪', 0, -224, 16, '#B9A2EB', 650);
     text(overlay,'BondTitle','羁绊 · 按当前主线阵容',0,-249,22,'#E0C99D');
     const related=bondProgress(p.formation).filter(b=>b.bond.members.indexOf(id)>=0);
     related.slice(0,3).forEach((b,i)=>text(overlay,`Bond-${b.bond.id}`,`${b.active?'已激活':'未激活'} · ${b.bond.name} ${b.count}/${b.bond.need} · ${b.bond.desc}`,0,-285-i*35,18,b.active?'#9CDEB0':'#9BB2C8',650));
@@ -63,6 +64,10 @@ export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,mode:'rost
         text(info,'SourceRecruitNote','首次结识武将不发碎片；招募不能指定结果。',0,165,20,'#A9C1D1',650);
         text(info,'SourceDungeon','副本结算 → 通用脑力，每日合计最多20',0,50,25,'#D2D6AD',650);
         text(info,'SourceRule','升星优先使用本将碎片，不足部分才消耗脑力。',0,-20,21,'#B8CDDA',650);
+        if (id === 'zhaoyun' || id === 'liaohua' || id === 'zhangfei') {
+            const source = id === 'zhaoyun' ? '奇阵夺宝' : id === 'liaohua' ? '小桥口' : '长坂路首通';
+            text(info, 'SourceChapter', `${source} · 重复将帖也可换为本将碎片 ×20`, 0, 107, 19, '#D6BAEE', 650);
+        }
         text(info,'SourceTest','内测赠送的脑力属于独立体验资源。',0,-90,20,'#A5BDCC',650);
         if(onRecruit)button(info,'GetFragmentsRecruit','前往招募 · 收集本将碎片',0,-275,590,76,'#846B3F',onRecruit);
         button(info,'CloseFragmentSources','返回武将',0,-478,590,64,'#3B556B',()=>info.destroy());

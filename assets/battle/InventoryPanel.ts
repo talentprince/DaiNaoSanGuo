@@ -2,8 +2,8 @@ import { previewUnit } from './UnitPreview';
 import { EventTouch, Node, UITransform, Vec3 } from 'cc';
 import { getHero, TIER_COLORS } from '../data/HeroCatalog';
 import { SIGNATURE_COST } from '../data/GrowthConfig';
-import { signatureFor, signatureEffect, SLOT_NAMES, SLOT_ORDER, slotOf } from '../data/EquipmentConfig';
-import type { Equipment, EquipmentSlot } from '../data/EquipmentConfig';
+import { equipmentStats, signatureFor, signatureEffect, SLOT_NAMES, SLOT_ORDER, slotOf } from '../data/EquipmentConfig';
+import type { Equipment, EquipmentRune, EquipmentSlot } from '../data/EquipmentConfig';
 import { equipmentScore, ProgressStore, RARITY_NAMES, RARITY_COLORS } from './ProgressStore';
 import type { HeroId } from './ProgressStore';
 import type { Unit } from './BattleEngine';
@@ -11,6 +11,8 @@ import { UnitActor } from './UnitActor';
 import { portrait } from './HeroPortrait';
 import { equipmentIcon } from './EquipmentIcon';
 import { button, makeNode, panel, text } from './BattleUI';
+import { WORKSHOPS } from '../data/ChapterConfig';
+import type { WorkshopIndex } from '../data/ChapterConfig';
 export class InventoryPanel {
     readonly node:Node;
     private selected:HeroId;
@@ -54,7 +56,7 @@ export class InventoryPanel {
         const bagPages=Math.max(1,Math.ceil(items.length/8));this.page=Math.min(this.page,bagPages-1);
         items.slice(this.page*8,this.page*8+8).forEach((item,i)=>{
             const owner=this.owner(item);const cell=panel(this.node,`Equipment-${item.id}`,(i%4-1.5)*159,-93-Math.floor(i/4)*134,145,130,this.picked===item.id?'#5D674E':'#21364E',12);
-            equipmentIcon(cell,item,72).setPosition(0,12);text(cell,'ItemName',item.name,0,-42,17,RARITY_COLORS[item.rarity-1],137);
+            equipmentIcon(cell,item,72).setPosition(0,12);text(cell,'ItemName',`${item.name}${item.polish ? ` +${item.polish}` : ''}`,0,-42,17,RARITY_COLORS[item.rarity-1],137);
             if(owner)text(cell,'Owner',`${getHero(owner)!.name}·使用中`,0,54,13,'#F0D29C',139);this.bindDrag(cell,item);
         });
         if(!items.length)text(this.node,'EmptyBag','此栏暂无装备 · 击败主线首领获得',0,-160,23,'#9FB3C8',600);
@@ -67,14 +69,43 @@ export class InventoryPanel {
     private detail(item?:Equipment):void{
         const box=panel(this.node,'EquipmentDetail',0,-375,636,156,'#1C2F43',16);
         if(!item){text(box,'SelectHint','点击装备查看属性，或拖到人物的对应装备格',0,8,22,'#ABC0D3',605);return;}
-        const owner=this.owner(item);const current=owner===this.selected;
-        text(box,'SelectedName',`${item.exclusive?'专属':RARITY_NAMES[item.rarity-1]} · ${item.name}`,0,53,23,item.exclusive?'#FFD378':'#D6D8E3',600);
-        text(box,'Stats',`攻击+${item.attack}  防御+${item.defense}  生命+${item.maxHp}`,0,17,19,'#B7CEDC',605);
-        text(box,'Effect',item.exclusive?signatureEffect(item.exclusive):`${SLOT_NAMES[slotOf(item)]} · 第${item.stage}关战利品`,0,-13,17,'#A5C4B1',600);
-        button(this.node,'EquipSelected',current?'卸下':owner?'转交穿戴':'穿戴',-157,-465,300,56,current?'#775546':'#4C7057',()=>{
+        const owner=this.owner(item);const current=owner===this.selected;const stats=equipmentStats(item);
+        text(box,'SelectedName',`${RARITY_NAMES[item.rarity-1]}${item.exclusive?' · 专属':''} · ${item.name}${item.polish ? ` +${item.polish}` : ''}`,0,53,23,RARITY_COLORS[item.rarity-1],600);
+        text(box,'Stats',`攻击+${stats.attack}  防御+${stats.defense}  生命+${stats.maxHp}`,0,17,19,'#B7CEDC',605);
+        text(box,'Effect',item.exclusive?signatureEffect(item.exclusive):`${SLOT_NAMES[slotOf(item)]} · ${item.chapter?'长坂战图':`第${item.stage}关战利品`}`,0,-13,17,'#A5C4B1',600);
+        button(this.node,'EquipSelected',current?'卸下':owner?'转交穿戴':'穿戴',-209,-465,196,56,current?'#775546':'#4C7057',()=>{
             const ok=current?this.store.unequip(this.selected,slotOf(item)):this.store.equip(this.selected,item.id);this.note=ok?`${current?'已卸下':'已穿戴'}${item.name}，下场生效`:'专属武器仅限对应武将';this.render();
         });
-        button(this.node,'RecycleSelected',item.exclusive?'专武保留':'分解',157,-465,300,56,'#394C62',()=>{this.note=this.store.recycleEquipment(item.id)||'已分解为脑铢';if(!this.store.progress.inventory.some(i=>i.id===item.id))this.picked='';this.render();});
+        button(this.node, 'TuneSelected', '整装', 0, -465, 196, 56, '#6A573E', () => this.openTuning(item));
+        button(this.node,'RecycleSelected',item.exclusive?'专武保留':'分解',209,-465,196,56,'#394C62',()=>{this.note=this.store.recycleEquipment(item.id)||'已分解为脑铢';if(!this.store.progress.inventory.some(i=>i.id===item.id))this.picked='';this.render();});
+    }
+    private openTuning(item: Equipment): void {
+        const view = panel(this.node, 'GearTuning', 0, 0, 720, 1280, '#101A2C', 0);
+        view.on(Node.EventType.TOUCH_END, () => {});
+        const materials = this.store.progress.chapter.materials;
+        const tune = (action: WorkshopIndex, rune?: EquipmentRune) => {
+            const error = this.store.tuneEquipment(item.id, action, rune);
+            this.note = error || '整装完成 · 下一场生效';
+            this.render();
+            const updated = this.store.progress.inventory.find(gear => gear.id === item.id);
+            if (updated) this.openTuning(updated);
+        };
+        text(view, 'TuningTitle', '军 器 · 整 装', 0, 490, 38, '#F0D29D', 650);
+        equipmentIcon(view, item, 142).setPosition(0, 336);
+        text(view, 'TuningItem', `${item.name}${item.polish ? ` +${item.polish}` : ''}`, 0, 218, 30, RARITY_COLORS[item.rarity - 1], 650);
+        const rune = item.rune === 'shield' ? '护身' : item.rune === 'attack' ? '抢攻' : '无';
+        text(view, 'CurrentTuning', `打磨 ${item.polish || 0}/3 · 阵纹 ${rune}${item.stamped?' · 已压阵':''}`, 0, 165, 21, '#C5D5D9', 650);
+        text(view, 'TuningMaterials', WORKSHOPS.map((work, i) => `${work.material} ${materials[i]}`).join('    '), 0, 111, 22, '#F0D29D', 660);
+        button(view, 'PolishEquipment', '打磨 · 炉砂×6', 0, 20, 595, 62, '#53654A', () => tune(0));
+        text(view, 'PolishHint', '提高基础属性，最多打磨3次', 0, -32, 18, '#AEC5CE', 650);
+        button(view, 'RuneShield', '刻护身 · 阵纹墨×6', -150, -100, 290, 62, '#405F70', () => tune(1, 'shield'));
+        button(view, 'RuneAttack', '刻抢攻 · 阵纹墨×6', 150, -100, 290, 62, '#744C51', () => tune(1, 'attack'));
+        text(view, 'RuneHint', '开战护盾或攻击 +12%，10秒，同类取最高', 0, -152, 18, '#AEC5CE', 650);
+        button(view, 'StampEquipment', '压阵 · 压阵印×8', 0, -221, 595, 62, '#6A573E', () => tune(2));
+        text(view, 'StampHint', '镇军装备刻阵后可压阵一次，阵纹提升到22%', 0, -273, 18, '#AEC5CE', 650);
+        text(view, 'TuningNote', this.note, 0, -344, 19, '#F0D29D', 650);
+        text(view, 'MaterialSource', '材料来自军器换班和长坂围阵', 0, -405, 19, '#AEC5CE', 650);
+        button(view, 'CloseTuning', '返回行装', 0, -524, 595, 64, '#364D63', () => view.destroy());
     }
     private signatureShop():void{
         const p=this.store.progress;const item=signatureFor(this.selected);const owned=p.inventory.some(i=>i.id===item.id);

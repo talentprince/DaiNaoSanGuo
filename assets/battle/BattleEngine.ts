@@ -5,7 +5,7 @@ export type Team = 'hero' | 'enemy';
 export type BattleStatus = 'fighting' | 'won' | 'lost' | 'scored';
 
 export type WeaponKind = 'sword' | 'spear' | 'bow' | 'fan' | 'glaive' | 'serpent' | 'halberd' | 'dual' | 'axe' | 'staff' | 'ribbon' | 'qin';
-export interface CombatBonus { attack: number; defense: number; maxHp: number; stars?: number; signature?: string; }
+export interface CombatBonus { attack: number; defense: number; maxHp: number; stars?: number; signature?: string; openingShield?: number; openingAttack?: number; }
 export interface UnitConfig {
     id: string;
     name: string;
@@ -31,6 +31,10 @@ export interface UnitConfig {
     signature?: string;
     formationSpot?: string;
     onWall?: boolean;
+    guarded?: 'guard' | 'break';
+    bodyguard?: boolean;
+    openingShield?: number;
+    openingAttack?: number;
     riftValue?: number;
     elite?: boolean;
     tactic?: 'cleave' | 'pierce' | 'volley' | 'guard' | 'heal';
@@ -259,7 +263,8 @@ export class BattleEngine {
 
     private createUnit(config: UnitConfig, team: Team, index: number): Unit {
         return { ...config, team, hp: config.maxHp, cooldown: 0.35 + index * 0.13,
-            shield: 0, shieldRemaining: 0, attackBuff: 0, attackBuffRemaining: 0, healGlowRemaining: 0, slow: 0, slowRemaining: 0, burnRemaining: 0, burnPower: 0, burnTick: 0, burnSource: '', poisonRemaining: 0, poisonPower: 0, poisonTick: 0, poisonSource: '',
+            shield: Math.floor(config.maxHp * (config.openingShield || 0)), shieldRemaining: config.openingShield ? 10 : 0,
+            attackBuff: config.openingAttack || 0, attackBuffRemaining: config.openingAttack ? 10 : 0, healGlowRemaining: 0, slow: 0, slowRemaining: 0, burnRemaining: 0, burnPower: 0, burnTick: 0, burnSource: '', poisonRemaining: 0, poisonPower: 0, poisonTick: 0, poisonSource: '',
             energy: config.kind === 'soldier' || config.kind === 'wall' ? 0 : team === 'hero' ? 0 : config.kind === 'boss' || config.kind === 'hero' ? Math.max(0, 25 - index * 4) : 0 };
     }
 
@@ -361,7 +366,9 @@ export class BattleEngine {
     private damage(source: Unit, target: Unit, requested: number, critical: boolean, ongoing=false): void {
         if ((!ongoing && source.hp <= 0) || target.hp <= 0) return;
         const protection = target.onWall && this.wallAlive ? 0.4 : 1;
-        const incoming = Math.max(1, Math.floor(requested * protection * bossVulnerability(source,target)));
+        const protectedByEscort = target.guarded && this.enemies.some(unit => unit.bodyguard && unit.hp > 0);
+        const escort = protectedByEscort ? .35 : target.guarded === 'break' ? 1.25 : 1;
+        const incoming = Math.max(1, Math.floor(requested * protection * escort * bossVulnerability(source,target)));
         const absorbed = Math.min(target.shield, incoming);
         target.shield -= absorbed;
         if (absorbed > 0) this.events.push({ type: 'shield', source: source.id, target: target.id, amount: absorbed });
@@ -386,7 +393,7 @@ export class BattleEngine {
     private spawnBoss(): void {
         this.bossActive = true; this.approachRemaining = this.approachTime; this.bossWarningRemaining = this.bossWarningTime;
         // Transition to a clean boss encounter once the rift meter is full.
-        this.enemies = this.bossWave.map((config, i) => this.createUnit({ ...config, kind: 'boss', id: `enemy-rift-boss-${this.waveIndex}-${i}` }, 'enemy', i));
+        this.enemies = this.bossWave.map((config, i) => this.createUnit({ ...config, kind: config.kind || 'boss', id: `enemy-rift-boss-${this.waveIndex}-${i}` }, 'enemy', i));
         this.events.push({ type: 'boss' });
     }
 

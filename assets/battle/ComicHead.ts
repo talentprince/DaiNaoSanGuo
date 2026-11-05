@@ -129,6 +129,11 @@ export function comicHead(parent:Node,id:string,fallback:string,tier=1,rear=fals
         else if(kind==='shaman'){poly([[-22,13],[-14,46],[3,53],[20,13]],new Color('#6D4B91'));poly([[-7,29],[7,28],[5,-2],[-6,0]],new Color('#E6CD6E'));g.strokeColor=new Color('#9D4638');g.lineWidth=2;g.moveTo(0,25);g.lineTo(-3,17);g.lineTo(4,14);g.lineTo(-1,5);g.stroke();}
         else if(kind==='axe'){poly([[-27,12],[-24,28],[-8,36],[9,24],[26,11]],new Color('#5D5968'));g.strokeColor=new Color('#B94F44');g.lineWidth=3;g.moveTo(-17,0);g.lineTo(-5,-8);g.stroke();}
         else {poly([[-26,13],[-22,25],[19,23],[27,12]],new Color(kind === 'blade' ? '#BC4B46' : '#647F52'));poly([[23,19],[43,26],[33,8],[24,10]],new Color(kind === 'blade' ? '#D57559' : '#8DA46E'));}
+    }else if(id==='chapter-protagonist'){
+        poly([[-27,14],[-20,29],[0,34],[20,29],[27,14],[12,17],[-12,17]],armor);
+        poly([[-8,23],[0,35],[8,23],[0,16]],new Color('#F1C86D'));
+        poly([[-21,17],[-27,-1],[-32,5],[-28,23]],armor);
+        poly([[21,17],[27,-1],[32,5],[28,23]],armor);
     }else if(id==='guanyu'){
         // A fitted wrapped green kerchief, not a floating gold helmet strip.
         poly([[-26,12],[-23,24],[-11,29],[19,24],[26,13],[8,16],[-9,15]],new Color('#1D7759'));

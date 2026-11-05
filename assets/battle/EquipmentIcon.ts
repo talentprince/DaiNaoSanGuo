@@ -1,11 +1,11 @@
 import { Color, Graphics, Node } from 'cc';
 import type { Equipment } from '../data/EquipmentConfig';
-import { slotOf } from '../data/EquipmentConfig';
+import { RARITY_COLORS, slotOf } from '../data/EquipmentConfig';
 import { makeNode } from './BattleUI';
 /** Original vector item art shared by slots and drag ghosts. */
 export function equipmentIcon(parent: Node, item: Equipment, size=72): Node {
     const node=makeNode(`Icon-${item.id}`,parent);node.setScale(size/80,size/80,1);
-    const g=node.addComponent(Graphics);const gold=item.exclusive?'#FFD059':['#A6B9C9','#65C5ED','#CC8FFF'][item.rarity-1];
+    const g=node.addComponent(Graphics);const gold=RARITY_COLORS[item.rarity-1];
     g.fillColor=new Color('#192C43');g.roundRect(-39,-39,78,78,12);g.fill();
     g.strokeColor=new Color(gold);g.lineWidth=item.exclusive?4:2;g.roundRect(-38,-38,76,76,12);g.stroke();
     g.lineWidth=3;g.strokeColor=new Color('#191D2C');g.fillColor=new Color(gold);

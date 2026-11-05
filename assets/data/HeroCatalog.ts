@@ -7,7 +7,7 @@ export const HERO_IDS = ['guanyu', 'zhangfei', 'zhaoyun', 'zhugeliang', 'liubei'
 export type HeroId = typeof HERO_IDS[number];
 export type HeroTier = 1 | 2 | 3 | 4;
 export const TIER_NAMES = ['普通', '骁将', '名将', '神将'];
-export const TIER_COLORS = ['#AFC5D5', '#7DBEE0', '#CE9DE8', '#EDC66F'];
+export const TIER_COLORS = ['#E4EAF2', '#76D9ED', '#CB9AFF', '#FFD378'];
 export interface HeroDefinition extends UnitConfig { id: HeroId; tier: HeroTier; storyStage?: number; }
 type Tactic = NonNullable<UnitConfig['tactic']>;
 function hero(id: HeroId, name: string, tier: HeroTier, tactic: Tactic, weapon: WeaponKind,

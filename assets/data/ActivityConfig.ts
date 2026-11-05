@@ -82,6 +82,9 @@ export function createActivityOptions(run: ActivityRun): BattleOptions {
 export function acquisition(id: string): string {
     const hero = getHero(id)!;
     if (hero.tier === 1) return '初始伙伴 / 招募';
+    if (id === 'zhaoyun') return '奇阵夺宝·赵云将帖 / 招募 / 2100脑勋任选';
+    if (id === 'zhangfei') return '长坂路首通 / 主线第12关首通 / 招募 / 名将坊';
+    if (id === 'liaohua') return '小桥口掉落 / 主线第2关首通 / 招募';
     if (hero.tier === 4) return '招募1% / 2100脑勋任选';
     return `${hero.storyStage ? `主线第${hero.storyStage}关首通 / ` : ''}招募${hero.tier === 3 ? ' / 1400脑勋任选' : ''}`;
 }

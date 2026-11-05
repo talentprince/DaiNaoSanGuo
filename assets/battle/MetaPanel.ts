@@ -33,7 +33,7 @@ export class MetaPanel {
     private onClose: () => void;
     private onStart: (run: ActivityRun) => void;
 
-    constructor(parent: Node, store: ProgressStore, onClose: () => void, onStart: (run: ActivityRun) => void, initialTab: Tab = 'heroes', private onMainline?:()=>void) {
+    constructor(parent: Node, store: ProgressStore, onClose: () => void, onStart: (run: ActivityRun) => void, initialTab: Tab = 'heroes', private onMainline?:()=>void, private onChapter?:()=>void) {
         this.tab = initialTab; this.store = store; this.onClose = onClose; this.onStart = onStart;
         this.draft = [...store.progress.formation];
         this.node = panel(parent, 'AdventureHall', 0, 0, 720, 1280, '#0C1729', 0);
@@ -117,13 +117,13 @@ export class MetaPanel {
     }
     private idle():void {
         const p=this.store.progress;const xp=this.store.experiencePreview();
-        text(this.node,'GrowthTitle','征 途 · 每 日 成 长',0,348,31,'#E5CC92');
+        text(this.node,'GrowthTitle','主 公 · 每 日 成 长',0,348,31,'#E5CC92');
         const exp=panel(this.node,'ExperienceCard',0,239,630,145,'#213B4A');
-        text(exp,'TeamLevel',`全队 Lv.${p.heroLevel}  ·  经验 ${p.experience}/${xpRequired(p.heroLevel)}`,0,38,28,'#D8E6CB',595);
-        text(exp,'XpRate',`最高第${p.highestCleared}关 · ${xp.rate.toFixed(1)}经验/分钟`,0,-5,21,'#A6BED1',590);
+        text(exp,'TeamLevel',`主公 Lv.${p.heroLevel}  ·  经验 ${p.experience}/${xpRequired(p.heroLevel)}`,0,38,28,'#D8E6CB',595);
+        text(exp,'XpRate',`经验进度 ${this.store.experienceStage} · ${xp.rate.toFixed(1)}经验/分钟`,0,-5,21,'#A6BED1',590);
         text(exp,'XpCap',`今日已领${Math.floor(p.daily.xpUsedMs/60000)}/240分钟 · 缓存最多4小时`,0,-43,20,'#9CB7C9',595);
         button(this.node,'ClaimExperience',`领取经验 +${xp.amount}`,-161,106,302,70,'#486F56',()=>this.attempt(()=>{const n=this.store.claimExperience();this.note=n?`经验+${n}`:'暂时无经验或今日已满4小时';}));
-        button(this.node,'UpgradeGrowth',p.heroLevel>=MAX_LEVEL?'已满级':`升级 · ${this.store.upgradeCost}脑铢`,161,106,302,70,'#776440',()=>this.attempt(()=>{const r=this.store.upgradeTeam();this.note=r.upgraded?`全队升到Lv.${r.level}，下一场生效`:`需要${this.store.experienceCost}经验和${r.cost}脑铢`;}));
+        button(this.node,'UpgradeGrowth',p.heroLevel>=MAX_LEVEL?'已满级':`升级 · ${this.store.upgradeCost}脑铢`,161,106,302,70,'#776440',()=>this.attempt(()=>{const r=this.store.upgradeTeam();this.note=r.upgraded?`主公及武将升到Lv.${r.level}，下一场生效`:`需要${this.store.experienceCost}经验和${r.cost}脑铢`;}));
         text(this.node,'IdleCoins',`呆币缓存 ${this.store.idlePreview()} / 1000（24h）`,-64,6,22,'#DBCC9D',470);
         button(this.node,'ClaimIdle','领币',247,6,120,52,'#415F6F',()=>this.attempt(()=>{this.note=`领取${this.store.claimIdle()}呆币`;}));
         const goals=panel(this.node,'DailyGoals',0,-143,630,198,'#22364D');
@@ -134,7 +134,7 @@ export class MetaPanel {
         const advice=panel(this.node,'StrategistAdvice',0,-334,630,140,'#3C3D40');
         text(advice,'AdviceTitle','军师锦囊 · 下一步',0,37,24,'#E7CB8B',595);
         text(advice,'Advice',this.store.growthAdvice(),0,-15,21,'#CCDBD0',595);
-        this.note=this.note||'通关不直接给经验；地图提高会提升之后的挂机效率';
+        this.note=this.note||'武将跟随主角等级 · 首通进度提高挂机经验效率';
     }
     private activities(): void {
         const p=this.store.progress,boss=this.store.currentBoss.boss;
@@ -145,8 +145,11 @@ export class MetaPanel {
             const detail=card.mode==='city'?`今日 ${p.daily.cityUsed}/3 · 胜180呆币 / 12脑勋`:card.mode==='boss'?`${boss.name} · 最高 ${formatAmount(p.daily.bossBest)}`:card.mode==='trial'?`下一关 ${Math.min(99,p.trialHighest+1)} · 限1神2名`:`今日 ${p.daily.boatUsed}/2 · 3次筹谋`;
             dungeonCard(this.node,card.art,ACTIVITY_NAMES[card.mode],pending?'未完待续':card.tag,card.subtitle,detail,pending?'继续本场':p.pending?'切换挑战':'进入挑战',card.color,pos.x,pos.y,()=>this.enterActivity(card.mode));
         });
-        if(p.pending)button(this.node,'EndPendingRun','结束未完挑战 · 不退次数',0,-418,438,46,'#644E49',()=>this.confirmActivity(null));
-        else text(this.node,'DailyDungeonNote','挑战攒脑勋 · 换将 / 专武 · 每日总上限100',0,-418,19,'#C9CBB2',645);
+        if (this.onChapter) button(this.node, 'ChapterEntry', '战图 · 军器换班', -163, -418, 303, 46, '#586146', () => {
+            this.closed = true; this.node.destroy(); this.onChapter?.();
+        });
+        if(p.pending)button(this.node,'EndPendingRun','结束未完挑战',163,-418,303,46,'#644E49',()=>this.confirmActivity(null));
+        else text(this.node,'DailyDungeonNote','每日脑勋上限100',163,-418,19,'#C9CBB2',295);
         this.note=this.note||'主线随时可回 · 未完挑战可继续，切换前会提示';
     }
     private enterActivity(mode:ActivityMode):void {

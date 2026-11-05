@@ -55,7 +55,7 @@ export function createHeroes(party: readonly HeroId[], heroLevel = 1,
         if (!Number.isInteger(stars) || stars < 1 || stars > 6) throw new Error('星级无效');
         if (bonus.signature && bonus.signature !== id) throw new Error('专属武器不属于此将');
         if (![bonus.attack, bonus.defense, bonus.maxHp].every(value => Number.isSafeInteger(value) && value >= 0)) throw new Error('装备加成无效');
-        return { ...hero, stars, signature: bonus.signature, interval: hero.interval * (bonus.signature && hero.tactic === 'volley' ? 0.85 : 1),
+        return { ...hero, stars, signature: bonus.signature, openingShield: bonus.openingShield, openingAttack: bonus.openingAttack, interval: hero.interval * (bonus.signature && hero.tactic === 'volley' ? 0.85 : 1),
             maxHp: Math.round((hero.maxHp + bonus.maxHp) * factor * star),
             attack: Math.round((hero.attack + bonus.attack) * factor * star), defense: Math.round((hero.defense + bonus.defense) * factor * star) };
     });

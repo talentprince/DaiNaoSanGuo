@@ -4,9 +4,13 @@ import type { HeroId } from './HeroCatalog';
 export type EquipmentSlot = 'weapon' | 'armor' | 'charm';
 export const SLOT_NAMES = { weapon: '武器', armor: '战甲', charm: '兵符' };
 export const SLOT_ORDER: EquipmentSlot[] = ['weapon', 'armor', 'charm'];
+export const RARITY_NAMES = ['随军', '巧作', '镇军'] as const;
+export const RARITY_COLORS = ['#E4EAF2', '#CB9AFF', '#FFD378'] as const;
+export type EquipmentRune = 'shield' | 'attack';
 export interface Equipment {
     id: string; name: string; rarity: 1 | 2 | 3; stage: number;
     attack: number; defense: number; maxHp: number;
+    chapter?: true; polish?: number; rune?: EquipmentRune; stamped?: true;
     slot?: EquipmentSlot; appearance?: WeaponKind | 'armor' | 'charm'; exclusive?: HeroId;
 }
 const signatureNames: Partial<Record<HeroId, string>> = {
@@ -14,6 +18,14 @@ const signatureNames: Partial<Record<HeroId, string>> = {
     lvbu: '方天画戟', caocao: '倚天镇世剑', zhouyu: '赤壁流焰剑', simayi: '幽冥玄羽扇', huatuo: '青囊回春杖',
     sunce: '霸王破阵枪', caiwenji: '胡笳凤鸣琴', diaochan: '闭月流云绫', huangzhong: '百步落日弓', dianwei: '恶来双铁戟',
 };
+export function equipmentStats(item: Equipment) {
+    const polish = item.polish || 0;
+    return {
+        attack: item.attack + polish * (slotOf(item) === 'weapon' ? 8 : 2),
+        defense: item.defense + polish * (slotOf(item) === 'armor' ? 6 : 2),
+        maxHp: item.maxHp + polish * (slotOf(item) === 'charm' ? 90 : 25),
+    };
+}
 export function slotOf(item: Equipment): EquipmentSlot { return item.slot || 'weapon'; }
 export function signatureFor(hero: HeroId): Equipment {
     const h = getHero(hero)!;

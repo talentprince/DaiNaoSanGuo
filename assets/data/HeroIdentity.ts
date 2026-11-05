@@ -26,6 +26,7 @@ const face = (shape: FaceShape, mood: FaceMood, skin: string, detail: FaceDetail
     ({ shape, mood, skin, detail });
 
 const FACES: Record<string, FaceDesign> = {
+    'chapter-protagonist': face('square', 'alert', '#E5AE78', 'scar'),
     liubei: face('oval', 'kind', '#F0BA83'),
     guanyu: face('long', 'squint', '#CF7350'),
     zhangfei: face('round', 'roar', '#D9975F'),

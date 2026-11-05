@@ -3,6 +3,7 @@ import type { Label } from 'cc';
 import type { BattleEngine, Unit } from './BattleEngine';
 import { makeNode, text } from './BattleUI';
 import { portrait } from './HeroPortrait';
+import { CHAPTER_PROTAGONIST_ID } from '../data/ChapterConfig';
 import type { HeroId } from '../data/HeroCatalog';
 
 export class SkillHud {
@@ -14,8 +15,8 @@ export class SkillHud {
         engine.heroes.filter(u => u.kind !== 'soldier').forEach((unit, i) => {
             const cell = makeNode(`Skill-${unit.id}`, this.node, -302, 225 - i * 100);
             cell.addComponent(UITransform).setContentSize(62, 86);
-            const id = (unit.visualId || unit.id) as HeroId;
-            portrait(cell, { hero: id }, 50);
+            const id = unit.visualId || unit.id;
+            portrait(cell, id === CHAPTER_PROTAGONIST_ID ? { protagonist: true } : { hero: id as HeroId }, 50);
             const ring = makeNode('ChargeRing', cell).addComponent(Graphics);
             const number = text(cell, 'SkillCharge', '', 0, -36, 14, '#FFF1BD', 66);
             const name = text(cell, 'SkillOwner', unit.name, 0, 38, 15, '#FFF1BD', 68);
