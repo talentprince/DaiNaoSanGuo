@@ -106,7 +106,9 @@ export class BattleEngine {
     elapsed = 0;
     waveIndex = 0;
     paused = false;
-    autoSkill = true;
+    private automatic=true;private autoDelay=0;private autoCursor=0;private queuedSkills=new Set<string>();
+    get autoSkill():boolean{return this.automatic;}
+    set autoSkill(enabled:boolean){if(enabled&&!this.automatic)this.autoDelay=0;this.automatic=enabled;}
     skillCount = 0;
     damageDealt = 0;
     riftEnergy = 0;
@@ -179,10 +181,37 @@ export class BattleEngine {
     set energy(value: number) { if (this.primaryHero) this.primaryHero.energy = value; }
     get canCastSkill(): boolean { return !!this.primaryHero && this.canCastUnit(this.primaryHero); }
     canCastHeroSkill(id: string): boolean { const unit = this.heroes.find(u => u.id === id); return !!unit && this.canCastUnit(unit); }
-    private canCastUnit(unit: Unit): boolean {
-        return this.status === 'fighting' && !this.paused && !this.finisherActive && !this.transitioning && this.approachRemaining <= 0 && this.bossWarningRemaining <= 0
-            && unit.hp > 0 && (unit.tactic !== 'heal' || (unit.heroTier || 1) >= 2) && unit.kind !== 'soldier' && unit.kind !== 'wall' && unit.energy >= 100
-            && (unit.team === 'hero' ? this.enemies : this.heroes).some(u => u.hp > 0);
+    skillState(id:string):'ready'|'energy'|'dead'|'ended'|'paused'|'warning'|'approach'|'transition'|'finale'|'unavailable' {
+        const unit=[...this.heroes,...this.enemies].find(u=>u.id===id);
+        if(!unit||unit.kind==='soldier'||unit.kind==='wall'||(unit.tactic==='heal'&&(unit.heroTier||1)<2))return 'unavailable';
+        if(this.status!=='fighting')return 'ended';
+        if(unit.hp<=0)return 'dead';
+        if(unit.energy<100)return 'energy';
+        if(this.paused)return 'paused';
+        if(this.finisherActive)return 'finale';
+        if(this.bossWarningRemaining>0)return 'warning';
+        if(this.approachRemaining>0)return 'approach';
+        if(this.transitioning||!(unit.team==='hero'?this.enemies:this.heroes).some(u=>u.hp>0))return 'transition';
+        return 'ready';
+    }
+    private canCastUnit(unit:Unit):boolean{return this.skillState(unit.id)==='ready';}
+    isSkillQueued(id:string):boolean{return this.queuedSkills.has(id);}
+    requestHeroSkill(id:string):{accepted:boolean;queued:boolean;state:ReturnType<BattleEngine['skillState']>} {
+        const unit=this.heroes.find(u=>u.id===id),state=this.skillState(id);
+        if(!unit)return{accepted:false,queued:false,state:'unavailable'};
+        if(state==='ready'){const cast=this.castSkill(id);if(cast)this.autoDelay=.55;return{accepted:cast,queued:false,state};}
+        const wait=state==='paused'||state==='warning'||state==='approach'||state==='transition';
+        if(wait)this.queuedSkills.add(id);
+        return{accepted:wait,queued:wait,state};
+    }
+    private releaseHeroSkill():void {
+        if(this.autoDelay>0)return;
+        for(let i=0;i<this.heroes.length;i++){
+            const index=(this.autoCursor+i)%this.heroes.length,unit=this.heroes[index];
+            if((this.autoSkill||this.queuedSkills.has(unit.id))&&this.canCastUnit(unit)){
+                if(this.castSkill(unit.id)){this.autoCursor=(index+1)%this.heroes.length;this.autoDelay=.55;}return;
+            }
+        }
     }
 
     advance(seconds: number): void {
@@ -201,7 +230,7 @@ export class BattleEngine {
         const tactic = caster.tactic || 'cleave';
         const enemies = caster.team === 'hero' ? this.enemies : this.heroes;
         const friends = caster.team === 'hero' ? this.heroes : this.enemies;
-        caster.energy = 0;
+        caster.energy = 0;this.queuedSkills.delete(caster.id);
         if (caster.team === 'hero') this.skillCount += 1;
         const tier = caster.kind === 'boss' ? 4 : caster.heroTier || 1;
         const livingFriends = friends.filter(u => u.hp > 0 && u.kind !== 'wall');
@@ -302,8 +331,9 @@ export class BattleEngine {
             }
             return;
         }
-        for (const unit of [...this.heroes, ...this.enemies]) {
-            if ((unit.team === 'hero' ? this.autoSkill : unit.kind === 'boss' || unit.kind === 'hero') && this.canCastUnit(unit)) this.castSkill(unit.id);
+        this.autoDelay=Math.max(0,this.autoDelay-dt);this.releaseHeroSkill();
+        for (const unit of this.enemies) {
+            if ((unit.kind === 'boss' || unit.kind === 'hero') && this.canCastUnit(unit)) this.castSkill(unit.id);
             if (this.status !== 'fighting' || this.approachRemaining > 0) break;
         }
         if (this.status !== 'fighting' || this.transitioning || this.approachRemaining > 0) return;
@@ -340,7 +370,10 @@ export class BattleEngine {
         if (source.team === 'hero') this.damageDealt += amount;
         // The world-boss target is a scoring dummy: high damage must not shorten the 30-second attempt.
         if (this.scoreMode && target.team === 'enemy') target.hp = target.maxHp;
-        if (amount > 0) this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
+        if (amount > 0) {
+            this.events.push({ type: 'damage', source: source.id, target: target.id, amount, critical });
+            if(target.kind==='hero')this.gainEnergy(target,amount/target.maxHp*ENERGY_RULES.hurtPerHealthRatio);
+        }
         if (target.hp === 0) {
             if(target.kind!=='wall'){const team=source.team==='hero'?this.heroes:this.enemies;team.forEach(u=>this.gainEnergy(u,ENERGY_RULES.teamKill+(u.id===source.id?ENERGY_RULES.killerBonus:0)));}
             if (target.team === 'enemy' && this.riftGoal && !this.bossActive) this.riftEnergy = Math.min(this.riftGoal, this.riftEnergy + (target.riftValue ?? 10));

@@ -1,3 +1,8 @@
+import { PREVIEW } from 'cc/env';
+import { sys } from 'cc';
+import { buildCaption } from '../data/BuildInfo';
+import { DUNGEON_CARDS,dungeonCardPosition } from '../data/DungeonPresentation';
+import { dungeonCard } from './DungeonCard';
 import { heroCard,heroArtwork,heroDetails } from './HeroCard';
 import { formatAmount } from '../data/GrowthConfig';
 import { Color,Graphics } from 'cc';
@@ -55,6 +60,7 @@ export class MetaPanel {
         text(this.node, 'HallNote', this.note + (this.store.storageAvailable ? '' : '（未保存）'), 0, -488, 19, '#CBDBBC', 660);
         button(this.node, 'CloseHall', '返回当前战斗', -160, -554, 300, 64, '#3E5D71', () => { this.closed = true; this.node.destroy(); this.onClose(); });
         button(this.node,'HallMainline','主线推图',160,-554,300,64,'#78613C',()=>{this.closed=true;this.node.destroy();this.onMainline?.();});
+        text(this.node,'HallBuild',buildCaption(PREVIEW,sys.platform===sys.Platform.WECHAT_GAME),0,-632,14,'#8D9FAF',690);
         text(this.node, 'LocalNotice', '本地试玩 · 真实玩家攻守与全服排名待接入', 0, -611, 16, '#7D91AD');
     }
     private pagination(total: number): void {
@@ -131,33 +137,36 @@ export class MetaPanel {
         this.note=this.note||'通关不直接给经验；地图提高会提升之后的挂机效率';
     }
     private activities(): void {
-        const p = this.store.progress;
-        if (p.pending) {
-            text(this.node, 'PendingTitle', `${ACTIVITY_NAMES[p.pending.mode]} · 尚未结束`, 0, 284, 32, '#D6C28F');
-            text(this.node, 'PendingRule', '入场阵容已固定；继续挑战不会重复扣次数', 0, 200, 22, '#AFC7DC');
-            button(this.node, 'ResumeRun', '继续挑战', 0, 61, 470, 78, '#426D59', () => this.start(p.pending!));
-            button(this.node, 'AbandonRun', '放弃挑战（不退次数、无奖励）', 0, -53, 470, 66, '#6C5149', () => this.attempt(() => { this.store.abandonActivity(); this.note = '已放弃，消耗次数不会退回'; }));
-            return;
-        }
-        if (this.boat) { this.boatRoute(); return; }
-        const boss=this.store.currentBoss.boss;text(this.node,'WeeklyBoss',`本周${boss.name} · ${boss.attribute} · 周一0点轮换`,0,405,20,'#D6C5E5',650);
-        const cards: [ActivityMode, string, string, string][] = [
-            ['city', '本地守军演练 · 可选2名城上守将', `今日 ${p.daily.cityUsed}/3次 · 胜180呆币/12脑勋，败90/8`, '演练攻城'],
-            ['boss', `${boss.name}·${boss.title} · 弱${boss.weakness}`, `30秒终结清场 · 今日最高${p.daily.bossBest} · 排名待联机`, '挑战魔王'],
-            ['trial', `3v5 · 最多1神将2名将 · 缺位补兵 · 下一关${Math.min(99, p.trialHighest + 1)}`, `${trialTrait(Math.min(99, p.trialHighest + 1)).join('：')}`, '三将出战'],
-            ['boat', '三次筹谋再护船 · 东风/稳船/修缮自由搭配', `今日 ${p.daily.boatUsed}/2次 · 胜260呆币/12脑勋，败130/8`, '筹谋借宝'],
-        ];
-        cards.forEach(([mode, desc, rule, action], i) => {
-            const row = panel(this.node, `Activity-${mode}`, 0, 289 - i * 181, 636, 160, '#20364B', 16);
-            text(row, 'Title', ACTIVITY_NAMES[mode], -84, 47, 29, '#E5CC97', 430);
-            text(row, 'Desc', desc, -60, 2, 19, '#BDCDDC', 490);
-            text(row, 'Rule', rule, 0, -50, 18, '#8CA6C0', 610);
-            button(row, 'Enter', action, 225, 47, 158, 51, '#46694F', () => this.attempt(() => {
-                if (mode === 'boat') { this.boat = []; this.note = '筹谋阶段不消耗次数，出航时扣除'; }
-                else this.start(this.store.startActivity(mode));
-            }));
+        const p=this.store.progress,boss=this.store.currentBoss.boss;
+        if(this.boat){this.boatRoute();return;}
+        text(this.node,'ActivityStatus',p.pending?`未完：${ACTIVITY_NAMES[p.pending.mode]} · 可继续或切换，不退已用次数`:`本周 ${boss.name} · ${boss.attribute} · 每周一轮换`,0,417,19,'#D8C9AA',655);
+        DUNGEON_CARDS.forEach((card,i)=>{
+            const pending=p.pending?.mode===card.mode,pos=dungeonCardPosition(i);
+            const detail=card.mode==='city'?`今日 ${p.daily.cityUsed}/3 · 胜180呆币 / 12脑勋`:card.mode==='boss'?`${boss.name} · 最高 ${formatAmount(p.daily.bossBest)}`:card.mode==='trial'?`下一关 ${Math.min(99,p.trialHighest+1)} · 限1神2名`:`今日 ${p.daily.boatUsed}/2 · 3次筹谋`;
+            dungeonCard(this.node,card.art,ACTIVITY_NAMES[card.mode],pending?'未完待续':card.tag,card.subtitle,detail,pending?'继续本场':p.pending?'切换挑战':'进入挑战',card.color,pos.x,pos.y,()=>this.enterActivity(card.mode));
         });
-        this.note = this.note || '三将首通100呆币/10脑勋；脑勋每日总上限100';
+        if(p.pending)button(this.node,'EndPendingRun','结束未完挑战 · 不退次数',0,-418,438,46,'#644E49',()=>this.confirmActivity(null));
+        else text(this.node,'DailyDungeonNote','挑战攒脑勋 · 换将 / 专武 · 每日总上限100',0,-418,19,'#C9CBB2',645);
+        this.note=this.note||'主线随时可回 · 未完挑战可继续，切换前会提示';
+    }
+    private enterActivity(mode:ActivityMode):void {
+        const pending=this.store.progress.pending;
+        if(pending?.mode===mode){this.start(pending);return;}
+        if(mode==='boat'){this.boat=[];this.note='完成筹谋后出航时扣次数';this.render();return;}
+        if(pending){this.confirmActivity(mode);return;}
+        this.attempt(()=>this.start(this.store.startActivity(mode)));
+    }
+    private confirmActivity(mode:ActivityMode|null,choices:BoatChoice[]=[]):void {
+        const pending=this.store.progress.pending;if(!pending){if(mode)this.attempt(()=>this.start(this.store.startActivity(mode,choices)));return;}
+        const cover=panel(this.node,'SwitchDungeonConfirm',0,0,720,1280,'#07101BCC',0);cover.on(Node.EventType.TOUCH_END,()=>{});
+        const box=panel(cover,'SwitchBox',0,0,626,378,'#193048',20);
+        text(box,'SwitchTitle',mode?'切 换 挑 战':'结 束 本 场',0,123,32,'#F1D39B',594);
+        text(box,'OldRun',`当前：${ACTIVITY_NAMES[pending.mode]}`,0,62,23,'#CBD5DA',590);
+        text(box,'SwitchCost','当前挑战无奖励，已用次数不退',0,10,21,'#E4B59E',590);
+        button(box,'ConfirmSwitch',mode?`结束本场 → ${ACTIVITY_NAMES[mode]}`:'确认结束本场',0,-66,540,58,'#A9804D',()=>{
+            cover.destroy();this.attempt(()=>{if(mode)this.start(this.store.switchActivity(mode,choices));else{this.store.abandonActivity();this.note='本场已结束，已用次数不退';}});
+        });
+        button(box,'CancelSwitch','保留当前挑战',0,-139,540,52,'#36536D',()=>cover.destroy());
     }
     private boatRoute(): void {
         text(this.node, 'RouteTitle', `草船借宝 · 第 ${Math.min(3, this.boat!.length + 1)} 次筹谋`, 0, 326, 32, '#E6C88D');
@@ -169,7 +178,7 @@ export class MetaPanel {
                 this.render();
             });
         });
-        if (this.boat!.length === 3) button(this.node, 'Sail', '扬帆出航 · 消耗1次', 0, -260, 540, 78, '#71683E', () => this.attempt(() => this.start(this.store.startActivity('boat', this.boat!))));
+        if (this.boat!.length === 3) button(this.node, 'Sail', '扬帆出航 · 消耗1次', 0, -260, 540, 78, '#71683E', () => {if(this.store.progress.pending)this.confirmActivity('boat',this.boat!);else this.attempt(()=>this.start(this.store.startActivity('boat',this.boat!)));});
         button(this.node, 'ResetRoute', '重新筹谋', 0, -366, 300, 52, '#34485E', () => { this.boat = []; this.render(); });
     }
     private exchange():void {

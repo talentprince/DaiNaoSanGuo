@@ -9,7 +9,7 @@ import {createDeveloperStore} from '../assets/battle/DeveloperMode.ts';
 const u=(id,extra={})=>({id,name:id,role:'测试',kind:'hero',heroTier:3,tactic:'cleave',maxHp:10000,attack:10,defense:0,interval:100,priority:0,color:'#FFFFFF',...extra});
 const make=(opts={})=>new BattleEngine({heroes:[u('caster'),u('healer',{tactic:'heal'})],waves:[[u('target',{kind:'soldier',maxHp:1000})]],seed:7,energyRate:0,...opts});
 const memory=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v)};};
-test('初始零能量，普攻命中只加1，不按伤害膨胀或受伤回能',()=>{
+test('初始零能量，普攻命中只加1，不按输出伤害膨胀；小兵受伤不回能',()=>{
  const a=make(),b=make({heroes:[u('caster',{attack:500}),u('healer',{tactic:'heal'})]});for(const e of[a,b]){e.autoSkill=false;e.heroes[1].cooldown=999;e.enemies[0].cooldown=999;e.advance(.4);}assert.equal(a.heroes[0].energy,1);assert.equal(b.heroes[0].energy,1);assert.equal(a.enemies[0].energy,0);
 });
 test('击杀全队存活武将+18，击杀者另+7，小兵/死亡将不回能',()=>{

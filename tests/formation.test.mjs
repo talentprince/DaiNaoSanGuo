@@ -88,7 +88,7 @@ test('每名武将独立蓄能与手动释放，释放一人不扣另一人能�
 test('自动开关按每名武将就绪独立触发，暂停不蓄能，死亡者无法释放', () => {
     const e = new BattleEngine({ heroes: [unit('a'), unit('b')], waves: [[unit('x', { kind: 'soldier' })]], seed: 1 });
     e.autoSkill = false; e.heroes.forEach(u => { u.energy = 100; }); e.advance(0.05);
-    assert.equal(e.skillCount, 0); e.autoSkill = true; e.advance(0.05); assert.equal(e.skillCount, 2);
+    assert.equal(e.skillCount, 0); e.autoSkill = true; e.advance(0.05); assert.equal(e.skillCount, 1); e.advance(.65); assert.equal(e.skillCount, 2);
     const energies = e.heroes.map(u => u.energy); e.paused = true; e.advance(99); assert.deepEqual(e.heroes.map(u => u.energy), energies);
     e.paused = false; e.heroes[0].hp = 0; e.heroes[0].energy = 100; assert.equal(e.castSkill('a'), false);
 });

@@ -1,5 +1,5 @@
 import type { Unit } from '../battle/BattleEngine';
-export const ENERGY_RULES={maximum:100,hit:1,teamKill:18,killerBonus:7,passivePerSecond:.8,bossPerSecond:3,weatherSeconds:4.5};
+export const ENERGY_RULES={maximum:100,hit:1,hurtPerHealthRatio:100,teamKill:18,killerBonus:7,passivePerSecond:.8,bossPerSecond:3,weatherSeconds:4.5};
 export type EnergySnapshot=Record<string,number>;
 export function cleanEnergy(value:unknown):EnergySnapshot{
     const result:EnergySnapshot={};if(!value||typeof value!=='object'||Array.isArray(value))return result;

@@ -1,7 +1,7 @@
 import { readFileSync,writeFileSync,readdirSync,statSync,mkdirSync,copyFileSync,rmSync,existsSync } from 'node:fs';
 import { join,resolve,relative } from 'node:path';
 export function prepareAudioTemplate(root,platform){
-    const target=join(root,'build-templates',platform,'audio');
+    const target=platform==='preview'?join(root,'preview-template','audio'):join(root,'build-templates',platform,'audio');
     // Only this script's generated, ignored audio directory is replaced.
     rmSync(target,{recursive:true,force:true});mkdirSync(target,{recursive:true});
     for(const file of readdirSync(join(root,'audio')))if(file.endsWith('.mp3'))copyFileSync(join(root,'audio',file),join(target,file));

@@ -1,4 +1,4 @@
-"""Original NES-inspired score/SFX. Offline regeneration: numpy + ffmpeg; no samples."""
+"""Original comic-adventure ensemble/SFX. Offline: numpy + ffmpeg; no samples."""
 from pathlib import Path
 import wave,subprocess,numpy as np
 R=Path(__file__).resolve().parents[1];S=22050;G=np.random.default_rng(31102026)
@@ -31,51 +31,91 @@ def write(name,y,rate=32):
  wav=R/'audio-source'/f'{name}.wav'
  with wave.open(str(wav),'wb') as w:w.setnchannels(1);w.setsampwidth(2);w.setframerate(S);w.writeframes((y*32767).astype('<i2').tobytes())
  mp3=R/'audio'/f'{name}.mp3';subprocess.run(['/opt/homebrew/bin/ffmpeg','-hide_banner','-loglevel','error','-y','-i',str(wav),'-codec:a','libmp3lame','-b:a',f'{rate}k','-ar',str(S),'-ac','1',str(mp3)],check=True);print(name,round(len(y)/S,2),mp3.stat().st_size)
-main=[['D5','F5','A5','G5','F5','D5','C5','A4'],['Bb4','D5','F5','A5','F5','D5','C5','Bb4'],['C5','E5','G5','A5','G5','E5','D5','C5'],['A4','C#5','E5','G5','E5','C#5','B4','A4'],['D5','A5','F5','D5','F5','G5','A5',None],['Bb5','A5','F5','D5','F5','D5','C5','Bb4'],['C5','D5','E5','G5','A5','G5','E5','C5'],['A4','C#5','E5','G5','A5','G5','C#5','A4'],['D6','A5','F5','A5','G5','F5','E5','D5'],['F5','Bb5','A5','F5','D5','F5','A5',None],['G5','E5','C5','E5','D5','C5','B4','G4'],['A4','E5','C#5','E5','G5','A5','C#6','A5'],['D6','C6','A5','G5','F5','D5','F5','A5'],['Bb5','A5','G5','F5','D5','F5','C5','Bb4'],['C5','E5','G5','A5','G5','E5','C#5','A4'],['D5','F5','A5',None,'A5','G5','F5','C#5']]
-boss=[['D5','D5','A4','D5','F5','D5','E5','C#5'],['Bb4','Bb4','F4','Bb4','D5','F5','E5','D5'],['C5','G4','C5','E5','G5','E5','D5','C5'],['A4','C#5','E5','A5','G5','E5','C#5','A4'],['D6','A5','F5','D5','F5','A5','C6','A5'],['Bb5','F5','D5','Bb4','D5','F5','A5','F5'],['G5','E5','C5','G4','C5','E5','G5','C#5'],['A5','G5','E5','C#5','A4','C#5','E5','C#5']]
-chords=[['D3','F3','A3'],['Bb2','D3','F3'],['C3','E3','G3'],['A2','C#3','E3']]
-# Twenty-four-bar arrangements: A/B/bridge, with different keys, grooves and pulse colors.
-boat=[['F5','A5','C6',None,'A5','G5','F5','D5'],['Bb4','D5','F5','A5','F5',None,'D5','F5'],['C5','E5','G5','C6','G5','E5','D5','C5'],['A4','C5','E5','G5','E5','C5','A4',None],['D5','F5','A5','C6','A5','F5','E5','D5'],['G4','Bb4','D5','F5','D5','Bb4','A4','G4'],['C5','F5','E5','G5','C6','Bb5','G5','E5'],['F5','A5','C6','A5','G5','F5',None,'C5']]
-themes=[
- ('menu',boat[:8]+boat[::-1]+boat,100,7,.5,'menu'),
- ('main',main+main[:8],160,0,.25,'march'),
- ('city',boss+main[:8]+boss,144,-5,.125,'siege'),
- ('trial',main[8:]+boss+main[:8],188,2,.25,'rush'),
- ('boat',boat+boat[::-1]+boat,132,0,.5,'boat'),
- ('mainboss',boss+main[8:]+boss[::-1],176,0,.125,'danger'),
- ('boss',boss+boss[::-1]+main[8:],148,-2,.125,'heavy'),
- ('boss-zhangjiao',main[8:]+boss+main[:8],184,5,.125,'storm'),
- ('boss-menghuo',boss[::-1]+main[:8]+boss,164,-5,.25,'tribal'),
+# Original comic adventure ensemble: plucked strings, mallets, warm brass,
+# hand percussion and sustained strings. No pulse-wave lead or external samples.
+THEMES=[
+ ('menu',112,0,'mallet',[72,76,79,76,74,72,69,None],[65,69,72,69,67,None,64,67],'bright'),
+ ('main',148,0,'pluck',[62,67,69,None,74,72,69,67],[65,69,72,None,74,72,69,65],'march'),
+ ('city',132,-2,'brass',[62,None,62,69,67,None,65,62],[58,62,65,None,69,67,65,62],'siege'),
+ ('trial',168,2,'pluck',[62,65,69,74,None,72,69,67],[65,69,72,None,74,77,74,72],'rush'),
+ ('boat',120,0,'mallet',[65,69,None,72,74,72,69,None],[62,65,69,None,67,65,62,60],'sway'),
+ ('mainboss',160,0,'brass',[62,62,None,69,74,None,72,69],[58,None,62,65,69,67,65,None],'danger'),
+ ('boss',124,-2,'brass',[50,None,57,62,None,65,62,57],[58,None,65,62,60,None,57,53],'heavy'),
+ ('boss-zhangjiao',152,3,'mallet',[62,69,74,None,77,74,72,69],[58,65,70,None,74,72,70,65],'storm'),
+ ('boss-menghuo',140,-5,'brass',[62,None,62,67,69,None,67,62],[65,62,None,60,57,60,62,None],'tribal'),
 ]
-for name,bars,bpm,transpose,duty,groove in themes:
- beat=60/bpm;y=np.zeros(round(len(bars)*4*beat*S));shift=2**(transpose/12)
- for bar,notes in enumerate(bars):
-  c=chords[bar%4] if groove!='boat' else [['F3','A3','C4'],['Bb2','D3','F3'],['C3','E3','G3'],['A2','C3','E3'],['D3','F3','A3'],['G2','Bb2','D3'],['C3','E3','G3'],['F3','A3','C4']][bar%8]
-  o=bar*4*beat;section=bar//8
-  for j,n in enumerate(notes):
-   swing=.07*beat if groove=='boat' and j%2 else 0
-   start=o+j*beat*.5+swing
-   # A contrasting bridge changes register/spacing rather than repeating one eight-note cell.
-   melody=hz(n)*shift*(2 if section==2 and j in [2,5] else 1) if n else None
-   tone(y,start,beat*(.68 if groove=='boat' and j%3==0 else .43),melody,.16 if groove=='menu' else .24 if groove=='boat' else .29,tri=groove=='menu',duty=duty)
-   if section==1 and j%2==0:tone(y,start+beat*.03,beat*.4,hz(c[(j+1)%3])*shift*4,.12,duty=.5)
-   tone(y,start,beat*.35,hz(c[j%3])*shift,.095,duty=.5)
-   bass=hz(c[0])*shift*(1 if j%2==0 else 2)
-   tone(y,start,beat*.43,bass,.24,True)
-   if groove!='menu' and (groove!='boat' or j%2==0):drum(y,start,'hat',.04 if groove=='boat' else .07)
-  for j in range(4):
-   drum(y,o+j*beat,'kick' if j%2==0 else 'snare',.05 if groove=='menu' else .23 if groove in ['siege','heavy'] else .15)
-   if groove=='tribal':drum(y,o+(j+.5)*beat,'tom',.15)
-   if groove=='rush' and j%2==0:drum(y,o+(j+.5)*beat,'kick',.1)
-  if bar%4==3:
-   for j in range(4 if section!=2 else 8):drum(y,o+3*beat+j*beat/(4 if section!=2 else 8),'tom',.12)
-  if groove=='storm' and bar%4==2:
-   for j in range(3):tone(y,o+j*beat*.2,.09,1400+j*360,.035,duty=.125)
- # Short wraparound echoes add depth while keeping the loop length exact.
- y+=np.roll(y,int(.75*beat*S))*.1+np.roll(y,int(1.5*beat*S))*.04
- if '--only-new' not in __import__('sys').argv or name=='menu':write(name,y)
+def ensemble(y,start,dur,midi,vol,voice):
+ if midi is None:return
+ i=int(start*S);n=min(int(dur*S),len(y)-i)
+ if n<=0:return
+ t=np.arange(n)/S;f=440*2**((midi-69)/12);v=np.zeros(n)
+ if voice=='mallet':
+  for ratio,amp,decay in [(1,1,4),(2.76,.3,10),(5.4,.12,18),(8.93,.035,25)]:
+   if ratio*f<S*.44:v+=amp*np.sin(2*np.pi*f*ratio*t)*np.exp(-t*decay/max(.4,dur))
+  env=np.minimum(1,t/.004)*np.minimum(1,(dur-t)/.045)
+ elif voice=='pluck':
+  for k in range(1,9):
+   if k*f<S*.44:v+=np.sin(2*np.pi*f*k*t+.003*np.sin(t*25))/(k**1.4)*np.exp(-t*(2.7+k*.55)/max(.5,dur))
+  env=np.minimum(1,t/.003)*np.minimum(1,(dur-t)/.04)
+ elif voice=='brass':
+  # A gentle pitch scoop and detuned partials, with a rounded articulated release.
+  phase=f*(t-.0008*(1-np.exp(-t*55)))+.001*np.sin(t*31)
+  for k in range(1,8):
+   if k*f<S*.44:v+=(np.sin(2*np.pi*k*phase)+.2*np.sin(2*np.pi*k*phase*1.002))/(k**1.35)
+  env=np.minimum(1,t/.028)*np.minimum(1,(dur-t)/.09)*(.75+.25*np.exp(-t*9))
+ elif voice=='strings':
+  for k in range(1,6):
+   v+=(np.sin(2*np.pi*f*k*t+.006*np.sin(t*29))+.35*np.sin(2*np.pi*f*k*1.003*t))/(k**1.8)
+  env=np.minimum(1,t/.15)*np.minimum(1,(dur-t)/.18)
+ else:
+  v=np.sin(2*np.pi*f*t)+.18*np.sin(2*np.pi*f*2*t);env=np.minimum(1,t/.009)*np.minimum(1,(dur-t)/.055)*np.exp(-t*2)
+ y[i:i+n]+=v*env*vol
 
-fx=[('lightning',1.05),('fire',1.15),('blizzard',1.3),('wind',.85),('poison',.95),('heal',1.25),('guard',.8),('slash',.5),('finale',1.8),('impact',.75),('victory',1.35),('defeat',1.1),('boss-arrive',.95),('critical',.38)]
+def wood(y,start,pitch=850,vol=.07):
+ i=int(start*S);n=min(int(.09*S),len(y)-i)
+ if n<=0:return
+ t=np.arange(n)/S;y[i:i+n]+=(np.sin(2*np.pi*pitch*t)+.35*np.sin(2*np.pi*pitch*1.62*t))*np.exp(-t*75)*vol
+
+for name,bpm,shift,voice,phrase,answer,groove in THEMES:
+ beat=60/bpm;bars=16;y=np.zeros(round(bars*4*beat*S))
+ bright=groove in ['bright','march','sway','rush']
+ chords=([[60,64,67],[57,60,64],[65,69,72],[55,59,62]] if groove=='bright' else [[62,65,69],[58,62,65],[60,64,67],[57,61,64]])
+ if groove=='sway':chords=[[65,69,72],[62,65,69],[58,62,65],[60,64,67]]
+ for bar in range(bars):
+  o=bar*4*beat;section=bar//4;c=[m+shift for m in chords[bar%4]]
+  # Four-bar question / answer, a quieter bridge, then an expanded final refrain.
+  notes=phrase if section in [0,3] else answer
+  pattern=bar%4
+  offsets=([0,.75,1.5,2.5,3.25] if pattern%2==0 else [0,.5,1.5,2,3])
+  indexes=([0,1,3,5,6] if pattern%2==0 else [2,3,4,6,7])
+  for j,(offset,index) in enumerate(zip(offsets,indexes)):
+   note=notes[index]
+   if note is not None:
+    n=note+shift+(12 if section==3 and pattern==3 and j>2 else 0)
+    dur=beat*(.9 if j==2 else .48 if j%2 else .65)
+    ensemble(y,o+offset*beat,dur,n,.17 if voice=='brass' else .22,voice)
+  # The answer has a second acoustic color instead of a wall of eighth-note beeps.
+  if pattern in [1,3]:
+   for j in range(3):ensemble(y,o+(2.75+j*.38)*beat,beat*.35,c[j]+12,.075,'mallet' if voice!='mallet' else 'pluck')
+  for j in range(4):
+   bass=c[0]-24+(7 if j==3 else 0);ensemble(y,o+j*beat,beat*.72,bass,.19,'bass')
+   if j in [1,3]:
+    for n in c:ensemble(y,o+(j+.08)*beat,beat*.26,n,.055,'brass' if bright else 'pluck')
+   if section==2:
+    for n in c:ensemble(y,o,beat*3.85,n,.022,'strings')
+   drum(y,o+j*beat,'kick' if j%2==0 else 'snare',.10 if groove in ['bright','sway'] else .18)
+   if j%2:wood(y,o+(j+.5)*beat,720 if groove=='sway' else 980,.045)
+   if groove in ['heavy','siege','tribal']:drum(y,o+(j+.5)*beat,'tom',.13)
+   if groove in ['rush','storm','danger']:drum(y,o+(j+.5)*beat,'hat',.045)
+  if pattern==3:
+   for j in range(3):drum(y,o+(3+j*.25)*beat,'tom',.12+j*.025)
+  # A rare descending trombone-like reply gives the ensemble its comic wink.
+  if groove in ['bright','march','sway'] and bar in [3,11]:
+   for j,n in enumerate([55,53,52]):ensemble(y,o+(2.8+j*.35)*beat,beat*.28,n+shift,.09,'brass')
+ y+=np.roll(y,int(.23*S))*.09+np.roll(y,int(.41*S))*.035
+ if '--only-new' not in __import__('sys').argv or name=='menu':write(name,y,40)
+
+fx=[('lightning',1.05),('fire',1.15),('blizzard',1.3),('wind',.85),('poison',.95),('heal',1.25),('guard',.8),('slash',.5),('finale',1.8),('impact',.75),('victory',1.35),('defeat',1.1),('boss-arrive',1.1),('critical',.38)]
 for name,d in fx:
  y=np.zeros(round(d*S));t=np.arange(len(y))/S
  if name in ['heal','victory','blizzard']:
@@ -93,11 +133,13 @@ for name,d in fx:
   for i in range(12):tone(y,i*.13,.22,110*2**(i/5),.25,duty=.125)
   y+=G.uniform(-1,1,len(y))*(t/d)**2*.1
  elif name=='boss-arrive':
-  # Two isolated scanner-style electronic pips. No drum/chord/third tail.
-  for start in [0,.42]:
-   i=int(start*S);n=int(.19*S);q=np.arange(n)/S
-   env=np.minimum(1,q/.008)*np.minimum(1,(.19-q)/.018)
-   y[i:i+n]+=(np.sin(2*np.pi*1050*q)+.22*np.sin(2*np.pi*2100*q))*env*.46
+  # Exactly two low security-gate buzzes; strong mid-low harmonics survive phone speakers.
+  for start in [0,.55]:
+   i=int(start*S);n=int(.32*S);q=np.arange(n)/S
+   env=np.minimum(1,q/.018)*np.minimum(1,(.32-q)/.045)
+   buzz=.8+.2*np.sin(2*np.pi*28*q)
+   body=np.sin(2*np.pi*175*q)+.65*np.sin(2*np.pi*245*q)+.36*np.sin(2*np.pi*350*q)+.2*np.sin(2*np.pi*490*q)
+   y[i:i+n]+=body*env*buzz*.32
  elif name=='critical':
   tone(y,0,.11,960,.3,duty=.125);tone(y,.045,.22,480,.32,duty=.25);drum(y,.015,'snare',.27)
  elif name=='poison':
@@ -107,7 +149,7 @@ for name,d in fx:
   drum(y,0,'snare',.17)
  else:
   for i,n in enumerate(['A4','F4','D4','A3']):tone(y,i*.19,.34,n,.28,True)
- if '--only-new' not in __import__('sys').argv or name=='boss-arrive':write(name,y,32)
+ if ('--only-new' not in __import__('sys').argv and '--comic-update' not in __import__('sys').argv) or name=='boss-arrive':write(name,y,32)
 
 for kind in ['slash','pierce','bow','magic']:
  for variant in range(2):
@@ -118,4 +160,4 @@ for kind in ['slash','pierce','bow','magic']:
   else:
    noise=G.uniform(-1,1,len(y));y+=noise*np.exp(-t*(35 if kind=='slash' else 48))*.23
    tone(y,0,.13,(220 if kind=='slash' else 740)+variant*90,.24,duty=.125)
-  if '--only-new' not in __import__('sys').argv:write(f'hit-{kind}-{variant}',y,32)
+  if '--only-new' not in __import__('sys').argv and '--comic-update' not in __import__('sys').argv:write(f'hit-{kind}-{variant}',y,32)

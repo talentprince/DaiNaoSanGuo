@@ -1,4 +1,4 @@
-# Demo 0.13 技术结构
+# Demo 0.14 技术结构
 
 Cocos Creator3.8.8 / TypeScript。Battle.scene与BattlePreview组件UUID保留，UI运行时生成。
 
@@ -70,3 +70,13 @@ EnemyCatalog生成5波×8名真实敌军，6种身份及精英标记；UnitConfi
 SiegeLayout定义横版城池锚点、镜头平移、上下城楼与门前位置；FormationConfig从同一位置推导编辑器坐标，旧阵位ID保留。墙和守军共享镜头偏移、演员初始/目标均保持原世界位置，不叠加奔跑。
 
 MusicRouting统一由模式/Boss阶段/菜单状态选曲；GameAudio只在变曲时记录与调用，Boss提示由入场事件独立触发。AudioDirector负责菜单静音战斗残音、260/600ms限频与0.95秒警报保护。主线入口保留未完ActivityRun，由原Store继续/放弃流程处理，不新增奖励或退次数。
+
+## 0.14
+
+BattleEngine.skillState统一HUD与施法条件，requestHeroSkill在进场/预警/暂停/转波中预约，ready才扣能；0.55秒自动轮转避免队首反复抢放。BattlePreferences分standard/experience/test保存开关，开发入口不再偷偷重置。SkillHud仅ready闪烁，显示等待/预约/结束状态；底部CombatState显示自动状态与本场次数。
+
+DungeonPresentation定义2×2卡位，DungeonCard复用原有四背景并缓存帧；MetaPanel不再因pending隐藏入口。ProgressStore.switchActivity用于确认后的切换：失败还原完整快照，成功不退旧次数/不发旧奖励。
+
+AudioDirector使用独立命中/警报，GameAudio记录实际播放/结束/失败；preview-template仅供源码同源音频，构建音频仍为微信分包。BuildInfo显示版本/修订/环境；build-identity.mjs对assets和audio计算SHA-256，stampBuild写每个包，微信预检不接受与当前源码不同的旧包。
+
+CombatEffects移除过期横幅引用并检查isValid，避免连续技能重复destroy；大厅回主线前清引用，避免二次destroy。

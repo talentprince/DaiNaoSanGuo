@@ -1,3 +1,4 @@
+import {matchesSource} from './build-identity.mjs';
 import {packageSizes} from './audio-package.mjs';
 import {readFileSync,readdirSync,statSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
@@ -6,6 +7,8 @@ const blockers=[],checks=[];let bytes=0,appid='',mainBytes=0,packages=[];
 function walk(dir){for(const item of readdirSync(dir,{withFileTypes:true})){const file=join(dir,item.name);if(item.isDirectory())walk(file);else if(!['.DS_Store','project.private.config.json'].includes(item.name))bytes+=statSync(file).size;}}
 if(!existsSync(join(build,'game.js')))blockers.push('缺少微信构建，请先npm run build:wechat');
 else{
+ if(!matchesSource(root,build))blockers.push('微信包版本与当前源码不一致，请重新npm run build:wechat');
+ else checks.push('版本号/修订号/源码资源指纹与当前工程一致');
  walk(build);const game=JSON.parse(readFileSync(join(build,'game.json'),'utf8')),project=JSON.parse(readFileSync(join(build,'project.config.json'),'utf8'));appid=project.appid||'';
  if(!/^wx[0-9a-f]{16}$/i.test(appid)||appid==='wx6ac3f5090a6b99c5')blockers.push('仍是官方测试AppID或AppID无效：需要自己的小游戏AppID及上传权限');
  if(game.deviceOrientation!=='portrait')blockers.push('game.json不是portrait');

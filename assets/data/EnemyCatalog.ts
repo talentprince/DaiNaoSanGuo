@@ -19,7 +19,7 @@ export function mainlineMob(stage:number,wave:number,index:number,factor:number)
         defense:Math.round((elite?12:6)*factor),interval:a.interval,priority:a.weapon==='bow'||a.weapon==='staff'?3:0,
         color:elite?'#C06B48':PALETTES[chapter],riftValue:elite?10:2 };
 }
-export function mobPosition(index:number) {
+export function mobPosition(index:number,elite=false) {
     const row=index%3,col=Math.floor(index/3);
-    return {x:60+col*92+(row%2)*14,y:175-row*145-col*18,scale:.61+(index%3)*.035};
+    return {x:50+col*95+(row%2)*8,y:185-row*166-col*12,scale:elite?1.22:.96+(index%3)*.025};
 }

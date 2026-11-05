@@ -33,7 +33,7 @@ export class UnitActor {
     private goalY: number;
     private scale: number;
     private face: number;
-    private rubble = false;
+    private rubble = false;private rubbleArt:Node|null=null;
     private rear: boolean;
     private compact: boolean;
     private fallSpeed = 0;private walkBlend=0;
@@ -75,7 +75,21 @@ export class UnitActor {
     attack(targetX?:number,targetY?:number,strong=false): void { this.action = .48;this.strong=strong;const dx=targetX===undefined?this.face:targetX-this.impactPoint.x,dy=targetY===undefined?0:targetY-this.impactPoint.y;const length=Math.max(1,Math.hypot(dx,dy));this.attackX=dx/length;this.attackY=dy/length; }
     hurt(critical=false): void { this.hit = critical?.3:.23; }
     die(): void { this.dying = true; }
-    breakWall(): void { this.rubble = true; }
+    breakWall(): void {
+        if(this.rubble)return;this.rubble=true;this.body.active=false;
+        const debris=this.rubbleArt=makeNode('BrokenMasonry',this.node),g=debris.addComponent(Graphics);
+        const stone=(points:number[][],fill:string)=>{g.fillColor=new Color(fill);g.strokeColor=new Color('#493C38');g.lineWidth=3;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        // Irregular wall stumps and scattered material, never a compressed intact gate.
+        stone([[-118,-275],[-118,-190],[-103,-190],[-103,-213],[-85,-213],[-85,-242],[-64,-242],[-64,-275]],'#B5A188');
+        stone([[4,-275],[4,-214],[17,-214],[17,-176],[36,-176],[36,-198],[51,-198],[51,-275]],'#968570');
+        g.fillColor=new Color('#41322B55');g.ellipse(-29,-275,103,15);g.fill();
+        const blocks=[[-83,-259,30,21,-12],[-42,-258,36,22,15],[-4,-262,33,22,-19],[33,-267,25,20,9],[-62,-238,29,23,18],[-24,-237,32,24,-13],[-91,-278,31,16,-4],[-5,-281,34,17,7],[55,-281,24,15,-20],[-133,-284,21,13,12]];
+        for(const [x,y,w,h,angle] of blocks){const a=angle*Math.PI/180,c=Math.cos(a),q=Math.sin(a);stone([[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]].map(([dx,dy])=>[x+dx*c-dy*q,y+dx*q+dy*c]),'#C9B99A');}
+        stone([[-86,-249],[-80,-240],[21,-268],[18,-278]],'#94533C');
+        stone([[-53,-277],[-48,-283],[-2,-231],[-10,-228]],'#7C4434');
+        g.strokeColor=new Color('#493C38');g.lineWidth=4;g.moveTo(-102,-224);g.lineTo(-111,-240);g.lineTo(-104,-249);g.moveTo(28,-207);g.lineTo(18,-223);g.lineTo(28,-239);g.stroke();
+        this.shadow.active=false;
+    }
 
     update(dt: number, march: boolean): void {
         this.clock += dt;if(this.weaponGlow)this.weaponGlow.opacity=Math.round(155+100*(.5+.5*Math.sin(this.clock*4)));
@@ -96,9 +110,8 @@ export class UnitActor {
             if (nextY === this.goalY) this.fallSpeed = 0;
         } else if (distance > 0.1) this.node.setPosition(p.x + dx / distance * step, p.y + dy / distance * step, 0);
         if (this.unit.kind === 'wall') {
-            this.body.setScale(1, this.rubble ? Math.max(0.18, this.body.scale.y - dt * 2.4) : 1, 1);
-            this.body.setPosition(0, -145 * (1 - this.body.scale.y), 0);
-            this.opacity.opacity = this.rubble ? 100 : 255;
+            this.body.setScale(1,1,1);this.body.setPosition(0,0,0);
+            this.opacity.opacity=255;
             return;
         }
         if (this.dying) {
@@ -274,28 +287,53 @@ export class UnitActor {
     }
 
     private wallModel(): void {
-        const g=this.body.addComponent(Graphics),ink=new Color('#202436');
-        const poly=(points:number[][],fill:string)=>{g.fillColor=new Color(fill);g.strokeColor=ink;g.lineWidth=5;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
-        // Left-facing front and receding masonry: a tall side-on city gate, never a scaled thumbnail.
-        poly([[-116,-285],[-30,-256],[-30,254],[-116,275]],'#7A8790');
-        poly([[-30,-256],[48,-276],[48,277],[-30,254]],'#465666');
-        g.strokeColor=new Color('#A9B3B7');g.lineWidth=2;
-        for(let y=-255;y<260;y+=36){g.moveTo(-112,y);g.lineTo(-32,y-23);g.stroke();g.moveTo(-27,y-20);g.lineTo(44,y+2);g.stroke();}
-        for(let y=-260;y<255;y+=72){g.moveTo(-75,y);g.lineTo(-75,y+35);g.moveTo(8,y+16);g.lineTo(8,y+50);g.stroke();}
-        poly([[-108,-235],[-42,-216],[-42,20],[-51,52],[-81,70],[-105,52]],'#182332');
-        poly([[-100,-230],[-48,-212],[-48,21],[-60,46],[-81,57],[-99,42]],'#81583F');
-        g.strokeColor=new Color('#E0BB6E');g.lineWidth=4;g.moveTo(-75,-222);g.lineTo(-75,51);g.moveTo(-99,-70);g.lineTo(-49,-84);g.moveTo(-99,-157);g.lineTo(-49,-172);g.stroke();
-        for(const y of [-120,-20]){g.circle(-87,y,5);g.circle(-61,y-7,5);g.stroke();}
-        // Two spaced parapet galleries match the upper/lower saved tower slots.
-        for(const y of [120,-155]){
-            poly([[-69,y-8],[45,y-8],[54,y+10],[-67,y+10]],'#A2ACB2');
-            for(let i=0;i<4;i++){g.fillColor=new Color('#8E9BA4');g.strokeColor=ink;g.lineWidth=3;g.rect(-68+i*29,y+7,19,24);g.fill();g.stroke();}
+        const g=this.body.addComponent(Graphics),ink=new Color('#332B35');
+        const shape=(points:number[][],fill:string,width=4)=>{g.fillColor=new Color(fill);g.strokeColor=ink;g.lineWidth=width;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        const box=(x:number,y:number,w:number,h:number,fill:string,r=0)=>{g.fillColor=new Color(fill);g.strokeColor=ink;g.lineWidth=4;if(r)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);g.fill();g.stroke();};
+        // An orthographic facade with a shallow right return: masonry stays square,
+        // the left-facing entrance and both parapet shelves share the saved plan.
+        shape([[20,-280],[55,-260],[55,280],[20,280]],'#8B7869');
+        box(-116,-280,136,560,'#C3B49A');
+        g.strokeColor=new Color('#998B79');g.lineWidth=2;
+        for(let row=0;row<14;row++){
+            const y=-267+row*38;g.moveTo(-113,y);g.lineTo(17,y);g.stroke();
+            for(let x=-112+(row%2?25:0);x<17;x+=52){g.moveTo(x,y);g.lineTo(x,y+36);g.stroke();}
+            g.moveTo(23,y+6);g.lineTo(52,y+22);g.stroke();
         }
-        poly([[-118,275],[-30,296],[50,277],[48,252],[-30,272],[-116,251]],'#A5AFB5');
-        poly([[-82,291],[41,291],[41,345],[-82,345]],'#967558');
-        g.strokeColor=new Color('#E1BB76');g.lineWidth=4;[-68,-20,28].forEach(x=>{g.moveTo(x,292);g.lineTo(x,344);g.stroke();});
-        poly([[-106,341],[-21,388],[63,341]],'#713C48');
-        g.strokeColor=new Color('#E4B365');g.lineWidth=3;g.moveTo(-110,341);g.lineTo(-21,388);g.lineTo(68,341);g.stroke();
-        g.moveTo(35,345);g.lineTo(35,421);g.stroke();poly([[35,419],[-11,403],[35,386]],'#BE4B48');
+        // Thick stone arch, timber double leaves, heavy iron straps and rivets.
+        const arch=(left:number,right:number,bottom:number,spring:number,top:number,fill:string)=>{
+            g.fillColor=new Color(fill);g.strokeColor=ink;g.lineWidth=5;g.moveTo(left,bottom);g.lineTo(left,spring);g.bezierCurveTo(left,top,right,top,right,spring);g.lineTo(right,bottom);g.close();g.fill();g.stroke();
+        };
+        arch(-105,8,-258,9,108,'#E7D8B8');arch(-92,-5,-258,9,83,'#312C35');arch(-87,-10,-254,7,73,'#9B5037');
+        g.strokeColor=new Color('#612F2B');g.lineWidth=3;
+        for(let x=-77;x<-10;x+=13){g.moveTo(x,-250);g.lineTo(x,x<-65?29:49);g.stroke();}
+        g.strokeColor=ink;g.lineWidth=4;g.moveTo(-48,-251);g.lineTo(-48,56);g.stroke();
+        for(const y of [-210,-118,-27]){
+            box(-88,y,79,12,'#514F56',2);g.fillColor=new Color('#DEBA63');
+            for(const x of [-80,-61,-36,-17]){g.circle(x,y+6,2.3);g.fill();}
+        }
+        g.strokeColor=new Color('#F1C363');g.lineWidth=4;for(const x of [-60,-36]){g.circle(x,-71,7);g.stroke();}
+        box(-121,-283,151,22,'#E0C69D',3);
+        // Separate upper/lower firing galleries; their walking surfaces are level.
+        for(const y of [111,-164]){
+            box(-78,y-17,132,17,'#796C60');box(-88,y,148,14,'#E8D6B3',3);
+            for(let i=0;i<4;i++)box(-82+i*37,y+14,25,23,'#C4B79E',2);
+            g.strokeColor=new Color('#FFF0CE');g.lineWidth=3;g.moveTo(-82,y+9);g.lineTo(54,y+9);g.stroke();
+        }
+        box(-120,267,152,22,'#DDCBAB',3);
+        for(let i=0;i<4;i++)box(-115+i*39,289,27,27,'#D2C3A7',2);
+        // Broad vermilion pavilion, jade tiled eaves and chunky comic roof tips.
+        box(-99,311,139,57,'#A83E36');box(-81,315,99,42,'#422E37');
+        for(const x of [-91,-41,30])box(x,309,10,62,'#D8583F');
+        box(-105,306,151,12,'#E7B45D',2);
+        shape([[-129,365],[-111,384],[-65,382],[-29,412],[8,382],[54,384],[73,365],[32,356],[-91,356]],'#23686B',5);
+        shape([[-105,375],[-61,375],[-29,399],[4,375],[49,375],[29,366],[-87,366]],'#419B92',2);
+        g.strokeColor=new Color('#F2C875');g.lineWidth=4;g.moveTo(-129,365);g.quadraticCurveTo(-99,349,-72,357);g.lineTo(17,357);g.quadraticCurveTo(48,350,73,365);g.stroke();
+        g.strokeColor=new Color('#225558');g.lineWidth=2;
+        for(let i=0;i<5;i++){const x=-72+i*22;g.moveTo(-29,400);g.lineTo(x,369);g.stroke();}
+        box(-64,327,62,27,'#403041',4);text(this.body,'GatePlaque','呆',-33,340,22,'#F3D087',48);
+        g.strokeColor=ink;g.lineWidth=5;g.moveTo(24,384);g.lineTo(24,450);g.stroke();
+        shape([[26,449],[76,433],[26,415]],'#D94D3C');
+        g.strokeColor=new Color('#F7CA6D');g.lineWidth=2;g.moveTo(31,438);g.lineTo(56,431);g.stroke();
     }
 }

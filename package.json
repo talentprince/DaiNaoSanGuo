@@ -11,7 +11,8 @@
     "build:wechat": "node scripts/build.mjs wechatgame",
     "check:wechat": "node scripts/preflight-wechat.mjs",
     "balance": "node --experimental-strip-types --import ./scripts/test-support.mjs scripts/balance-report.mjs",
-    "backend:dev": "node --experimental-strip-types --import ./scripts/test-support.mjs server/dev-server.mjs"
+    "backend:dev": "node --experimental-strip-types --import ./scripts/test-support.mjs server/dev-server.mjs",
+    "preview:prepare": "node scripts/prepare-preview.mjs"
   },
   "engines": {
     "node": ">=22.18.0"

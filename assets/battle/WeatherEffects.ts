@@ -6,7 +6,14 @@ interface Weather {element:SkillElement;node:Node;g:Graphics;opacity:UIOpacity;l
 /** High-contrast layered comic effects stay independent from the skill title. */
 export class WeatherEffects {
     private layers:Weather[]=[];
+    private width = 720;
+    private height = 1104;
     constructor(private parent:Node){}
+    resize(width: number, height: number): void {
+        this.width = width;
+        this.height = height;
+        this.layers.forEach(layer => this.paint(layer));
+    }
     cast(element:SkillElement):void{
         const existing=this.layers.find(w=>w.element===element);if(existing){existing.left=ENERGY_RULES.weatherSeconds;existing.time=0;this.paint(existing);return;}
         const node=makeNode(`Weather-${element}`,this.parent);const effect={element,node,g:node.addComponent(Graphics),opacity:node.addComponent(UIOpacity),left:ENERGY_RULES.weatherSeconds,time:0};this.layers.push(effect);this.paint(effect);
@@ -17,7 +24,7 @@ export class WeatherEffects {
     }
     private paint(w:Weather):void{
         const g=w.g;g.clear();const t=w.time;
-        const wash=(r:number,green:number,b:number,a:number)=>{g.fillColor=new Color(r,green,b,a);g.rect(-352,-554,704,1108);g.fill();};
+        const wash=(r:number,green:number,b:number,a:number)=>{g.fillColor=new Color(r,green,b,a);g.rect(-this.width / 2, -this.height / 2, this.width, this.height);g.fill();};
         const line=(color:string,width:number,points:number[][])=>{g.strokeColor=new Color(color);g.lineWidth=width;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(p=>g.lineTo(p[0],p[1]));g.stroke();};
         if(w.element==='lightning'){
             wash(19,37,95,85);g.fillColor=new Color('#142344BB');for(let i=0;i<6;i++){g.ellipse(-325+i*130,531,100,65);g.fill();}
@@ -38,6 +45,6 @@ export class WeatherEffects {
             wash(29,90,71,48);for(let i=0;i<13;i++){const x=-350+(i*93+t*470)%700,y=-510+i*85;line('#227C6B80',24,[[x-50,y-18],[x+75,y+40]]);line('#D3FFDC',8,[[x-50,y-18],[x+75,y+40]]);}
             g.strokeColor=new Color('#F7EDBAD0');g.lineWidth=5;for(let i=0;i<7;i++){g.ellipse(Math.sin(t*3+i)*80,-400+i*140,150+Math.sin(t*4+i)*70,35);g.stroke();}
         }
-        if(t<.24){g.fillColor=new Color(225,247,255,Math.floor((1-t/.24)*65));g.rect(-352,-554,704,1108);g.fill();}
+        if(t<.24){g.fillColor=new Color(225,247,255,Math.floor((1-t/.24)*65));g.rect(-this.width / 2, -this.height / 2, this.width, this.height);g.fill();}
     }
 }

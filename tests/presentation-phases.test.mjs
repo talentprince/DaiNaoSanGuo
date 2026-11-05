@@ -11,6 +11,22 @@ test('长屏背景按可见高度铺满，安全区内上下HUD扩展，短屏�
     assert.ok(612 + tall.topOffset + tall.centerY < 800 - 80);
     const short = viewportLayout(720, 1000); assert.ok(short.scale < 1); assert.ok(640 * short.scale <= 500);
 });
+test('全面屏钱包利用胶囊左侧，场景贴合顶部信息条和底部安全区', () => {
+    const layout = viewportLayout(720, 1554, { top: 82, bottom: 35 }, { left: 517, top: 76, bottom: 136 });
+    const walletY = layout.centerY + (layout.topOffset + layout.wallet.y) * layout.scale;
+    assert.equal(walletY, 777 - 106);
+    assert.ok((layout.wallet.x + layout.wallet.width / 2) * layout.scale + 360 < 517);
+    assert.equal(layout.headerBottom, layout.centerY + (layout.fieldCenter + layout.fieldHeight / 2) * layout.scale);
+    assert.equal(layout.centerY + (layout.fieldCenter - layout.fieldHeight / 2) * layout.scale, -777 + 35);
+    assert.ok(layout.centerY + (layout.bottomOffset - 622 - 14) * layout.scale > -777 + 35);
+});
+test('胶囊左侧过窄或与顶部安全区重叠时，钱包回到胶囊下方', () => {
+    for (const [top, left] of [[82, 380], [109, 517]]) {
+        const layout = viewportLayout(720, 1554, { top, bottom: 35 }, { left, top: 76, bottom: 136 });
+        assert.deepEqual(layout.wallet, { x: 0, y: 612, width: 690 });
+        assert.ok(layout.centerY + (layout.topOffset + 628.8) * layout.scale < 777 - 136);
+    }
+});
 test('攻城守军随镜头显露、主线只在接近末段入画', () => {
     for (const t of [3.3, 2, 1, .5, 0]) assert.equal(encounterPresentation('city', t).enemyX, 0);
     assert.equal(encounterPresentation('city', 2).enemyVisible, true);

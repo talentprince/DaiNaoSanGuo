@@ -29,3 +29,7 @@ coverage/
 /audio-source/
 /build-templates/web-mobile/audio/
 /build-templates/wechatgame/audio/
+
+# Cocos source preview audio is generated from the canonical audio/ files
+/preview-template/audio/
+/preview-template/build-info.json

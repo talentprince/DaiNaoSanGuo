@@ -415,6 +415,11 @@ export class ProgressStore {
             defenders: [...this.state.defense], wallHeroes: [...this.state.wallHeroes], layout: copy(layout), defenseLayout: copy(this.state.formations.defense) };
         this.state.pending = run; this.save(); return copy(run);
     }
+    switchActivity(mode:ActivityMode,choices:BoatChoice[]=[]):ActivityRun {
+        // Caller confirms the abandoned attempt. Failed destination validation restores the entire snapshot.
+        const before=copy(this.state);this.state.pending=null;
+        try{return this.startActivity(mode,choices);}catch(error){this.state=before;throw error;}
+    }
     abandonActivity(): void { this.state.pending = null; this.save(); }
     settleActivity(id: string, won: boolean, damage = 0,energy?:Record<string,number>): { granted: boolean; daibi: number; points: number; saved: boolean } {
         if (!nonnegative(damage)) throw new Error('伤害记录无效');

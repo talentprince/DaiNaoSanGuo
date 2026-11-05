@@ -1,6 +1,6 @@
 import { WeatherEffects } from './WeatherEffects';
 import { formatAmount } from '../data/GrowthConfig';
-import { Color, Graphics, Node, UIOpacity, Label } from 'cc';
+import { isValid,Color, Graphics, Node, UIOpacity, Label } from 'cc';
 import { makeNode, panel, text } from './BattleUI';
 import type { UnitActor } from './UnitActor';
 
@@ -11,7 +11,14 @@ export class CombatEffects {
     private effects: Effect[] = [];
     private globalNodes: Node[] = [];
     private weather:WeatherEffects;
+    private width = 720;
+    private height = 1104;
     constructor(parent: Node) { this.parent = parent; this.weather=new WeatherEffects(parent); }
+    resize(width: number, height: number): void {
+        this.width = width;
+        this.height = height;
+        this.weather.resize(width, height);
+    }
     update(dt: number): void {
         this.clock+=dt;this.weather.update(dt);
         this.effects = this.effects.filter(effect => {
@@ -19,15 +26,16 @@ export class CombatEffects {
             const progress = 1 - Math.max(0, effect.left) / effect.total;
             effect.frame?.(progress);
             effect.opacity.opacity = Math.round(255 * (1 - progress));
-            if (effect.left <= 0) { effect.node.destroy(); return false; }
+            if (effect.left <= 0) { this.removeNode(effect.node); return false; }
             return true;
         });
     }
-    clear(): void { this.weather.clear(); this.effects.forEach(e => e.node.destroy()); this.effects = []; this.globalNodes = []; }
+    clear(): void { this.weather.clear(); this.effects.forEach(e => this.removeNode(e.node)); this.effects = []; this.globalNodes = []; }
+    private removeNode(node:Node):void{if(isValid(node,true))node.destroy();this.globalNodes=this.globalNodes.filter(old=>old!==node);}
     private add(name: string, x: number, y: number, duration: number, frame?: (p: number) => void): { node: Node; graphics: Graphics } {
         const node = makeNode(name, this.parent, x, y); const opacity = node.addComponent(UIOpacity);
         const graphics = node.addComponent(Graphics);
-        if (this.effects.length > 150) this.effects.shift()?.node.destroy();
+        if (this.effects.length > 150) {const first=this.effects.shift();if(first)this.removeNode(first.node);}
         this.effects.push({ node, opacity, left: duration, total: duration, frame });
         return { node, graphics };
     }
@@ -82,16 +90,16 @@ export class CombatEffects {
         g.fillColor = new Color('#9BE3AA'); g.roundRect(-4, -14, 8, 28, 3); g.fill(); g.roundRect(-14, -4, 28, 8, 3); g.fill();
     }
     skill(source: UnitActor, targets: UnitActor[], friends: UnitActor[], name: string): void {
-        this.globalNodes.forEach(node => node.destroy());
-        this.effects = this.effects.filter(effect => this.globalNodes.indexOf(effect.node) < 0);
+        const old=this.globalNodes;old.forEach(node=>this.removeNode(node));
+        this.effects = this.effects.filter(effect => old.indexOf(effect.node) < 0);
         this.globalNodes = [];
         const tactic = source.unit.tactic || 'cleave';source.attack(targets[0]?.impactPoint.x,targets[0]?.impactPoint.y,true);
         const x = source.impactPoint.x; const y = source.impactPoint.y;
         const color = source.unit.team === 'enemy' ? '#DF9A8A' : tactic === 'heal' || tactic === 'guard' ? '#A5DAB6' : source.unit.heroTier === 4 ? '#F0CD81' : '#BADFD8';
         const fullField = source.unit.kind === 'boss' || source.unit.heroTier === 4 || (tactic === 'heal' && (source.unit.heroTier || 1) >= 3);
         if(fullField&&tactic!=='heal'&&tactic!=='guard')this.weather.cast(source.unit.element==='slash'||!source.unit.element?'wind':source.unit.element);
-        const title = panel(this.parent, 'SkillBanner', 0, 380, 590, 56, '#14263EF2', 12);
-        text(title, 'SkillTitle', `${source.unit.signature?'【专武】':''}${source.unit.name} · ${name}`, 0, 0, 25, '#FFE4A2', 500);
+        const title = panel(this.parent, 'SkillBanner', 0, 380, 390, 56, '#14263EF2', 12);
+        text(title, 'SkillTitle', `${source.unit.signature?'【专武】':''}${source.unit.name} · ${name}`, 0, 0, 23, '#FFE4A2', 360);
         this.globalNodes.push(title);
         const opacity = title.addComponent(UIOpacity); this.effects.push({ node: title, opacity, total: 1.5, left: 1.5 });
         this.ring(x, y, '#E9D18C', 0.55, 70);
@@ -141,7 +149,7 @@ export class CombatEffects {
         const g=effect.graphics;g.strokeColor=new Color(actor.unit.element==='fire'?'#FFD26E':actor.unit.element==='lightning'?'#C4EDFF':'#DBC996');g.lineWidth=8;g.circle(0,0,100);g.circle(0,0,125);g.stroke();for(let i=0;i<8;i++){const a=i*Math.PI/4;g.moveTo(Math.cos(a)*88,Math.sin(a)*88);g.lineTo(Math.cos(a)*140,Math.sin(a)*140);g.stroke();}
     }
     finaleImpact():void{
-        const {graphics:g}=this.add('FinaleImpactFlash',0,0,.5);g.fillColor=new Color('#FFF3C8D0');g.rect(-352,-554,704,1108);g.fill();
+        const {graphics:g}=this.add('FinaleImpactFlash',0,0,.5);g.fillColor=new Color('#FFF3C8D0');g.rect(-this.width / 2, -this.height / 2, this.width, this.height);g.fill();
         let wave:Node;const effect=this.add('FinaleShockwave',0,-50,.95,p=>wave.setScale(1+p*9,1+p*9,1));wave=effect.node;effect.graphics.strokeColor=new Color('#FFF0B2');effect.graphics.lineWidth=10;effect.graphics.circle(0,0,65);effect.graphics.stroke();
     }
     wallBreak(x: number, y: number): void {

@@ -9,7 +9,7 @@ import {AudioDirector} from '../assets/battle/AudioDirector.ts';
 test('主线5波各8个真实小怪，普通2/精英10秘境值，体型位置不越界且单怪血攻预算受控',()=>{
  for(const stage of [1,100,101,999]){const o=createMainlineOptions(stage);assert.ok(o.waves.every(w=>w.length===8));assert.equal(new Set(o.waves[0].map(u=>u.visualId)).size,6);assert.ok(o.waves.flat().every(u=>u.kind==='soldier'&&u.riftValue===(u.elite?10:2)));}
  const options=createMainlineOptions(1);assert.equal(options.waves.length,5);assert.equal(options.waves.flat().filter(u=>u.elite).length,3);const normal=options.waves[1][1],elite=options.waves[1][7];assert.ok(elite.maxHp>normal.maxHp*2&&elite.attack>normal.attack);assert.equal(options.waves.flat().reduce((sum,u)=>sum+u.riftValue,0),104);const wave=options.waves[0];assert.ok(wave.reduce((s,u)=>s+u.maxHp,0)<430*4.1);assert.ok(wave.reduce((s,u)=>s+u.attack,0)<57*3.1);
- for(let i=0;i<8;i++){const p=mobPosition(i);assert.ok(p.scale<.75);assert.ok(p.x-45>0&&p.x+50<352&&p.y>-230&&p.y<220);}
+ for(let i=0;i<8;i++){const p=mobPosition(i);assert.ok(p.scale>=.95&&p.scale<=1.02);assert.ok(mobPosition(i,true).scale>=1.18);assert.ok(p.x-45>0&&p.x+50<352&&p.y>-230&&p.y<220);}
  assert.equal(ENEMY_ARCHETYPES.length,6);
 });
 test('普通与精英不同秘境值，5波左右攒满100且只生成一次首领',()=>{
@@ -29,6 +29,6 @@ test('守城上/下两个阵位与六个门前阵位一一对应实战，城上�
 });
 test('Boss两声提示预留独占时间，不被普攻/暴击/技能截断；菜单切曲停止残余战斗音',()=>{
  let now=0;const channels=[];const a=new AudioDirector(()=>{const c={src:'',loop:false,volume:0,played:0,stopped:0,play(){this.played++},pause(){},stop(){this.stopped++}};channels.push(c);return c},undefined,()=>now);a.scene('mainboss');a.unlock();a.effect('boss-arrive');
- const sounds=()=>channels.slice(1).reduce((s,c)=>s+c.played,0);assert.equal(sounds(),1);now=400;a.effect('critical');a.effect('hit-slash');a.effect('fire');assert.equal(sounds(),1);now=1000;a.effect('fire');assert.equal(sounds(),2);
+ const sounds=()=>channels.slice(1).reduce((s,c)=>s+c.played,0);assert.equal(sounds(),1);now=400;a.effect('critical');a.effect('hit-slash');a.effect('fire');assert.equal(sounds(),1);now=1101;a.effect('fire');assert.equal(sounds(),2);
  const stops=channels.slice(1).reduce((s,c)=>s+c.stopped,0);a.scene('menu');assert.ok(channels.slice(1).reduce((s,c)=>s+c.stopped,0)>stops);const before=sounds();a.effect('hit-magic');a.effect('critical');assert.equal(sounds(),before);assert.equal(channels[0].src,'audio/menu.mp3');
 });
