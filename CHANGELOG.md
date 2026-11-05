@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased design notes
+
+- Propose guaranteed story recruits and starter equipment alongside dungeon-specific rare officers and weapons. Document a high-difficulty prototype with visible drop tables and per-target clear guarantees.
+
 ## 0.15.2 — Character and troop variety
 
 - Give each officer a stable combination of face shape, expression, complexion, and facial details. Share the drawings across portraits and battle models.
