@@ -1,6 +1,7 @@
 import { weaponPresentation } from '../data/WeaponPresentation';
 import { comicHead } from './ComicHead';
 import { heroColor, isFemaleHero } from '../data/HeroIdentity';
+import { enemyUniform } from '../data/EnemyCatalog';
 import { Color, Graphics, Node, UIOpacity, UITransform } from 'cc';
 import type { Label } from 'cc';
 import type { Unit, WeaponKind } from './BattleEngine';
@@ -167,7 +168,9 @@ export class UnitActor {
         const tier = this.unit.kind==='boss'?4:this.unit.heroTier || 1;
         const boss = this.unit.kind === 'boss'; const soldier = this.unit.kind === 'soldier'&&!this.unit.elite;
         const comic:Record<string,string>={guanyu:'#168D63',zhangfei:'#C95332',zhaoyun:'#58A7ED',zhugeliang:'#8054C9',lvbu:'#C73148',caocao:'#4D3E92',zhouyu:'#ED6736',simayi:'#5850A1',huatuo:'#4FB58D',sunce:'#EB972F',diaochan:'#D65C9A'};
-        const armor = new Color(heroColor(id,this.unit.color));
+        const uniform = this.unit.team === 'enemy' && this.unit.kind === 'soldier'
+            ? enemyUniform(id, this.unit.weapon) : undefined;
+        const armor = new Color(uniform?.color || heroColor(id, this.unit.color));
         const ink = new Color('#171B2A');
         const polygon=(g:Graphics,points:number[][],fill:Color)=>{g.fillColor=fill;g.strokeColor=ink;g.lineWidth=5;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
         if(boss){
@@ -188,25 +191,59 @@ export class UnitActor {
         }
         const limb = (name: string, x: number, y: number, leg: boolean): Node => {
             const node = makeNode(name, this.body, x, y); const g = node.addComponent(Graphics);
-            polygon(g,[[-7,3],[8,0],[9,-23],[-9,-25]],leg?new Color('#334058'):armor);
-            polygon(g,[[-9,-19],[9,-20],[17,-31],[-11,-31]],leg?new Color('#1B2034'):new Color('#EDB77D'));return node;
+            polygon(g,[[-7,3],[8,0],[9,-23],[-9,-25]],leg ? new Color(uniform?.lining || '#334058') : armor);
+            polygon(g,[[-9,-19],[9,-20],[17,-31],[-11,-31]],leg ? new Color('#1B2034') : new Color(uniform?.trim || '#EDB77D'));return node;
         };
         this.leftLeg = limb('LeftLeg', -10, -13, true); this.rightLeg = limb('RightLeg', 10, -13, true);
         this.torso = makeNode('ArmoredTorso', this.body); const g = this.torso.addComponent(Graphics);
         polygon(g,[[-26,29],[-35,13],[-22,-10],[-20,-28],[21,-28],[23,-9],[35,13],[26,29]],armor);
-        polygon(g,[[-19,20],[0,27],[20,19],[14,-12],[0,-21],[-14,-12]],new Color(this.rear?'#34466B':tier===4?'#522D48':'#314466'));
-        g.strokeColor=new Color('#F2CF78');g.lineWidth=3;
-        [-4,6,16].forEach(y=>{g.moveTo(-13,y);g.lineTo(0,y-5);g.lineTo(13,y);g.stroke();});
-        polygon(g,[[-25,-17],[25,-17],[22,-28],[-22,-28]],new Color('#E7B448'));
-        g.fillColor=new Color('#FFE6A7');g.circle(0,-22,5);g.fill();
+        polygon(g, [[-19, 20], [0, 27], [20, 19], [14, -12], [0, -21], [-14, -12]],
+            new Color(uniform?.lining || (this.rear ? '#34466B' : tier === 4 ? '#522D48' : '#314466')));
+        const trim = new Color(uniform?.trim || '#F2CF78');
+        if (!uniform || uniform.style === 'plates') {
+            g.strokeColor = trim;
+            g.lineWidth = 3;
+            for (const y of [-4, 6, 16]) {
+                g.moveTo(-13, y); g.lineTo(0, y - 5); g.lineTo(13, y); g.stroke();
+            }
+            if (uniform) {
+                polygon(g, [[-32, 22], [-22, 25], [-17, 9], [-30, 5]], trim);
+                polygon(g, [[32, 22], [22, 25], [17, 9], [30, 5]], trim);
+            }
+        } else if (uniform.style === 'coat') {
+            polygon(g, [[-17, 21], [3, 28], [5, -26], [-20, -35], [-22, -8]], armor);
+            g.strokeColor = trim;
+            g.lineWidth = 3;
+            g.moveTo(2, 24); g.lineTo(2, -14);
+            g.moveTo(-21, -25); g.lineTo(21, -25); g.stroke();
+        } else if (uniform.style === 'straps') {
+            polygon(g, [[-24, 21], [-17, 27], [20, -8], [17, -16]], trim);
+            polygon(g, [[20, 23], [26, 16], [-17, -14], [-22, -8]], new Color(uniform.belt));
+        } else if (uniform.style === 'fur') {
+            polygon(g, [[-37, 20], [-26, 31], [-13, 26], [-2, 17], [12, 24], [27, 31],
+                [39, 17], [33, 7], [23, 13], [15, 7], [5, 12], [-4, 4], [-15, 11], [-25, 5]], trim);
+        } else if (uniform.style === 'robe') {
+            polygon(g, [[-17, 24], [-4, 19], [9, -28], [-19, -33], [-18, -4]], armor);
+            g.strokeColor = trim;
+            g.lineWidth = 3;
+            g.moveTo(-5, 18); g.lineTo(10, -18);
+            g.moveTo(13, 16); g.lineTo(2, -12); g.stroke();
+        } else {
+            polygon(g, [[-23, 25], [-12, 28], [23, -9], [16, -17]], trim);
+            polygon(g, [[14, -18], [23, -15], [35, -34], [16, -28]], armor);
+        }
+        polygon(g, [[-25, -17], [25, -17], [22, -28], [-22, -28]],
+            new Color(this.unit.elite ? '#E7B448' : uniform?.belt || '#E7B448'));
+        g.fillColor = uniform && !this.unit.elite ? trim : new Color('#FFE6A7');
+        g.circle(0, -22, uniform ? 4 : 5); g.fill();
         if(!soldier){
-            const shoulder=tier>=3?new Color('#E9B94E'):new Color('#899DB4');
+            const shoulder = uniform ? trim : new Color(tier >= 3 ? '#E9B94E' : '#899DB4');
             polygon(g,[[-18,25],[-32,35],[-45,23],[-41,7],[-23,12]],shoulder);
             polygon(g,[[18,25],[32,35],[45,23],[41,7],[23,12]],shoulder);
             if(tier>=3){polygon(g,[[-34,33],[-41,47],[-45,23]],shoulder);polygon(g,[[34,33],[41,47],[45,23]],shoulder);}
         }
         this.leftArm = limb('LeftArm', -25, 19, false); this.rightArm = limb('RightArm', 25, 19, false);
-        if (['caohong', 'chengpu', 'huanggai', 'zhoucang'].indexOf(id) >= 0 || (soldier && this.weapon === 'sword')) {
+        if (['caohong', 'chengpu', 'huanggai', 'zhoucang'].indexOf(id) >= 0 || uniform?.style === 'plates' || (soldier && this.weapon === 'sword')) {
             const shield = makeNode('Shield', this.leftArm, -2, -17).addComponent(Graphics);
             shield.fillColor = new Color('#4D6774'); shield.roundRect(-12, -16, 24, 32, 9); shield.fill();
             shield.strokeColor = new Color('#D6BC83'); shield.lineWidth = 3; shield.roundRect(-12, -16, 24, 32, 9); shield.stroke();
@@ -214,7 +251,7 @@ export class UnitActor {
         if(id==='world-dongzhuo'){g.fillColor=new Color('#D9A26A');g.ellipse(0,-2,24,24);g.fill();g.strokeColor=new Color('#8B4936');g.lineWidth=3;g.arc(0,0,17,3.5,5.9,false);g.stroke();}
         if(id==='world-zhangjiao'){g.fillColor=new Color('#D6B74E');g.moveTo(0,24);g.lineTo(-18,-22);g.lineTo(18,-22);g.close();g.fill();g.strokeColor=new Color('#574579');g.lineWidth=3;g.moveTo(0,13);g.lineTo(-7,-2);g.lineTo(5,-5);g.lineTo(-2,-20);g.stroke();}
         if(id==='world-menghuo'){g.fillColor=new Color('#E7D6A9');for(let i=0;i<5;i++){g.moveTo(-22+i*11,17);g.lineTo(-18+i*11,5);g.lineTo(-14+i*11,17);g.close();g.fill();}}
-        this.head = comicHead(this.body,id,this.unit.color,tier,this.rear,boss);this.headBase=soldier?1.06:boss?1.2:tier>=3?1.22:1.16;this.head.setScale(this.headBase,this.headBase,1);
+        this.head = comicHead(this.body, id, uniform?.color || this.unit.color, tier, this.rear, boss);this.headBase=soldier?1.06:boss?1.2:tier>=3?1.22:1.16;this.head.setScale(this.headBase,this.headBase,1);
         if(isFemaleHero(id)){this.torso.setScale(.86,1,1);}
         if(boss){this.torso.setScale(id==='world-zhangjiao'?1.08:1.4,id==='world-zhangjiao'?1.3:1.15,1);this.leftArm.setScale(1.25,1.15,1);this.rightArm.setScale(1.25,1.15,1);}
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);

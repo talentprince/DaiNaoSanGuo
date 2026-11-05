@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.2 — Character and troop variety
+
+- Give each officer a stable combination of face shape, expression, complexion, and facial details. Share the drawings across portraits and battle models.
+- Give the six enemy archetypes distinct uniform colors and recognizable armor, wraps, straps, collars, or robes.
+- Record offline progression proposals for personal boss records, task-based recruitment, targeted drops, and local computer opponents. The proposals are separate from the current progression rules.
+
 ## 0.15.1 — Full-screen layout and test audio
 
 - Adapt the wallet and battle layout to the WeChat capsule, notch and bottom gesture area. Keep combat status, version text and skill charge readable over bright maps.

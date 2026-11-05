@@ -2,6 +2,8 @@
 
 A portrait Three Kingdoms auto-battler built with Cocos Creator 3.8.8 and TypeScript. The game includes recruitable officers, formations, equipment, signature weapons, and four battle activities. Play and progression run locally. The backend in `server/` is a read-only prototype.
 
+Current source: **0.15.2 (r15e)**. See the changelog for release status.
+
 [中文说明](README.zh-CN.md) · [English changelog](CHANGELOG.md) · [Game specification](SPEC.md)
 
 ## Run the project
