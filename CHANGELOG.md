@@ -2,7 +2,7 @@
 
 ## Unreleased design notes
 
-- Propose guaranteed story recruits and starter equipment alongside dungeon-specific rare officers and weapons. Document a high-difficulty prototype with visible drop tables and per-target clear guarantees.
+- Consolidate the single-player direction in one SPEC section. Define chapter maps and difficulty tiers, shared officer and equipment loot, abyss encounters and targeted guarantees, idle replay, and a one-chapter prototype.
 
 ## 0.15.2 — Character and troop variety
 
