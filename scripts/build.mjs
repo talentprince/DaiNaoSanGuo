@@ -23,8 +23,11 @@ mkdirSync(join(root, 'temp'), { recursive: true });
 const log = join(root, 'temp', `build-${platform}.log`);
 const handle = openSync(log, 'w');
 console.log(`正在构建 ${platform}；请先保存并关闭同一工程的编辑器。日志：${log}`);
+const localWeChatConfig = join(root, 'build-configs', 'wechatgame.local.json');
+const configPath = platform === 'wechatgame' && existsSync(localWeChatConfig)
+    ? localWeChatConfig : join(root, 'build-configs', `${platform}.json`);
 const result = spawnSync(executable, ['--project', root, '--build',
-    `configPath=${join(root, 'build-configs', `${platform}.json`)}`], { cwd: root, stdio: ['ignore', handle, handle] });
+    `configPath=${configPath}`], { cwd: root, stdio: ['ignore', handle, handle] });
 closeSync(handle);
 if (result.error) console.error(result.error.message);
 // Creator 官方规定 36 表示构建成功，32/34 为构建失败。

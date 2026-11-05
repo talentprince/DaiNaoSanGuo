@@ -1,55 +1,28 @@
-# 呆脑三国 · Demo 0.15.1 · r15d
+# DaiNaoSanGuo (呆脑三国)
 
-44武将（8女将）、7羁绊、999主线数值关卡/10个百关视觉主题、四副本本地原型；三槽装备/本人专武、1–6星、脑勋兑换、每天最多4h挂机经验。
+A portrait Three Kingdoms auto-battler built with Cocos Creator 3.8.8 and TypeScript. The game includes recruitable officers, formations, equipment, signature weapons, and four battle activities. Play and progression run locally. The backend in `server/` is a read-only prototype.
 
-英文版本变更见 [Changelog](CHANGELOG.md)。当前规则、已完成与待Review事项统一见[SPEC](SPEC.md)；本轮逐项问题和修复见[检查记录](docs/SPEC_AUDIT_0.15.md)。0.15.1 r15d 已同步源码并上传微信开发版本。2026-11-01用户确认0.12手机进入、黑边/钱包遮挡、Boss比例、红警消退与多场景音乐均正常，0.11手机启动/音乐与0.11.1补给已由用户确认。
+[中文说明](README.zh-CN.md) · [English changelog](CHANGELOG.md) · [Game specification](SPEC.md)
 
-## 当前版本与调试顺序
+## Run the project
 
-画面底部/大厅与浏览器标题都显示当前版本、修订号及运行环境。**源码调试看http://localhost:7456/**，http://127.0.0.1:8765/为打包版，微信为构建版；本次源码为 0.15.1 r15d，微信开发版本为 0.15.1 r15d，Web 打包版为 0.15.0 r15c，存档按origin/设备独立。Cocos曾加载旧编译缓存，刷新网页不一定更新模块；看不到新版本时保存重开同工程并再次刷新，不能凭浏览器时间猜版本。
-
-先运行`npm run preview:prepare`复制源audio到官方preview-template，避免源码预览404无声；此目录不加入正式主包。初次克隆或更新音乐后也要同步。双端构建自动执行该同步。每包build-info.json记录版本/源码资源指纹，微信预检与源码不同即拒绝把旧包当最新。
-
-## 试玩与入口
-
-- 独立Web：http://127.0.0.1:8765/；Creator预览：http://localhost:7456/（编辑器开启时）。不同origin存档不互通，同origin建议只开一个游戏页。
-- 主线约5波、每波8怪，普通怪2/精英10秘境值，6种造型；行军遇敌→停步交战→再走，100进度两声电子警报和暗红提示后接近Boss；每100关固定一个连续漫画主题，跨关镜头延续。
-- 右侧副本进入城门演练、三周轮换个人世界Boss、三将3v5、草船借宝；等比例城池随横向镜头入画，两位城上守将沿上下排布，Boss巨体/三种弱点，30秒锁分后终结演出。
-- 主线右侧“专武”、行装“专武兑换”或武将详情“获取专武”，预览700脑勋本人专武并兑换穿戴；普装不改变持有兵器，专武改变造型且刃部发光。
-- 武将详情“碎片/脑力来源”可直接去招募：重复同将20碎片，副本通用脑力每日合计20；旧将魂只改名脑力。
-- 副本左上“推图”和大厅底部“主线推图”随时回主线，未完副本仍保留可继续，不退次数/不发奖。副本始终显示对称2×2背景卡，切换前说明成本；目标校验失败保留原挑战。
-- 底部群英/招募/名将坊及折叠菜单悬浮于战场；成长领取经验/升级，行装点击或拖动穿脱，布阵可自动/拖动，刀枪弓自由混编。
-- 非小兵左侧满能且可释放才闪，可预约接战释放；自动逐将轮转0.55秒，设置分档保存；击杀主要回能，主线/三将分别继承通关余能。
-- 本机和微信内测默认关闭背景音乐，保留打击、技能和 Boss 警报。右侧音乐图标打开声音设置，用户选择会保存。
-
-本机/微信devtools独立全44将Lv300/6星测试档（132件配装）；右上测试台可调地图/等级/星级、充能、三Boss预览。手机/远程默认独立内测补给档：脑铢1000万、呆币/脑勋各100万、脑力10万、经验1亿，只赠一次；原常规档不覆盖。测试资源不进入未来云端，公开构建须切standard并禁用测试入口。
-
-## 开发
-
-工程~/Workspace/DaiNaoSanGuo，Creator3.8.8；Node>=22.18，无需npm install。Battle.scene与组件UUID保持，UI运行时生成。
+Install Cocos Creator 3.8.8 and Node.js 22.18 or newer. Run `npm run preview:prepare`, open this directory in Creator, and preview `assets/Battle.scene`. The preview uses a portrait frame. The development and experience profiles start with background music off.
 
 ```sh
 npm test
 npm run typecheck
-npm run balance
-```
-
-关闭同工程Creator后再构建：
-
-```sh
 npm run build:web
 npm run build:wechat
-npm run check:wechat
 ```
 
-输出build/web-mobile与build/wechatgame，Creator成功码36由脚本转0；可用COCOS_CREATOR_PATH指定安装路径。音频由scripts/compose-audio.py（numpy/ffmpeg）生成已提交MP3，常规构建无需重新合成。微信脚本自动准备audio模板并写独立分包入口。
+Creator generates the type declarations on first open. Close the project editor before running the build commands.
 
-自有AppID wx6ac3f5090a6b99c5；开发工具使用build/wechatgame-owned同构建副本，排除project.private.config.json和账号状态。0.15.1 的 181 项测试和严格类型已通过，微信构建及上传已通过。详见[报告](docs/BUILD_REPORT.md)。
+The tracked WeChat build config uses the official test AppID. To build for your own account, copy `build-configs/wechatgame.json` to `build-configs/wechatgame.local.json` and replace the AppID there. The local file is ignored. Run `npm run check:wechat` before using the WeChat developer tools to upload. Uploading requires access to your own account.
 
-## 后续
+## Project assets
 
-人物仍为分部件漫画原型，999关并非999份独立剧情；真机操作/低端性能、常规档7/14天节奏、独立武将与专武机制仍需完善。真实攻守/全服榜单、云档/可信结算未完成。RuntimeConfig默认local，cloud未接入时拒绝回落本地发可信奖励。
+The four battle backgrounds were generated for this game. The music and effects are synthesized by `scripts/compose-audio.py`. The Cocos editor and engine are separate dependencies with their own terms. Account-specific build settings, previous preview QR codes, and branding exports are kept outside this repository.
 
-`npm run backend:dev`启动127.0.0.1:8787只读配置原型；客户端尚未请求应用，不影响离线游戏。见[后端计划](docs/BACKEND_PLAN.md)。
+## License
 
-[微信内测](docs/WECHAT_TESTING.md) · [当前经济](docs/ECONOMY_0.15.md) · [数值](docs/BALANCE_0.15.md) · [44将](docs/ROSTER_0.10.md) · [音频](docs/AUDIO_0.15.md) · [架构](docs/ARCHITECTURE.md) · [任务](docs/TASKS.md)。
+Project source code is available under the [MIT License](LICENSE). The game artwork, music, and sound recordings remain under their original copyright. See [Asset rights](ASSET_RIGHTS.md) for the scope.

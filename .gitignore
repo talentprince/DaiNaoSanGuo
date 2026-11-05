@@ -33,3 +33,7 @@ coverage/
 # Cocos source preview audio is generated from the canonical audio/ files
 /preview-template/audio/
 /preview-template/build-info.json
+
+# Local WeChat account configuration
+/build-configs/wechatgame.local.json
+/project.private.config.json
