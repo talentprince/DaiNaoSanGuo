@@ -2,7 +2,7 @@
 
 ## Unreleased design notes
 
-- Consolidate the single-player direction in one SPEC section. Define chapter maps and difficulty tiers, shared officer and equipment loot, abyss encounters and targeted guarantees, idle replay, and a one-chapter prototype.
+- Consolidate the single-player direction in one SPEC section. Define the ten-chapter map plan, three difficulty tiers, chapter treasure encounters, and two-day material rotations. Keep equipment growth, original player-facing terminology, idle replay, and the first playable chapter in the same design.
 
 ## 0.15.2 — Character and troop variety
 
