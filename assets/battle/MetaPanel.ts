@@ -36,7 +36,7 @@ export class MetaPanel {
         button(this.node, 'PagePrev', '上一页', -230, -318, 150, 52, '#2A4058', () => turn(-1));
         text(this.node, 'PageCount', `${this.page + 1} / ${pages}`, 0, -318, 20, '#91AAC2', 200);
         button(this.node, 'PageNext', '下一页', 230, -318, 150, 52, '#2A4058', () => turn(1));
-        text(this.node, 'CatalogSource', '战图首通与定向掉落可获得随将', 0, -421, 19, '#CBDBBC', 660);
+        text(this.node, 'CatalogSource', '战图首通、战图掉落与赤门掉落可获得随将', 0, -421, 19, '#CBDBBC', 660);
         button(this.node, 'CloseHall', '返回', 0, -554, 560, 64, '#3E5D71', () => { this.node.destroy(); this.onClose(); });
     }
 }

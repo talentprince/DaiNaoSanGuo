@@ -12,11 +12,10 @@ import { TACTIC_NAMES } from './data/HeroCatalog';
 import type { ProgressStore } from './battle/ProgressStore';
 import { viewportLayout } from './data/ViewportLayout';
 import type { MenuCapsule } from './data/ViewportLayout';
-import { EXPERIENCE_MULTIPLIER } from './battle/ExperienceMode';
 import { GameAudio } from './battle/GameAudio';
 import { LocalSession } from './battle/LocalSession';
 import { bondProgress } from './data/BondConfig';
-import { formatAmount } from './data/GrowthConfig';
+import { formatAmount, MAX_LEVEL } from './data/GrowthConfig';
 declare const wx: { getSystemInfoSync?:()=>{brand?:string;platform?:string;windowWidth?:number;screenWidth?:number};getWindowInfo?:()=>{windowWidth:number};getMenuButtonBoundingClientRect?:()=>MenuCapsule };
 import { _decorator, Color, Component, Graphics, Label, Mask, Node, ResolutionPolicy, screen, sys, UIOpacity, UITransform, view } from 'cc';
 import { BattleEngine, isRangedWeapon } from './battle/BattleEngine';
@@ -25,8 +24,8 @@ import { InventoryPanel } from './battle/InventoryPanel';
 import { SkillHud } from './battle/SkillHud';
 import { battlePosition, chapterAllyPosition } from './data/FormationConfig';
 import type { CampaignSection } from './battle/ChapterPanel';
-import { chapterRewardLink, ChapterPanel, showCampaignEnding, showChapterReward } from './battle/ChapterPanel';
-import { CHAPTER_PROTAGONIST_ID, chapterScenery, chapterName, createChapterOptions, DELVE_ROOMS, DIFFICULTIES, isChapterRift, isSideDungeon, nextCampaignMap, SPEED_TONIC } from './data/ChapterConfig';
+import { chapterRewardLink, ChapterPanel, showCampaignEnding, showChapterReward, showPlayGuide } from './battle/ChapterPanel';
+import { CHAPTER_PROTAGONIST_ID, chapterScenery, chapterName, createChapterOptions, DELVE_REVEAL_SECONDS, DELVE_ROOMS, DIFFICULTIES, isChapterRift, isSideDungeon, nextCampaignMap, SPEED_TONIC, usesDelveRooms, WORKSHOPS, workshopIndex } from './data/ChapterConfig';
 import type { ChapterRun } from './data/ChapterConfig';
 import { MetaPanel } from './battle/MetaPanel';
 import { UnitActor } from './battle/UnitActor';
@@ -35,6 +34,8 @@ import { BattleStage } from './battle/BattleStage';
 import { bar, button, iconButton, makeNode, panel, text } from './battle/BattleUI';
 import type { UIButton } from './battle/BattleUI';
 const { ccclass } = _decorator;
+const DELVE_JAR = { x: 137, y: 25 };
+const FINALE_IMPACT_SECONDS = .22;
 
 /** Scene orchestration only: rules, actors, scenery and effects are separate modules. */
 @ccclass('BattlePreview')
@@ -64,6 +65,7 @@ export class BattlePreview extends Component {
     private meleeLanes = new Map<string, { start: number; contact: number }>();
     private approachDuration = 0;
     private delveRoom = -1;
+    private delveEntrances = new Map<string, { x: number; y: number; delay: number; giant: boolean }>();
     private verticalLanes = new Map<string, { start: number; contact: number }>();
     private marching = false;
     private scenery: BattleStage | null = null;
@@ -85,7 +87,7 @@ export class BattlePreview extends Component {
     private activeChapter: ChapterRun | null = null;
     private chapterRepeats = 0;
     private autoNext = 0;
-    private screenShake=0;
+    private finaleImpactTime = 0;
     private nextLabel: Label | null = null;
 
     start(): void {
@@ -104,7 +106,7 @@ export class BattlePreview extends Component {
         const caption = this.caption = buildCaption(PREVIEW, native);
         setBrowserBuildTitle(typeof document === 'undefined' ? undefined : document, caption, native);
         console.info('[Build]', caption);
-        this.audio = new GameAudio(this.localAllowed || this.session.experienceMode);
+        this.audio = new GameAudio(this.localAllowed, this.session.experienceMode);
         this.fullBackground=makeNode('EdgeToEdgeBackground',this.node).addComponent(Graphics);
         this.root = makeNode('BattleDemo', this.node);
         this.topHUD=makeNode('TopHUD',this.root);this.bottomHUD=makeNode('BottomHUD',this.root);
@@ -256,7 +258,11 @@ export class BattlePreview extends Component {
                 }
             }
         }
-        if(!this.engine.paused){this.screenShake=Math.max(0,this.screenShake-frame);this.field.setPosition(this.screenShake>0?Math.sin(this.engine.elapsed*50+this.screenShake*70)*8:0,this.fieldCenter+(this.screenShake>0?Math.cos(this.screenShake*65)*5:0),0);}
+        if (!this.engine.paused && this.finaleImpactTime > 0) {
+            this.finaleImpactTime = Math.max(0, this.finaleImpactTime - frame);
+            const recoil = this.finaleImpactTime > 0 ? Math.sin(Math.PI * this.finaleImpactTime / FINALE_IMPACT_SECONDS) : 0;
+            this.field.setPosition(recoil * 5, this.fieldCenter - recoil * 3, 0);
+        }
         this.skillHud?.update(frame);
         this.refresh();
     }
@@ -276,6 +282,8 @@ export class BattlePreview extends Component {
         this.meleeLanes.clear();
         this.verticalLanes.clear();
         this.delveRoom = -1;
+        this.delveEntrances.clear();
+        this.finaleImpactTime = 0;
         this.engine.autoSkill = this.autoSkill;
         this.controlsOpen = false;
         this.controls.active = false;
@@ -324,7 +332,7 @@ export class BattlePreview extends Component {
         const style = this.stageStyle;
         if (hero) {
             ({ x, y } = chapterAllyPosition(unit.formationSpot!, style === 'rift' ? 'main' : style));
-            scale = unit.id === CHAPTER_PROTAGONIST_ID ? 1.2 : unit.kind === 'soldier' ? .9 : unit.heroTier === 4 ? 1.28 : unit.heroTier === 3 ? 1.18 : 1.06;
+            scale = unit.id === CHAPTER_PROTAGONIST_ID ? 1.2 : unit.kind === 'soldier' ? .9 : unit.heroTier === 5 ? 1.28 : (unit.heroTier ?? 1) >= 3 ? 1.18 : 1.06;
         }
         let parent = hero ? this.units : this.enemyUnits;
         let fromX = hero ? x - 90 : x;
@@ -333,7 +341,7 @@ export class BattlePreview extends Component {
         const jar = unit.visualId === 'delve-jar';
         if (style === 'boss') {
             const layout = worldBossPresentation(this.fieldHeight, unit.visualId);
-            if (hero) scale = unit.kind === 'soldier' ? layout.soldierScale : unit.heroTier === 4 ? layout.divineScale : layout.heroScale;
+            if (hero) scale = unit.kind === 'soldier' ? layout.soldierScale : unit.heroTier === 5 ? layout.divineScale : layout.heroScale;
             else { x = 0; y = layout.y; scale = layout.scale; }
             fromX = x;
         } else if (style === 'city' && !hero) {
@@ -361,7 +369,7 @@ export class BattlePreview extends Component {
             fromX = x;
             fromY = y + (hero ? -90 : 77);
         } else if (jar) {
-            x = 137; y = 25; fromX = x;
+            ({ x, y } = DELVE_JAR); fromX = x;
         } else if (!hero && unit.kind === 'boss') {
             x = 185; y = 55; fromX = x; scale = 1.95;
             if (this.delveRoom === 4) {
@@ -378,11 +386,19 @@ export class BattlePreview extends Component {
         }
         const ranged = isRangedWeapon(unit.weapon);
         if (ranged) fromX = x;
+        const emerging = this.delveRoom === 4 && !hero;
+        if (emerging) {
+            const giant = unit.kind === 'boss';
+            if (!giant && !ranged) x = meleeContactX(false, false, x);
+            this.delveEntrances.set(unit.id, { x, y, delay: index * .055, giant });
+            fromX = DELVE_JAR.x;
+            fromY = DELVE_JAR.y;
+        }
         const actor = new UnitActor(parent, unit, x, y, fromX, fromY ?? y, scale, hero ? 1 : -1,
             (style === 'boss' || stairs) && hero, style === 'boss' || stairs || (style === 'city' && !hero));
         if (stairs) {
             this.verticalLanes.set(unit.id, { start: fromY ?? y, contact: y + (ranged ? 0 : hero ? 58 : -47) });
-        } else if (style !== 'boss' && !ranged && !(this.delveRoom === 4 && !hero && unit.kind === 'boss') && unit.kind !== 'wall' && !unit.onWall) {
+        } else if (style !== 'boss' && !ranged && !emerging && unit.kind !== 'wall' && !unit.onWall) {
             const contact = meleeContactX(style === 'city', hero, x) + (unit.kind === 'boss' ? 24 : 0);
             this.meleeLanes.set(unit.id, { start: fromX, contact });
         }
@@ -429,8 +445,9 @@ export class BattlePreview extends Component {
             this.fortress.getComponent(UIOpacity)!.opacity = camera.opacity;
         }
         const stairs = this.delveRoom === 1;
-        this.enemyUnits.setPosition(stairs ? 0 : camera?.offset ?? presentation.enemyX, 0, 0);
-        this.enemyUnits.active = presentation.enemyVisible;
+        const altar = this.delveRoom === 4;
+        this.enemyUnits.setPosition(stairs || altar ? 0 : camera?.offset ?? presentation.enemyX, 0, 0);
+        this.enemyUnits.active = altar || presentation.enemyVisible;
         if (stairs && warning <= 0) this.verticalLanes.forEach((lane, id) => {
             const actor = this.actors.get(id);
             if (actor && actor.unit.hp > 0) actor.placeOnLane(actor.node.position.x, approachX(lane.start, lane.contact, remaining, this.approachDuration));
@@ -443,27 +460,48 @@ export class BattlePreview extends Component {
                 actor.placeOnLane(approachX(lane.start, lane.contact, remaining, this.approachDuration), y);
             }
         });
-        this.moveThroughDelveGate();
+        this.moveThroughDelvePortal();
+        if (altar) this.animateDelveEntrances(warning);
     }
 
-    private moveThroughDelveGate(): void {
-        const progress = this.engine.transitionProgress;
-        if (this.delveRoom < 0 || this.delveRoom >= 3 || !this.engine.transitioning) return;
+    private moveThroughDelvePortal(): void {
+        if (!this.scenery || this.delveRoom < 0 || this.delveRoom >= 3 || !this.engine.transitioning) return;
         const stairs = this.delveRoom === 1;
-        this.scenery?.openDelveGate();
+        this.scenery.openDelvePortal();
+        this.statusLine.string = '清场完成 · 传送圈开启';
+        const portal = this.scenery.delvePortalPosition;
+        const progress = Math.max(0, (this.engine.transitionProgress - .12) / .88);
         this.engine.heroes.filter(unit => unit.hp > 0).forEach(unit => {
             const actor = this.actors.get(unit.id)!;
             const seat = chapterAllyPosition(unit.formationSpot!, 'main');
             const fromX = stairs ? (Number(unit.formationSpot![1]) - 1) * 152 : this.meleeLanes.get(unit.id)?.contact ?? seat.x;
             const fromY = stairs ? this.verticalLanes.get(unit.id)!.contact : seat.y;
-            const x = stairs ? fromX * (1 - progress * .72) : fromX + (276 - fromX) * progress;
-            const y = stairs ? fromY + (271 - fromY) * progress : fromY + (18 - fromY) * progress * .82;
+            const x = fromX + (portal.x - fromX) * progress;
+            const y = fromY + (portal.y - fromY) * progress;
             actor.placeOnLane(x, y);
         });
     }
 
+    private animateDelveEntrances(warning: number): void {
+        const elapsed = DELVE_REVEAL_SECONDS - warning;
+        this.delveEntrances.forEach((landing, id) => {
+            const actor = this.actors.get(id)!;
+            const t = Math.max(0, Math.min(1, (elapsed - landing.delay) / .72));
+            actor.node.active = elapsed >= landing.delay;
+            const arc = 4 * t * (1 - t) * (landing.giant ? 126 : 83);
+            actor.placeOnLane(DELVE_JAR.x + (landing.x - DELVE_JAR.x) * t, DELVE_JAR.y + (landing.y - DELVE_JAR.y) * t + arc);
+            const scale = .48 + .52 * t;
+            actor.node.setScale(scale, scale, 1);
+            if (t === 1) {
+                this.delveEntrances.delete(id);
+                this.fx.delveLanding(landing.x, landing.y - (landing.giant ? 70 : 43), landing.giant);
+                if (landing.giant && landing.delay === 0) this.audio.effect('impact');
+            }
+        });
+    }
+
     private showEnemyWave(): void {
-        if (this.activeChapter?.targetHero && isChapterRift(this.activeChapter.map) && this.delveRoom !== this.engine.waveIndex) {
+        if (this.activeChapter && usesDelveRooms(this.activeChapter) && this.delveRoom !== this.engine.waveIndex) {
             this.delveRoom = this.engine.waveIndex;
             this.actors.forEach(actor => { actor.node.removeFromParent(); actor.node.destroy(); });
             this.actors.clear();
@@ -506,15 +544,16 @@ export class BattlePreview extends Component {
                 : this.stageStyle === 'city' ? '向右行军 · 攻破城门' : `遭遇第${event.wave}队敌兵 · 近战迎上，远程留在后排`;
         } else if (event.type === 'boss') {
             this.showEnemyWave();
-            this.warning.show(1.25);this.syncMusic();this.audio.effect('boss-arrive');
-            this.statusLine.string = this.delveRoom === 4 ? '封坛碎裂！巨将与随卫冲出' : '首领来袭！预警后继续行军接战';
+            if (this.delveRoom !== 4) this.warning.show(1.25);
+            this.syncMusic();this.audio.effect('boss-arrive');
+            this.statusLine.string = this.delveRoom === 4 ? '封坛碎裂！巨将与随卫跃出' : '首领来袭！预警后继续行军接战';
         }
         else if (event.type === 'attack' && event.source && event.target) {
             const source = this.actors.get(event.source); const target = this.actors.get(event.target);
             if (source && target) { this.fx.attack(source, target); this.audio.hit(source.weapon); }
         } else if ((event.type === 'damage' || event.type === 'heal') && event.target) {
             const actor = this.actors.get(event.target);
-            if (actor) { this.fx.number(actor, event.amount || 0, event.type === 'heal', !!event.critical); if (event.type === 'damage') {actor.hurt(!!event.critical);this.fx.impact(actor,!!event.critical);if(event.critical){this.visualStop=.045;this.screenShake=Math.max(this.screenShake,.14);}} }
+            if (actor) { this.fx.number(actor, event.amount || 0, event.type === 'heal', !!event.critical); if (event.type === 'damage') {actor.hurt(!!event.critical);this.fx.impact(actor,!!event.critical);if(event.critical)this.visualStop=.045;} }
         } else if (event.type === 'buff' && event.target) {
             const actor = this.actors.get(event.target); if (actor) this.fx.status(actor, event.buff === 'attack' ? '战意+20%' : `护盾+${formatAmount(event.amount||0)}`, '#ADE0D8');
         } else if(event.type==='debuff'&&event.target){const actor=this.actors.get(event.target);if(actor)this.fx.status(actor,event.buff==='slow'?'冰缓−25%':event.buff==='burn'?'灼烧4秒':'中毒·抑疗','#B6C8F5');
@@ -525,12 +564,12 @@ export class BattlePreview extends Component {
             const wall = this.actors.get(event.target || '');
             if (wall) {
                 wall.breakWall();
+                if (wall.unit.visualId === 'delve-jar') {
+                    this.fx.sealBurst(wall.impactPoint.x, wall.impactPoint.y);
+                    this.statusLine.string = '封坛已破 · 巨将即将现身';
+                    return;
+                }
                 this.fx.wallBreak(wall.impactPoint.x, wall.impactPoint.y);
-            }
-            if (wall?.unit.visualId === 'delve-jar') {
-                this.statusLine.string = '封坛已破 · 巨将即将现身';
-                this.screenShake = .32;
-                return;
             }
             const ground = this.engine.enemies.filter(unit => unit.kind !== 'wall' && !unit.onWall).length;
             let next = ground;
@@ -550,7 +589,7 @@ export class BattlePreview extends Component {
                 const targets: UnitActor[] = []; const friends: UnitActor[] = [];
                 this.actors.forEach(actor => { if (actor.unit.team === source.unit.team) { if (source.unit.tactic !== 'heal' || event.targets?.indexOf(actor.unit.id) !== -1) friends.push(actor); } else if (event.targets?.indexOf(actor.unit.id) !== -1) targets.push(actor); });
                 targets.sort((a, b) => (event.targets || []).indexOf(a.unit.id) - (event.targets || []).indexOf(b.unit.id));
-                this.audio.effect(source.unit.element||'slash');if(source.unit.tactic!=='heal'){this.visualStop=.055;this.screenShake=Math.max(this.screenShake,.1);}
+                this.audio.effect(source.unit.element||'slash');if(source.unit.tactic!=='heal')this.visualStop=.055;
                 this.fx.skill(source, targets, friends, name); this.statusLine.string = `${source.unit.name} · ${name}！`;
             }
         } else if (event.type === 'finale' && event.source) {
@@ -562,7 +601,7 @@ export class BattlePreview extends Component {
             }
         } else if (event.type === 'finale-impact') {
             this.audio.effect('impact');
-            this.screenShake = .7;
+            this.finaleImpactTime = FINALE_IMPACT_SECONDS;
             this.fx.finaleImpact();
         } else if (event.type === 'finish' && this.activeChapter && !this.resultShown) {
             this.resultShown = true;
@@ -578,7 +617,7 @@ export class BattlePreview extends Component {
         if (!run) return;
         this.title.string = run.map === 'workshop' || isChapterRift(run.map) || isSideDungeon(run.map) ? chapterName(run) : `${chapterName(run)} · ${DIFFICULTIES[run.difficulty]}`;
         const progress = this.store.progress;
-        this.wallet.string = `主公 Lv.${progress.heroLevel}     脑铢 ${formatAmount(progress.coins)}     脑力 ${formatAmount(progress.souls)}`;
+        this.wallet.string = `主公 Lv.${progress.heroLevel}     脑铢 ${formatAmount(progress.coins)}`;
         this.modeBadge.label.string = this.developer ? '测试' : this.session.experienceMode ? '内测' : '单机';
         const bonds = bondProgress(this.engine.heroes.filter(u => u.kind === 'hero').map(u => u.visualId || u.id)).filter(b => b.active);
         this.bondsBadge.label.string = `同阵羁绊 · ${bonds.length}`;
@@ -606,9 +645,16 @@ export class BattlePreview extends Component {
         } else if (this.delveRoom >= 0) {
             this.overview.string = `${this.delveRoom + 1}/${DELVE_ROOMS.length} · ${DELVE_ROOMS[this.delveRoom]}`;
             bar(this.overviewBar, (this.delveRoom + 1) / DELVE_ROOMS.length, 690, 10, '#EC936B');
+        } else if (run.map === 'workshop') {
+            const work = WORKSHOPS[workshopIndex(run.window!)];
+            const timeLeft = Math.max(0, work.time - this.engine.elapsed);
+            const wave = this.engine.waveCount > 1 ? ` · ${this.engine.waveIndex + 1}/${this.engine.waveCount}批` : '';
+            const objective = guard === 'break' && !escorts ? '护阵已破 · 督军额外受伤25%' : work.goal;
+            this.overview.string = `${objective}${wave} · 剩余${Math.ceil(timeLeft)}秒`;
+            bar(this.overviewBar, timeLeft / work.time, 690, 10, '#D8BC75');
         } else {
             if (!this.engine.bossActive) {
-                const wave = run.monsterWaves ? `第${this.engine.waveIndex + 1}/${run.monsterWaves + 1}波 · ` : '';
+                const wave = isChapterRift(run.map) ? '' : `第${this.engine.waveIndex + 1}波 · `;
                 this.overview.string = `${wave}破阵进度 ${this.engine.riftEnergy}/${goal} · 满进度见首领`;
             }
             else if (escorts) this.overview.string = `首领受护 · 精卫剩${escorts}名 · 减伤65%`;
@@ -669,7 +715,7 @@ export class BattlePreview extends Component {
             return;
         }
         try {
-            const next = this.store.startChapter(run.map, run.difficulty, run.target, run.targetHero);
+            const next = this.store.startChapter(run.map, run.difficulty, !!run.extraRolls);
             this.chapterRepeats = Math.max(0, count - 1);
             this.begin(next);
         } catch (error) {
@@ -686,25 +732,45 @@ export class BattlePreview extends Component {
         this.modal = panel(this.root, 'ChapterResult', 0, 45, 622, 500, '#15253A', 22);
         text(this.modal, 'ChapterResultTitle', scored ? '魔 王 战 报' : won ? '战 图 告 捷' : '收 兵 整 队', 0, 172, 37, won ? '#F1CD89' : '#E6AB97', 580);
         const report = scored ? `本场伤害 ${formatAmount(score)}` : chapterName(run);
-        text(this.modal, 'ChapterResultMap', `${report} · ${this.engine.elapsed.toFixed(1)}秒 · 敌军出手 ${this.engine.enemyAttackCount}次`, 0, 121, 22, '#B3C8D8', 580);
+        text(this.modal, 'ChapterResultMap', `${report}${run.extraRolls ? ' · 五倍结算' : ''} · ${this.engine.elapsed.toFixed(1)}秒 · 敌军出手 ${this.engine.enemyAttackCount}次`, 0, 121, 22, '#B3C8D8', 580);
         const result = this.modal;
         const previews = reward.previews ?? [];
         const previewRows = new Set(previews.map(entry => entry.index));
-        const visible = reward.lines.map((_, index) => index).filter(index => !previewRows.has(index)).slice(0, 4 - previews.length)
-            .concat(previews.map(entry => entry.index));
-        visible.forEach((index, row) => {
-            const line = reward.lines[index];
-            const preview = previews.find(entry => entry.index === index);
-            const y = 88 - row * 30;
-            if (preview) chapterRewardLink(result, `ChapterReward-${index}`, preview.detail, 0, y, 19, () => {
-                const wasPaused = this.engine.paused;
-                this.engine.paused = true;
-                showChapterReward(this.root, this.store, preview.detail, `${chapterName(run)} · 本场战利品`, () => {
-                    this.engine.paused = wasPaused;
-                });
-            }, line);
-            else text(result, `ChapterReward-${index}`, line, 0, y, 21, '#F1D9A2', 570);
-        });
+        const all = reward.lines.map((_, index) => index);
+        const front = all.filter(index => !previewRows.has(index)).slice(0, Math.max(0, 4 - previews.length))
+            .concat(previews.slice(0, 4).map(entry => entry.index));
+        const order = [...front, ...all.filter(index => front.indexOf(index) < 0)];
+        const pages = Math.ceil(order.length / 4);
+        let rewardPage = 0;
+        let rows: Node | undefined;
+        const renderRewards = () => {
+            rows?.removeFromParent();
+            rows?.destroy();
+            const container = rows = makeNode('ChapterRewardRows', result);
+            order.slice(rewardPage * 4, rewardPage * 4 + 4).forEach((index, row) => {
+                const line = reward.lines[index];
+                const preview = previews.find(entry => entry.index === index);
+                const y = 88 - row * 30;
+                if (preview) chapterRewardLink(container, `ChapterReward-${index}`, preview.detail, 0, y, 19, () => {
+                    const wasPaused = this.engine.paused;
+                    this.engine.paused = true;
+                    showChapterReward(this.root, this.store, preview.detail, `${chapterName(run)} · 本场战利品`, () => {
+                        this.engine.paused = wasPaused;
+                    });
+                }, line);
+                else text(container, `ChapterReward-${index}`, line, 0, y, 21, '#F1D9A2', 570);
+            });
+        };
+        if (pages > 1) {
+            const turnPage = (delta: number) => {
+                if (this.autoNext > 0) this.stopChapterRepeat('已暂停连刷 · 查看战利品');
+                rewardPage = (rewardPage + delta + pages) % pages;
+                renderRewards();
+            };
+            button(result, 'PreviousRewardPage', '‹', -251, 171, 55, 43, '#344E65', () => turnPage(-1));
+            button(result, 'NextRewardPage', '›', 251, 171, 55, 43, '#344E65', () => turnPage(1));
+        }
+        renderRewards();
         const waiting = !!this.store.progress.chapter.reserve;
         const ending = reward.storyChapter;
         if (ending !== undefined) this.chapterRepeats = 0;
@@ -717,7 +783,7 @@ export class BattlePreview extends Component {
             text(result, 'ExperienceAward', `经验 +${formatAmount(combat + clear)} · 击杀 ${formatAmount(combat)} / 通关 ${formatAmount(clear)}`, 0, -57, 18, '#C6DEAF', 570);
         }
         this.autoNext = repeat ? 3 : 0;
-        button(this.modal, 'ChapterAgain', !reward.saved ? '重试结算' : repeat ? '停止连刷' : '再战一场', next ? -135 : 0, -112, next ? 255 : 520, 58, '#4C6A56', () => {
+        button(this.modal, 'ChapterAgain', !reward.saved ? '重试结算' : repeat ? '停止连刷' : run.extraRolls ? '再战 · 五倍结算' : '再战一场', next ? -135 : 0, -112, next ? 255 : 520, 58, '#4C6A56', () => {
             if (!reward.saved) { this.showChapterResult(run); return; }
             if (this.autoNext > 0) {
                 this.stopChapterRepeat('连刷已停止');
@@ -799,18 +865,11 @@ export class BattlePreview extends Component {
         if (this.utility || this.hall || this.inventory) return;
         const was = this.engine?.paused;
         if (this.engine) this.engine.paused = true;
-        const popup = this.utility = panel(this.root, 'ExperienceGift', 0, 0, 720, 1280, '#101A2DF8', 0);
-        popup.on(Node.EventType.TOUCH_END, () => {});
-        text(popup, 'GiftTitle', first ? '内测经验加成已开启' : '内测经验加成', 0, 405, 38, '#F0CF8C');
-        text(popup, 'GiftRule', '独立本地体验档', 0, 328, 23, '#AFCBD7');
-        text(popup, 'GiftExperience', `经验 ×${EXPERIENCE_MULTIPLIER}`, 0, 190, 45, '#E9D9AB', 600);
-        text(popup, 'GiftHint', '武将、装备、脑铢与门票均按正常战图规则获取', 0, 72, 22, '#BBCBD4', 640);
-        button(popup, 'GiftContinue', '进入主公营地', 0, -405, 590, 80, '#4E7560', () => {
-            popup.destroy();
+        this.utility = showPlayGuide(this.root, this.store.experienceMultiplier, () => {
             this.utility = null;
             if (this.engine && was !== undefined) this.engine.paused = was;
             if (first) this.openChapter();
-        });
+        }, first);
     }
 
     private openDeveloper(back?: () => void): void {
@@ -827,7 +886,7 @@ export class BattlePreview extends Component {
         const refresh = () => { summary.string = `主公 Lv.${level} · 随将 ${stars}星`; };
         refresh();
         text(popup, 'LevelLabel', '主公等级', 0, 338, 24);
-        [1, 30, 100, 300].forEach((n, i) => button(popup, `TestLevel-${n}`, `Lv.${n}`, (i - 1.5) * 157, 281, 145, 56, '#344D63', () => { level = n; refresh(); }));
+        [1, 30, 100, MAX_LEVEL].forEach((n, i) => button(popup, `TestLevel-${n}`, `Lv.${n}`, (i - 1.5) * 157, 281, 145, 56, '#344D63', () => { level = n; refresh(); }));
         text(popup, 'StarLabel', '全部武将星级', 0, 211, 24);
         [1, 3, 6].forEach((n, i) => button(popup, `TestStars-${n}`, `${n}星`, (i - 1) * 205, 155, 190, 56, '#344D63', () => { stars = n; refresh(); }));
         const dismiss = () => {

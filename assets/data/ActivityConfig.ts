@@ -46,7 +46,7 @@ export function createActivityOptions(run: ActivityRun): BattleOptions {
         color: ['#8D7B54','#677F91','#A46B51','#6D8B68','#8A6395','#AD6652'][index%6],
         visualId:`mob-${ENEMY_ARCHETYPES[index%6].id}`,weapon:ENEMY_ARCHETYPES[index%6].weapon,
     });
-    if (run.mode === 'boss') {const b=run.worldBoss?worldBoss(run.worldBoss):bossRotation(run.day*86400000).boss;return { heroes,waves:[[{...foe(0,`${b.name}·${b.title}`,1e15,Math.round(b.attack*bandFactor),Math.round(b.defense*bandFactor),b.interval),kind:'boss',weapon:b.weapon,color:b.color,element:b.element,visualId:`world-${b.id}`,weakElement:b.weakElement,weakTactic:b.weakTactic,skillName:`${b.name}·魔王威压`}]],seed:35,timeLimit:30,scoreMode:true,bossFinale:{name:b.finale,element:b.element,duration:2.8}};}
+    if (run.mode === 'boss') {const bossFactor=Math.min(bandFactor,levelFactor(run.level)*2);const b=run.worldBoss?worldBoss(run.worldBoss):bossRotation(run.day*86400000).boss;return { heroes,waves:[[{...foe(0,`${b.name}·${b.title}`,1e15,Math.round(b.attack*bossFactor),Math.round(b.defense*bossFactor),b.interval),kind:'boss',weapon:b.weapon,color:b.color,element:b.element,visualId:`world-${b.id}`,weakElement:b.weakElement,weakTactic:b.weakTactic,skillName:`${b.name}·魔王威压`}]],seed:35,timeLimit:30,energyRate:3.7,scoreMode:true,bossFinale:{name:b.finale,element:b.element,duration:2.8}};}
 
     if (run.mode === 'city') {
         // Explicit local training snapshots. Real player matchmaking belongs to the server phase.
@@ -85,6 +85,6 @@ export function acquisition(id: string): string {
     if (id === 'zhaoyun') return '奇阵夺宝·赵云将帖 / 招募 / 2100脑勋任选';
     if (id === 'zhangfei') return '长坂路首通 / 主线第12关首通 / 招募 / 名将坊';
     if (id === 'liaohua') return '小桥口掉落 / 主线第2关首通 / 招募';
-    if (hero.tier === 4) return '招募1% / 2100脑勋任选';
-    return `${hero.storyStage ? `主线第${hero.storyStage}关首通 / ` : ''}招募${hero.tier === 3 ? ' / 1400脑勋任选' : ''}`;
+    if (hero.tier === 5) return '招募1% / 2100脑勋任选';
+    return `${hero.storyStage ? `主线第${hero.storyStage}关首通 / ` : ''}招募${hero.tier === 4 ? ' / 1750脑勋任选' : hero.tier === 3 ? ' / 1400脑勋任选' : ''}`;
 }

@@ -10,7 +10,7 @@ import { BattleEngine } from '../assets/battle/BattleEngine.ts';
 const NOW=Date.UTC(2026,9,31,0);
 function fixture(extra={},rng=()=>0.1){let now=NOW;let value=null;const disk={getItem:()=>value,setItem:(_,v)=>{value=v;}};const p=new ProgressStore(disk,()=>now).progress;value=JSON.stringify({...p,...extra});return{store:new ProgressStore(disk,()=>now,rng),disk,advance:ms=>{now+=ms;},get now(){return now;}};}
 const rich=extra=>fixture({owned:HERO_CATALOG.map(h=>h.id),points:100000,coins:100000,daibi:100000,...extra});
-test('999关/300级数值有限且增长，1000关与301级拒绝',()=>{
+test('旧战斗快照兼容999关与300级，拒绝超出旧上限的参数',()=>{
     for(const stage of [1,50,100,499,999]){const b=createMainlineOptions(stage,1,300);assert.ok(b.waves.flat().every(u=>Number.isSafeInteger(u.maxHp)&&u.maxHp>0));}
     assert.ok(stageFactor(999)>stageFactor(998));assert.ok(levelFactor(300)>levelFactor(299));assert.throws(()=>createMainlineOptions(1000));assert.throws(()=>createMainlineOptions(1,1,301));
 });
@@ -38,7 +38,7 @@ test('推到更高地图不追溯放大过去经验，换图先按旧图结算',
     const f=fixture({highestCleared:1});f.advance(60000);f.store.settleVictory('higher',100);
     assert.equal(f.store.progress.experience,12);f.advance(60000);assert.equal(f.store.claimExperience(),47);assert.equal(f.store.progress.experience,59);
 });
-test('升级同时消费经验铜钱，到300级后不再消费',()=>{
+test('升级同时消费经验铜钱，到150级后不再消费',()=>{
     const f=fixture({coins:1000,experience:xpRequired(1)});assert.equal(f.store.upgradeTeam().upgraded,true);assert.equal(f.store.progress.experience,0);assert.equal(f.store.progress.coins,880);
     const full=fixture({heroLevel:MAX_LEVEL,coins:10000,experience:100000});const before=full.store.progress;assert.equal(full.store.upgradeTeam().upgraded,false);assert.deepEqual(full.store.progress,before);
 });
@@ -54,11 +54,14 @@ test('旧单武器穿戴迁移至weapon格，保留旧脑勋和武将等级',()=
     const item={...createEquipment(4,'legacy'),slot:undefined,appearance:undefined};const f=fixture({equipped:{guanhai:item.id},loadouts:undefined,inventory:[item],points:315,heroLevel:18});
     assert.equal(f.store.progress.loadouts.guanhai.weapon,item.id);assert.equal(f.store.progress.points,315);assert.equal(f.store.progress.heroLevel,18);assert.equal(f.store.progress.experience,0);
 });
-test('专武700脑勋仅兑换一次、仅本人可穿，不能分解',()=>{
+test('专武仅本人可穿且不能重复持有，卸下分解后可以重新获得',()=>{
     const f=rich({points:1400});assert.equal(f.store.redeemSignature('guanyu'),null);assert.equal(f.store.progress.points,700);
     assert.ok(f.store.redeemSignature('guanyu'));assert.equal(f.store.progress.points,700);assert.equal(f.store.equip('zhaoyun','signature-guanyu'),false);
     assert.equal(f.store.equip('guanyu','signature-guanyu'),true);assert.equal(f.store.getEquipmentBonuses().guanyu.signature,'guanyu');
-    assert.ok(f.store.recycleEquipment('signature-guanyu'));f.store.unequip('guanyu');assert.ok(f.store.recycleEquipment('signature-guanyu'));
+    assert.match(f.store.recycleEquipment('signature-guanyu'), /先卸下/);
+    assert.equal(f.store.unequip('guanyu'),true);
+    assert.equal(f.store.recycleEquipment('signature-guanyu'),null);
+    assert.equal(f.store.redeemSignature('guanyu'),null);
 });
 test('专武背包满/未有武将/钱不足均不扣脑勋',()=>{
     const f=fixture({points:700});const before=f.store.progress;assert.ok(f.store.redeemSignature('guanyu'));assert.equal(f.store.progress.points,before.points);
@@ -107,7 +110,7 @@ test('专武与6星增伤生效，名将仍不能突破3目标上限',()=>{
 test('3星蓄能更快，护阵专武提升护盾且不扩充攻击目标',()=>{
     const make=(stars,signature)=>new BattleEngine({heroes:[{...createHeroes(['zhangfei'])[0],stars,signature}],waves:[Array.from({length:5},(_,i)=>({...createHeroes(['guanhai'])[0],id:`foe${i}`,maxHp:100000}))],seed:1});
     const a=make(1,undefined);const b=make(3,'zhangfei');a.autoSkill=false;b.autoSkill=false;a.advance(1);b.advance(1);assert.ok(b.energy>a.energy);
-    a.energy=100;b.energy=100;a.castSkill();b.castSkill();assert.equal(b.heroes[0].shield,Math.floor(b.heroes[0].maxHp*.18));assert.equal(b.enemies.filter(u=>u.hp<u.maxHp).length,3);
+    a.energy=100;b.energy=100;a.castSkill();b.castSkill();assert.equal(b.heroes[0].shield,Math.floor(b.heroes[0].maxHp*.18));assert.equal(b.enemies.filter(u=>u.hp<u.maxHp).length,4);
 });
 test('卡关建议随可领经验、可升级与装备空槽改变，提供可执行下一步',()=>{
     const f=fixture({highestCleared:1,coins:1000});assert.match(f.store.growthAdvice(),/装备槽/);f.advance(60000);assert.match(f.store.growthAdvice(),/领取挂机经验/);

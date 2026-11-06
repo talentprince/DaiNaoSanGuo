@@ -1,6 +1,7 @@
 /** Shared progression knobs. Values are a testable first balance pass, not a retention promise. */
 export const MAX_STAGE = 999;
-export const MAX_LEVEL = 300;
+export const MAX_LEVEL = 150;
+export const LEGACY_MAX_LEVEL = 300;
 export const XP_DAILY_MS = 4 * 3600000;
 export const MEDAL_DAILY_CAP = 100;
 export const SIGNATURE_COST = 700;

@@ -14,10 +14,10 @@ function rich(extra = {}, rng = () => 0.1) {
     return { disk, store: new ProgressStore(disk, () => NOW, rng) };
 }
 
-test('44名武将覆盖四档，初始5普通武将均可战斗，主线第一关可通关', () => {
+test('44名武将覆盖五档，初始5普通武将均可战斗，主线第一关可通关', () => {
     assert.equal(HERO_CATALOG.length, 44);
     assert.equal(new Set(HERO_CATALOG.map(h => h.id)).size, 44);
-    assert.deepEqual([...new Set(HERO_CATALOG.map(h => h.tier))].sort(), [1, 2, 3, 4]);
+    assert.deepEqual([...new Set(HERO_CATALOG.map(h => h.tier))].sort(), [1, 2, 3, 4, 5]);
     const store = new ProgressStore(storage(), () => NOW);
     assert.deepEqual(store.progress.formation, STARTER_PARTY);
     const battle = new BattleEngine(createBattleOptions(1, 42, 1, {}, store.progress.formation));
@@ -58,8 +58,8 @@ test('分次领取保存余数，全天合计不超过十连；时间倒退不�
     now -= DAY_MS; assert.equal(s.claimIdle(), 0);
     now += DAY_MS; assert.equal(s.claimIdle(), 0);
 });
-test('招募概率边界对应60/30/9/1四档，费用准确，重复将转铜钱和碎片', () => {
-    for (const [roll, tier] of [[0, 1], [0.59999, 1], [0.6, 2], [0.89999, 2], [0.9, 3], [0.98999, 3], [0.99, 4]]) {
+test('招募概率边界对应60/30/6.5/2.5/1五档，费用准确，重复将转铜钱和碎片', () => {
+    for (const [roll, tier] of [[0, 1], [0.59999, 1], [0.6, 2], [0.89999, 2], [0.9, 3], [0.96499, 3], [0.965, 4], [0.98999, 4], [0.99, 5]]) {
         let n = 0; const { store } = rich({}, () => n++ % 2 === 0 ? roll : 0);
         const result = store.recruit(1)[0];
         assert.equal(getHero(result.hero).tier, tier);
@@ -74,7 +74,7 @@ test('十连至少骁将，80抽神将保底跨会话累计且提前出神将会
     const reload = new ProgressStore(disk, () => NOW, () => 0.1);
     for (let i = 0; i < 6; i++) reload.recruit(10);
     const last = reload.recruit(10);
-    assert.equal(getHero(last[9].hero).tier, 4); assert.equal(last[9].guaranteed, true);
+    assert.equal(getHero(last[9].hero).tier, 5); assert.equal(last[9].guaranteed, true);
     assert.equal(reload.progress.pity, 0);
     const natural = rich({ pity: 25 }, () => 0.999).store;
     natural.recruit(1); assert.equal(natural.progress.pity, 0);
@@ -85,12 +85,12 @@ test('呆币不足或无效随机源不扣费、不改变阵容与招募状态',
     const bad = rich({}, () => 1).store; const original = bad.progress;
     assert.throws(() => bad.recruit(10)); assert.deepEqual(bad.progress, original);
 });
-test('脑勋兑换可以任选名将神将，已有武将与积分不足不扣积分', () => {
+test('脑勋兑换可以任选名将、传奇与神将，已有武将与积分不足不扣积分', () => {
     const { store, disk } = rich({ owned: [...STARTER_PARTY] });
     assert.equal(store.exchange('lvbu'), null); assert.equal(store.progress.points, 7900);
     assert.ok(store.exchange('lvbu')); assert.equal(store.progress.points, 7900);
-    assert.equal(store.exchange('zhangfei'), null); assert.equal(store.progress.points, 6500);
-    assert.ok(store.exchange('huanggai')); assert.equal(store.progress.points, 6500);
+    assert.equal(store.exchange('zhangfei'), null); assert.equal(store.progress.points, 6150);
+    assert.ok(store.exchange('huanggai')); assert.equal(store.progress.points, 6150);
     assert.ok(new ProgressStore(disk, () => NOW).progress.owned.includes('lvbu'));
     assert.ok(rich({ points: 1, owned: [...STARTER_PARTY] }).store.exchange('zhouyu'));
 });

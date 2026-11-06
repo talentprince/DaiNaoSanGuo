@@ -36,9 +36,8 @@ export function enemyUniform(visualId: string, weapon: WeaponKind = 'sword'): En
     if (weapon === 'dual') return UNIFORMS.blade;
     return UNIFORMS.shield;
 }
-export function mainlineMob(stage:number,wave:number,index:number,factor:number):UnitConfig {
+export function mainlineMob(stage:number,wave:number,index:number,factor:number,elite=[1,3,4].indexOf(wave)>=0&&index===7):UnitConfig {
     mainlineTheme(stage);const chapter=Math.floor((stage-1)/100);
-    const elite=[1,3,4].indexOf(wave)>=0&&index===7;
     const a=ENEMY_ARCHETYPES[(index+wave*2+chapter)%ENEMY_ARCHETYPES.length];
     return { id:`mob-${wave}-${index}`,visualId:`mob-${a.id}`,name:elite?`精英·${a.name}`:a.name,role:elite?'精英':'杂兵',kind:'soldier',elite,heroTier:elite?2:1,weapon:a.weapon,
         maxHp:Math.max(1,Math.round((430+wave*80)*.26*a.hp*(elite?2.8:1)*factor)),attack:Math.max(1,Math.round((57+wave*10)*.3*a.attack*(elite?1.55:1)*factor)),

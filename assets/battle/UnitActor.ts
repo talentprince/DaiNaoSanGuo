@@ -63,7 +63,7 @@ export class UnitActor {
         this.hp = health.addComponent(Graphics);
         this.hpText = text(this.node, 'HpText', '', 0, unit.kind === 'boss' ? -143 : compact ? scale >= 0.95 ? -82 : -70 : scale >= 1.05 ? -97 : -84, unit.formationSpot ? 11 : 13, '#B1C4D6', unit.kind === 'boss' ? 220 : unit.formationSpot ? 74 : 110);
         text(this.node, 'Name', unit.name, 0, unit.kind === 'boss' ? 196 : compact ? scale >= 0.95 ? -54 : -40 : scale >= 1.05 ? -66 : -53, unit.kind === 'boss' ? 26 : unit.formationSpot ? 16 : 18,
-            unit.kind === 'soldier' ? '#B4C3CE' : unit.heroTier === 4 ? '#F4D27E' : unit.heroTier === 3 ? '#DDC3EF' : '#F3DFC0', unit.kind === 'boss' ? 250 : unit.formationSpot ? 80 : 118);
+            unit.kind === 'soldier' ? '#B4C3CE' : unit.heroTier === 5 ? '#F4D27E' : unit.heroTier === 4 ? '#FF00FF' : unit.heroTier === 3 ? '#B36BFF' : '#F3DFC0', unit.kind === 'boss' ? 250 : unit.formationSpot ? 80 : 118);
         if (unit.kind === 'wall' && unit.visualId !== 'delve-jar') { health.active = false; this.hpText.node.active = false; this.node.getChildByName('Name')!.active = false; }
     }
 
@@ -200,14 +200,14 @@ export class UnitActor {
         if(this.unit.elite){const marker=makeNode('EliteMarker',this.body,0,-43).addComponent(Graphics);marker.strokeColor=new Color('#F4AD55');marker.lineWidth=4;marker.ellipse(0,0,39,12);marker.stroke();marker.fillColor=new Color('#EBA951');marker.moveTo(-8,102);marker.lineTo(0,111);marker.lineTo(8,102);marker.lineTo(0,93);marker.close();marker.fill();}
         if (tier >= 3) {
             const aura = makeNode('EliteAura', this.body, 0, -39).addComponent(Graphics);
-            aura.strokeColor = new Color(tier === 4 ? '#DAC17577' : '#B5A3D966'); aura.lineWidth = tier === 4 ? 4 : 2;
-            aura.ellipse(0, 0, tier === 4 ? 42 : 34, 12); aura.stroke();
+            aura.strokeColor = new Color(tier === 5 ? '#FFB40077' : tier === 4 ? '#FF00FF66' : '#B36BFF66'); aura.lineWidth = tier === 5 ? 4 : 2;
+            aura.ellipse(0, 0, tier === 5 ? 42 : 34, 12); aura.stroke();
         }
         if (!soldier) {
             this.cape=makeNode('SignatureCape',this.body);const cape=this.cape.addComponent(Graphics);
             cape.fillColor = new Color(id === 'lvbu' || id === 'zhouyu' ? '#8E3F43' : id === 'zhaoyun' || id === 'machao' ? '#D5E0DE' : this.unit.color);
             polygon(cape,[[-18,25],[-42,-34],[-22,-31],[-28,-48],[10,-37],[42,-44],[24,25]],new Color(id==='lvbu'||id==='zhouyu'?'#A82D45':comic[id]||this.unit.color));
-            cape.strokeColor = new Color(tier === 4 ? '#E7C879' : '#BCCFC377'); cape.lineWidth = 2; cape.moveTo(-17, 24); cape.lineTo(-32, -42); cape.lineTo(32, -42); cape.stroke();
+            cape.strokeColor = new Color(tier === 5 ? '#E7C879' : '#BCCFC377'); cape.lineWidth = 2; cape.moveTo(-17, 24); cape.lineTo(-32, -42); cape.lineTo(32, -42); cape.stroke();
         }
         const limb = (name: string, x: number, y: number, leg: boolean): Node => {
             const node = makeNode(name, this.body, x, y); const g = node.addComponent(Graphics);
@@ -225,7 +225,7 @@ export class UnitActor {
         this.torso = makeNode('ArmoredTorso', this.body); const g = this.torso.addComponent(Graphics);
         polygon(g,[[-26,29],[-35,13],[-22,-10],[-20,-28],[21,-28],[23,-9],[35,13],[26,29]],armor);
         polygon(g, [[-19, 20], [0, 27], [20, 19], [14, -12], [0, -21], [-14, -12]],
-            new Color(uniform?.lining || (this.rear ? '#34466B' : tier === 4 ? '#522D48' : '#314466')));
+            new Color(uniform?.lining || (this.rear ? '#34466B' : tier === 5 ? '#522D48' : '#314466')));
         const trim = new Color(uniform?.trim || '#F2CF78');
         if (!uniform || uniform.style === 'plates') {
             g.strokeColor = trim;

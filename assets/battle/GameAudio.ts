@@ -5,7 +5,7 @@ import type { WeaponKind } from './BattleEngine';
 declare const wx:{createInnerAudioContext?:()=>SoundChannel;loadSubpackage?:(options:{name:string;success:()=>void;fail:()=>void})=>unknown};
 export class GameAudio {
     readonly director:AudioDirector;private loading=false;private currentScene='';private playedPaths=new Set<string>();
-    constructor(testing: boolean) {
+    constructor(localTesting: boolean, experienceMode: boolean) {
         const native=typeof wx!=='undefined'&&!!wx.createInnerAudioContext;
         this.director=new AudioDirector(()=>{
             const played=(path:string)=>{if(!this.playedPaths.has(path)){this.playedPaths.add(path);console.info('[Audio] playing',path);}};
@@ -14,8 +14,8 @@ export class GameAudio {
             if(typeof Audio!=='undefined'){const sound=new Audio();sound.preload='auto';sound.addEventListener('playing',()=>played(sound.src));sound.addEventListener('ended',()=>ended(sound.src));sound.addEventListener('error',()=>{this.director.lastError='声音文件加载失败，点击声音按钮重试';console.warn('[Audio] file failed',sound.src);});return sound;}
             return{src:'',loop:false,volume:0,play:()=>{},pause:()=>{}};
         }, sys.localStorage, Date.now, !native, {
-            musicDefault: !testing,
-            musicKey: testing ? 'dainaosanguo.music.test.v1' : 'dainaosanguo.music.standard.v1',
+            musicDefault: !localTesting,
+            musicKey: localTesting || experienceMode ? 'dainaosanguo.music.test.v1' : 'dainaosanguo.music.standard.v1',
         });
         input.on(Input.EventType.TOUCH_START,this.unlock,this);input.on(Input.EventType.MOUSE_DOWN,this.unlock,this);game.on(Game.EVENT_HIDE,this.hide,this);game.on(Game.EVENT_SHOW,this.show,this);
         if(native){this.loadPackage();this.director.unlock();}

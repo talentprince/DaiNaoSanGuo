@@ -10,7 +10,7 @@ import { ProgressStore } from '../assets/battle/ProgressStore.ts';
 const config=(id,changes={})=>({id,name:id,kind:'hero',heroTier:3,tactic:'cleave',maxHp:10000,attack:100,defense:0,interval:999,priority:0,color:'#FFFFFF',...changes});
 function fight(element='fire',tier=3){const e=new BattleEngine({heroes:[config('caster',{element,heroTier:tier})],waves:[Array.from({length:5},(_,i)=>config(`foe${i}`,{kind:'soldier'}))],seed:1});e.autoSkill=false;e.heroes[0].energy=100;return e;}
 test('44将中8位女将，小乔为神将，新增女将有来源且无普通治疗',()=>{
- assert.equal(HERO_CATALOG.length,44);assert.equal(FEMALE_HEROES.length,8);assert.ok(FEMALE_HEROES.every(id=>getHero(id)));assert.equal(getHero('xiaoqiao').tier,4);assert.equal(getHero('xiaoqiao').element,'blizzard');
+ assert.equal(HERO_CATALOG.length,44);assert.equal(FEMALE_HEROES.length,8);assert.ok(FEMALE_HEROES.every(id=>getHero(id)));assert.equal(getHero('xiaoqiao').tier,5);assert.equal(getHero('xiaoqiao').element,'blizzard');
  assert.ok(['daqiao','zhurong','zhenji'].every(id=>getHero(id).storyStage));assert.ok(HERO_CATALOG.filter(h=>h.tier===1).every(h=>h.tactic!=='heal'));
 });
 test('羁绊看实际同阵，重复ID不凑人数，拥有但未上阵不触发',()=>{
@@ -37,7 +37,7 @@ test('名将火技能只对3名原目标灼烧4秒，不把持续伤害扩为全
  assert.equal(e.enemies[0].hp,before[0]-48);assert.deepEqual(e.enemies.slice(3).map(u=>u.hp),before.slice(3));assert.ok(e.enemies.every(u=>u.burnRemaining===0&&u.burnPower===0));
 });
 test('冰雪实际减速25%，4秒后恢复；暂停冻结负面状态',()=>{
- const e=fight('blizzard',4);e.castSkill();assert.ok(e.enemies.every(u=>u.slow===.25));e.paused=true;e.advance(100);assert.equal(e.enemies[0].slowRemaining,4);e.paused=false;e.enemies[0].cooldown=10;e.advance(1);assert.ok(Math.abs(e.enemies[0].cooldown-9.25)<1e-7);e.advance(3.1);assert.equal(e.enemies[0].slow,0);
+ const e=fight('blizzard',5);e.castSkill();assert.ok(e.enemies.every(u=>u.slow===.25));e.paused=true;e.advance(100);assert.equal(e.enemies[0].slowRemaining,4);e.paused=false;e.enemies[0].cooldown=10;e.advance(1);assert.ok(Math.abs(e.enemies[0].cooldown-9.25)<1e-7);e.advance(3.1);assert.equal(e.enemies[0].slow,0);
 });
 test('中毒抑疗25%实际生效，到期恢复原治疗量',()=>{
  const e=fight('poison',4);e.enemies[0].kind='hero';e.enemies[0].tactic='heal';e.castSkill();e.enemies[0].hp=100;e.enemies[0].energy=100;e.castSkill('foe0');assert.equal(e.enemies[0].hp,1000);
@@ -59,17 +59,17 @@ test('本地开发识别拒绝远程地址和伪装域名，支持微信devtools
  assert.equal(isLocalDevelopment('',true),true);
 });
 function memory(){const map=new Map();return{getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v),map};}
-test('独立开发档拥有全部44将、Lv300/6星与132件配装，不改正常存档字节',()=>{
+test('独立开发档拥有全部44将、Lv150/6星与132件配装，不改正常存档字节',()=>{
  const disk=memory();const normal=new ProgressStore(disk);normal.settleVictory('normal',1);const before=disk.getItem('dainaosanguo.demo.progress.v1');
- const dev=createDeveloperStore(disk);const p=dev.progress;assert.equal(p.owned.length,44);assert.equal(p.heroLevel,300);assert.ok(p.owned.every(h=>p.stars[h]===6));assert.equal(p.inventory.length,132);assert.equal(dev.inventoryCapacity,160);assert.equal(Object.keys(p.loadouts).length,44);
+ const dev=createDeveloperStore(disk);const p=dev.progress;assert.equal(p.owned.length,44);assert.equal(p.heroLevel,150);assert.ok(p.owned.every(h=>p.stars[h]===6));assert.equal(p.inventory.length,132);assert.equal(dev.inventoryCapacity,160);assert.equal(Object.keys(p.loadouts).length,44);
  assert.equal(disk.getItem('dainaosanguo.demo.progress.v1'),before);assert.equal(new ProgressStore(disk).inventoryCapacity,40);
 });
 test('开发参数可降等级/星级/换地图，重开保留；重置不重复堆物品',()=>{
  const disk=memory();createDeveloperStore(disk);const dev=configureDeveloper(disk,{level:30,stars:3,stage:100});assert.equal(dev.progress.heroLevel,30);assert.equal(dev.progress.highestCleared,99);assert.equal(dev.progress.stars.xiaoqiao,3);
- assert.equal(createDeveloperStore(disk).progress.heroLevel,30);const reset=createDeveloperStore(disk,Date.now,Math.random,true);assert.equal(reset.progress.heroLevel,300);assert.equal(reset.progress.inventory.length,132);
- assert.throws(()=>configureDeveloper(disk,{level:301,stars:6,stage:999}));
+ assert.equal(createDeveloperStore(disk).progress.heroLevel,30);const reset=createDeveloperStore(disk,Date.now,Math.random,true);assert.equal(reset.progress.heroLevel,150);assert.equal(reset.progress.inventory.length,132);
+ assert.throws(()=>configureDeveloper(disk,{level:151,stars:6,stage:999}));
 });
 test('开发档损坏可重建，存储拒绝时仍可会话测试并明确未保存',()=>{
  const disk=memory();disk.setItem(DEV_KEY,'broken');assert.equal(createDeveloperStore(disk).progress.owned.length,44);
- const failed=createDeveloperStore({getItem:()=>null,setItem:()=>{throw Error('denied');}});assert.equal(failed.progress.heroLevel,300);assert.equal(failed.progress.owned.length,44);assert.equal(failed.storageAvailable,false);
+ const failed=createDeveloperStore({getItem:()=>null,setItem:()=>{throw Error('denied');}});assert.equal(failed.progress.heroLevel,150);assert.equal(failed.progress.owned.length,44);assert.equal(failed.storageAvailable,false);
 });

@@ -2,7 +2,7 @@ import { ProgressStore } from './ProgressStore';
 import type { StorageAdapter } from './ProgressStore';
 
 export const EXPERIENCE_KEY = 'dainaosanguo.experience.progress.v2';
-export const EXPERIENCE_MULTIPLIER = 5;
+export const EXPERIENCE_MULTIPLIER = 2;
 
 /** Separate the new grind test from both the old grant save and the standard campaign. */
 export function createExperienceStore(storage: StorageAdapter): { store: ProgressStore; granted: boolean } {

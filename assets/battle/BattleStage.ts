@@ -9,8 +9,9 @@ export class BattleStage {
     private images:Node[]=[];private time=0;private distance=0;private fallback:Graphics;private foreground:Graphics;
     private width=720;private height=1108;private tileWidth=760;private main:MainlineScenery|null=null;
     private delveRoom = -1;
-    private delveGateOpen = false;
     private delveInk?: Graphics;
+    private delvePortal?: Graphics;
+    private portalAge = 0;
     constructor(parent:Node,private style:StageStyle,stage=1,distance=0){
         this.node=makeNode('BattleScenery',parent);this.fallback=makeNode('FallbackTerrain',this.node).addComponent(Graphics);
         this.foreground=makeNode('ComicGroundInk',this.node).addComponent(Graphics);this.resize(this.width,this.height);
@@ -30,18 +31,51 @@ export class BattleStage {
         this.width=width;this.height=height;const g=this.fallback;g.clear();g.fillColor=new Color(this.style==='boss'?'#332641':this.style==='boat'?'#23586B':'#74624D');g.rect(-width/2,-height/2,width,height);g.fill();
         const scale=Math.max((width+120)/600,(height+72)/900);this.tileWidth=600*scale;
         this.images.forEach(n=>n.getComponent(UITransform)!.setContentSize(this.tileWidth,900*scale));this.main?.resize(width,height); this.drawDelve();
+        if (this.delvePortal?.node.active) this.drawDelvePortal();
     }
     setDelveRoom(room: number): void {
         this.delveRoom = room;
-        this.delveGateOpen = false;
         this.delveInk ??= makeNode('DelveArchitecture', this.node).addComponent(Graphics);
+        if (this.delvePortal) this.delvePortal.node.active = false;
         this.drawDelve();
     }
 
-    openDelveGate(): void {
-        if (this.delveGateOpen) return;
-        this.delveGateOpen = true;
-        this.drawDelve();
+    get delvePortalPosition(): { x: number; y: number } {
+        return this.delveRoom === 1 ? { x: 0, y: 271 } : { x: this.width / 2 - 88, y: 16 };
+    }
+
+    openDelvePortal(): void {
+        if (this.delvePortal?.node.active) return;
+        this.delvePortal ??= makeNode('DelvePortal', this.node).addComponent(Graphics);
+        this.delvePortal.node.active = true;
+        this.portalAge = 0;
+        this.drawDelvePortal();
+    }
+
+    private drawDelvePortal(): void {
+        const g = this.delvePortal!;
+        const { x, y } = this.delvePortalPosition;
+        const red = this.delveRoom === 2;
+        const bloom = Math.min(1, .25 + this.portalAge * 6);
+        const pulse = Math.sin(this.portalAge * 7);
+        const radius = (77 + pulse * 3) * bloom;
+        g.node.setPosition(x, y);
+        g.clear();
+        g.fillColor = new Color(red ? '#EA654638' : '#65DBC938');
+        g.ellipse(0, 0, radius + 8, radius * .41); g.fill();
+        g.fillColor = new Color(red ? '#F6A05265' : '#96F9DD62');
+        g.ellipse(0, 0, radius * .72, radius * .24); g.fill();
+        g.strokeColor = new Color(red ? '#FFCA83' : '#BDFFEB');
+        g.lineWidth = 4;
+        g.ellipse(0, 0, radius, radius * .32); g.stroke();
+        g.lineWidth = 2;
+        g.ellipse(0, 0, radius * .79, radius * .25); g.stroke();
+        g.fillColor = new Color(red ? '#FFE4AF' : '#D9FFF3');
+        for (let i = 0; i < 8; i++) {
+            const angle = i * Math.PI / 4;
+            g.circle(Math.cos(angle) * radius * .9, Math.sin(angle) * radius * .285, 2.5);
+            g.fill();
+        }
     }
 
     private drawDelve(): void {
@@ -50,7 +84,6 @@ export class BattleStage {
         g.clear();
         const w = this.width / 2, h = this.height / 2;
         const stairs = this.delveRoom === 1;
-        const red = this.delveRoom >= 2;
         const box = (x: number,y: number,width: number,height: number,ink: string) => {
             g.fillColor = new Color(ink); g.rect(x,y,width,height); g.fill();
         };
@@ -67,36 +100,10 @@ export class BattleStage {
             box(-w,-303,w*2,558,'#6B4852');
             for (let i = -2; i <= 2; i++) box(i*138-26,-h,5,h*2,'#533842');
         }
-        const x = stairs ? 0 : this.delveRoom >= 3 ? w - 82 : w - 76;
-        const y = stairs ? 271 : 16;
-        const left = x - 61;
-        box(left-7,y-149,136,238,'#302435');
-        box(left+9,y-134,104,186,this.delveGateOpen ? '#171725' : red ? '#913F48' : '#515770');
-        if (this.delveGateOpen) {
-            box(left+9,y-134,21,186,red ? '#913F48' : '#515770');
-            box(left+92,y-134,21,186,red ? '#913F48' : '#515770');
-        }
-        g.strokeColor = new Color('#2A2031'); g.lineWidth = 6;
-        g.fillColor = new Color(red ? '#BD5550' : '#6A737E');
-        g.moveTo(left-24,y+65); g.lineTo(left-6,y+85); g.lineTo(x-25,y+101); g.lineTo(x+24,y+101);
-        g.lineTo(left+132,y+85); g.lineTo(left+147,y+65); g.close(); g.fill(); g.stroke();
-        box(left-17,y+57,156,12,red ? '#EAA269' : '#BAA284');
-        box(left-6,y-149,16,207,red ? '#D88360' : '#918481');
-        box(left+111,y-149,16,207,red ? '#D88360' : '#918481');
-        box(left-16,y-149,154,10,red ? '#EAA269' : '#B8A18B');
-        for (const dx of [-32,32]) {
-            g.fillColor = new Color(red ? '#F6C885' : '#B0A393');
-            for (let row = 0; row < 3; row++) { g.circle(x+dx,y-103+row*39,4); g.fill(); }
-        }
-        if (!this.delveGateOpen) {
-            box(x-3,y-133,6,185,red ? '#D68161' : '#838499');
-            if (this.delveRoom === 2) {
-                g.fillColor = new Color('#FFD27C'); g.circle(x,y+20,15); g.fill(); g.stroke();
-            }
-        }
     }
 
     update(dt:number,marching:boolean):void{
+        if (this.delvePortal?.node.active) { this.portalAge += dt; this.drawDelvePortal(); }
         if(this.main){this.main.update(dt,marching);return;}
         this.time+=dt;if(marching)this.distance+=dt*112;
         this.images.forEach((n,i)=>{

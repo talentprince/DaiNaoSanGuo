@@ -1,4 +1,4 @@
-export const BUILD_INFO={version:'0.18.0',revision:'r18f'} as const;
+export const BUILD_INFO={version:'0.19.0',revision:'r19a'} as const;
 export function buildCaption(preview:boolean,native:boolean):string {
     return `v${BUILD_INFO.version} · ${BUILD_INFO.revision} · ${preview?'Cocos源码':native?'微信构建':'Web构建'}`;
 }

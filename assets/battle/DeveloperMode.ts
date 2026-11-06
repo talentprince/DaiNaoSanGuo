@@ -29,7 +29,7 @@ export function createDeveloperStore(storage:StorageAdapter,clock:()=>number=Dat
     return new ProgressStore(disk,clock,random,{developer:true});
 }
 export function configureDeveloper(storage:StorageAdapter,settings:DeveloperSettings):ProgressStore{
-    if(!Number.isInteger(settings.level)||settings.level<1||settings.level>300||!Number.isInteger(settings.stars)||settings.stars<1||settings.stars>6||!Number.isInteger(settings.stage)||settings.stage<1||settings.stage>999)throw new Error('测试参数无效');
+    if(!Number.isInteger(settings.level)||settings.level<1||settings.level>MAX_LEVEL||!Number.isInteger(settings.stars)||settings.stars<1||settings.stars>6||!Number.isInteger(settings.stage)||settings.stage<1||settings.stage>999)throw new Error('测试参数无效');
     const p=createDeveloperStore(storage).progress;p.heroLevel=settings.level;p.highestCleared=settings.stage-1;p.pending=null;HERO_CATALOG.forEach(h=>{p.stars[h.id]=settings.stars;});
     try{developerStorage(storage).setItem('',JSON.stringify(p));return createDeveloperStore(storage);}catch(_){const raw=JSON.stringify(p);const fallback=new ProgressStore({getItem:()=>raw,setItem:()=>{throw new Error('测试档未保存');}},Date.now,Math.random,{developer:true});fallback.storageAvailable=false;return fallback;}
 }

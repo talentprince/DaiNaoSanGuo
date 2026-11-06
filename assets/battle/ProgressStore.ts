@@ -1,8 +1,8 @@
 import { bossRotation,WORLD_BOSSES } from '../data/WorldBossConfig';
 import type { WorldBossId } from '../data/WorldBossConfig';
 import { cleanEnergy } from '../data/EnergyConfig';
-import { MAX_STAGE, MAX_LEVEL, MAX_STARS, XP_DAILY_MS, MEDAL_DAILY_CAP, SIGNATURE_COST, STAR_COSTS, xpRequired, xpPerMinute, expeditionBand, bossGrade, stageFactor } from '../data/GrowthConfig';
-import { canWear, equipmentStats, signatureFor, slotOf, SLOT_ORDER } from '../data/EquipmentConfig';
+import { MAX_STAGE, MAX_LEVEL, LEGACY_MAX_LEVEL, MAX_STARS, XP_DAILY_MS, MEDAL_DAILY_CAP, SIGNATURE_COST, STAR_COSTS, xpRequired, xpPerMinute, expeditionBand, bossGrade, stageFactor } from '../data/GrowthConfig';
+import { ARMOR_NAMES, canWear, CHARM_NAMES, equipmentStats, signatureFor, slotOf, SLOT_ORDER, WEAPON_NAMES } from '../data/EquipmentConfig';
 import type { Equipment, EquipmentRune, EquipmentSlot } from '../data/EquipmentConfig';
 import { BattleEngine } from './BattleEngine';
 import type { CombatBonus } from './BattleEngine';
@@ -13,16 +13,26 @@ import { DRAW_COST, DIVINE_PITY, EXCHANGE_COST, getHero, HERO_CATALOG, HERO_IDS,
 import type { HeroId } from '../data/HeroCatalog';
 import type { SoldierType } from '../data/BattleConfig';
 import type { ActivityMode, ActivityRun, BoatChoice } from '../data/ActivityConfig';
-import { CHAPTERS, CHAPTER_MAPS, chapterBattleExperience, chapterEquipment, chapterFirstEquipment, chapterIndex, chapterLevelLock, chapterLock, chapterLoot, chapterMapOfficer, chapterMapRank, chapterMonsterWaves, chapterRiftPool, chapterSeed, chapterStaminaCost, chapterStoryHero, chapterStoryIndex, chapterTarget, createChapterOptions, DAILY_STAMINA, DELVE_TICKET, DELVE_TICKET_CAP, DIFFICULTIES, isChapterRift, isSideDungeon, MAP_DROP_RATES, RAGE_TONIC, SPEED_TONIC, TONIC_LIMIT, TONIC_RUNS, WORKSHOPS, workshopIndex, workshopRotation } from '../data/ChapterConfig';
-import type { ChapterClears, ChapterRun, Difficulty, LootTarget, Tonic, WorkshopIndex } from '../data/ChapterConfig';
+import { CHAPTERS, CHAPTER_MAPS, chapterBattleExperience, chapterDropEquipment, chapterFirstEquipment, chapterIndex, chapterLevelLock, chapterLock, chapterLoot, chapterMapOfficer, chapterRiftPool, chapterSeed, chapterStaminaCost, chapterStoryHero, chapterStoryIndex, createChapterOptions, DAILY_STAMINA, DELVE_TICKET, DIFFICULTIES, isChapterRift, isSideDungeon, MAP_DROP_RATES, RAGE_TONIC, SPEED_TONIC, TONIC_LIMIT, TONIC_RUNS, WORKSHOPS, workshopIndex, workshopRotation } from '../data/ChapterConfig';
+import type { ChapterClears, ChapterRun, DailyChallenge, Difficulty, Tonic, WorkshopIndex } from '../data/ChapterConfig';
+import {
+    ASSAULT_ARMOR_DROP, CAMPAIGN_BATCH_SIZE, CHAPTER_CLEAR_SOULS, CHAPTER_PROTAGONIST_ID, DAILY_CHALLENGE_LIMIT,
+    DAILY_SOUL_CAP, DUEL_CHARM, DUEL_MILESTONES, campaignMaterialReward, chapterDelveDrop, chapterGearPool, chapterProtagonist,
+    chapterCoinReward, assaultTicketCap, delveTicketCap, delveTicketsForWin, duelGrades, duelPerformance, DUEL_GRADE_COUNT,
+    MAX_POLISH, polishEnergyNeeded, polishInvestment, polishRate, polishTransfer, totalPolishEnergy, TRANSFER_SEAL, TRANSFER_SEAL_RATE,
+    tuningCoinCost, tuningMaterialCost, workshopBonusMaterial, workshopBonusRate, workshopMaterialReward,
+} from '../data/ChapterConfig';
 export { HERO_IDS } from '../data/HeroCatalog';
 export type { HeroId } from '../data/HeroCatalog';
+export type EquipmentWearer = HeroId | typeof CHAPTER_PROTAGONIST_ID;
+const EQUIPMENT_WEARERS: readonly EquipmentWearer[] = [...HERO_IDS, CHAPTER_PROTAGONIST_ID];
 
 export interface StorageAdapter { getItem(key: string): string | null; setItem(key: string, value: string): void; }
-export interface DailyState { day: number; cityUsed: number; boatUsed: number; bossBest: number; bossDaibi: number; bossPoints: number; medalEarned: number; xpUsedMs: number; soulEarned: number; delveEarned: number; modes: string[]; bonusClaimed: boolean; bossBand: number; }
+export interface DailyState { day: number; cityUsed: number; boatUsed: number; bossBest: number; bossDaibi: number; bossPoints: number; medalEarned: number; xpUsedMs: number; soulEarned: number; delveEarned: number; assaultDelveEarned: number; modes: string[]; bonusClaimed: boolean; bossBand: number; }
 interface TonicStock { bought: number; bottles: number; runs: number; }
-interface CampaignSupply { day: number; spent: number; rage: TonicStock; speed: TonicStock; }
+interface CampaignSupply { day: number; spent: number; attempts: Record<DailyChallenge, number>; rage: TonicStock; speed: TonicStock; }
 const emptyTonicStock = (): TonicStock => ({ bought: 0, bottles: 0, runs: 0 });
+const emptyChallengeAttempts = (): CampaignSupply['attempts'] => ({ workshop: 0, assault: 0, duel: 0 });
 interface ChapterProgress {
     supply: CampaignSupply;
     introSeen: number;
@@ -33,11 +43,16 @@ interface ChapterProgress {
     clears: ChapterClears;
     delveTickets: number;
     duelBest: Partial<Record<WorldBossId, number>>;
+    duelRewardTier: Partial<Record<WorldBossId, number>>;
+    duelGradesClaimed: Partial<Record<WorldBossId, number>>;
+    duelRating: Partial<Record<WorldBossId, number>>;
+    transferSeals: number;
     materials: [number, number, number];
     lastWorkshopWin: number | null;
     pending: ChapterRun | null;
     reserve: Equipment | null;
-    offline: { run: ChapterRun; since: number; enemyExperience?: number } | null;
+    reserveQueue: Equipment[];
+    offline: { run: ChapterRun; since: number } | null;
 }
 const OFFLINE_CHAPTER_RUN_MS = 20 * 60 * 1000;
 export type ChapterRewardDetail = { item: Equipment; hero?: never } | { hero: HeroId; item?: never };
@@ -58,7 +73,7 @@ export interface Progress {
     mainlineEnergy: {stage:number;heroes:Record<string,number>}|null;
     growthVersion: 1; experience: number; xpAt: number; xpRemainder: number;
     stars: Partial<Record<HeroId, number>>; fragments: Partial<Record<HeroId, number>>; souls: number;
-    loadouts: Partial<Record<HeroId, Partial<Record<EquipmentSlot, string>>>>;
+    loadouts: Partial<Record<EquipmentWearer, Partial<Record<EquipmentSlot, string>>>>;
     version: 1; coins: number; highestCleared: number; heroLevel: number; settled: string[];
     inventory: Equipment[]; equipped: Partial<Record<HeroId, string>>;
     formations: Record<FormationMode, FormationEntry[]>;
@@ -74,14 +89,15 @@ const KEY = 'dainaosanguo.demo.progress.v1';
 export const DAY_MS = 86400000;
 export const IDLE_DAILY_DAIBI = 1000;
 export function chinaDay(now: number): number { return Math.floor((now + 8 * 3600000) / DAY_MS); }
-const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0, bossBest: 0, bossDaibi: 0, bossPoints: 0, medalEarned: 0, xpUsedMs: 0, soulEarned: 0, delveEarned: 0, modes: [], bonusClaimed: false, bossBand: 1 });
+const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0, bossBest: 0, bossDaibi: 0, bossPoints: 0, medalEarned: 0, xpUsedMs: 0, soulEarned: 0, delveEarned: 0, assaultDelveEarned: 0, modes: [], bonusClaimed: false, bossBand: 1 });
 const nonnegative = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
+const validLootRoll = (roll: number): boolean => Number.isFinite(roll) && roll >= 0 && roll < 1;
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 export function supplyDay(now: number): number { return Math.floor((now + 3600000) / DAY_MS); }
 const emptyChapter = (now: number): ChapterProgress => ({
-    supply: { day: supplyDay(now), spent: 0, rage: emptyTonicStock(), speed: emptyTonicStock() },
+    supply: { day: supplyDay(now), spent: 0, attempts: emptyChallengeAttempts(), rage: emptyTonicStock(), speed: emptyTonicStock() },
     introSeen: 0, pendingEnding: null, longbanTrial: false,
-    protagonistSpot: null, companions: null, clears: {}, delveTickets: 0, duelBest: {}, materials: [0, 0, 0], lastWorkshopWin: null, pending: null, reserve: null, offline: null,
+    protagonistSpot: null, companions: null, clears: {}, delveTickets: 0, duelBest: {}, duelRewardTier: {}, duelGradesClaimed: {}, duelRating: {}, transferSeals: 0, materials: [0, 0, 0], lastWorkshopWin: null, pending: null, reserve: null, reserveQueue: [], offline: null,
 });
 const emptyProgress = (now: number): Progress => ({ chapter: emptyChapter(now), trialEnergy:null,mainlineEnergy:null,growthVersion: 1, experience: 0, xpAt: now, xpRemainder: 0, stars: {}, fragments: {}, souls: 0, loadouts: {}, version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
     settled: [], inventory: [], equipped: {}, formations: { main: arrangeParty(STARTER_PARTY, 'main'), trial: arrangeParty(STARTER_PARTY.slice(0, 3), 'trial'), defense: arrangeParty(STARTER_PARTY, 'defense', 'mixed', STARTER_PARTY.slice(0, 2)) }, troopType: 'mixed', wallHeroes: STARTER_PARTY.slice(0, 2), metaVersion: 2, daibi: 0, points: 0, owned: [...STARTER_PARTY], formation: [...STARTER_PARTY],
@@ -93,6 +109,19 @@ export { RARITY_NAMES, RARITY_COLORS } from '../data/EquipmentConfig';
 export function equipmentScore(item: Equipment): number {
     const stats = equipmentStats(item);
     return stats.attack * 5 + stats.defense * 4 + stats.maxHp;
+}
+
+export function equipmentRecycleYield(item: Equipment): { coins: number; sand: number } {
+    const value = Math.max(10, Math.floor(equipmentScore({ ...item, polish: 0 }) / 10));
+    const paid = polishInvestment(item);
+    return { coins: value + Math.floor(paid.coins / 2), sand: Math.floor(paid.sand / 2) };
+}
+
+export function equipmentRecycleTotal(items: readonly Equipment[]): { coins: number; sand: number } {
+    return items.reduce((total, item) => {
+        const value = equipmentRecycleYield(item);
+        return { coins: total.coins + value.coins, sand: total.sand + value.sand };
+    }, { coins: 0, sand: 0 });
 }
 
 export function createEquipment(stage: number, battleId: string): Equipment {
@@ -111,22 +140,31 @@ export function createEquipment(stage: number, battleId: string): Equipment {
 
 function validEquipment(item: Equipment): boolean {
     return !!item && typeof item.id === 'string' && item.id.length > 0 && typeof item.name === 'string'
-        && [1, 2, 3].indexOf(item.rarity) >= 0 && Number.isInteger(item.stage) && item.stage >= 1 && item.stage <= MAX_STAGE
+        && [1, 2, 3, 4, 5].indexOf(item.rarity) >= 0 && Number.isInteger(item.stage) && item.stage >= 1 && item.stage <= MAX_STAGE
         && (item.slot === undefined || SLOT_ORDER.indexOf(item.slot) >= 0)
         && (item.exclusive === undefined || (!!getHero(item.exclusive) && item.id === `signature-${item.exclusive}` && slotOf(item) === 'weapon'))
         && (item.appearance === undefined || ['sword','spear','bow','fan','glaive','serpent','halberd','dual','axe','staff','ribbon','qin','armor','charm'].indexOf(item.appearance) >= 0)
+        && (item.armorType === undefined || Object.prototype.hasOwnProperty.call(ARMOR_NAMES, item.armorType))
+        && (item.charmType === undefined || Object.prototype.hasOwnProperty.call(CHARM_NAMES, item.charmType))
+        && (item.rarity < 4 || !!item.exclusive || (slotOf(item) === 'armor' ? !!item.armorType : slotOf(item) === 'charm' ? !!item.charmType
+            : !!item.appearance && Object.prototype.hasOwnProperty.call(WEAPON_NAMES, item.appearance)))
         && (item.chapter === undefined || item.chapter === true)
-        && (item.polish === undefined || nonnegative(item.polish, 3))
+        && (item.polish === undefined || nonnegative(item.polish, MAX_POLISH))
+        && (item.polishEnergy === undefined || nonnegative(item.polishEnergy, (item.polish || 0) < MAX_POLISH ? polishEnergyNeeded(item) : 0))
+        && (item.polishSpend === undefined || ((!!item.polish || !!item.polishEnergy) && !!item.polishSpend
+            && nonnegative(item.polishSpend.sand) && nonnegative(item.polishSpend.coins)))
         && (item.rune === undefined || item.rune === 'shield' || item.rune === 'attack')
-        && (item.stamped === undefined || (item.stamped === true && !!item.rune && item.rarity === 3))
+        && (item.stamped === undefined || (item.stamped === true && !!item.rune && item.rarity >= 3))
         && [item.attack, item.defense, item.maxHp].every(value => Number.isSafeInteger(value) && value >= 0);
 }
 
 
-function validBonuses(items: Record<string, CombatBonus>): boolean {
+function validBonuses(items: Record<string, CombatBonus>, includeProtagonist = false): boolean {
     return !!items && typeof items === 'object' && !Array.isArray(items) && Object.keys(items).every(id => {
         const bonus = items[id];
-        return !!getHero(id) && !!bonus && [bonus.attack, bonus.defense, bonus.maxHp].every(n => nonnegative(n))
+        const protagonist = id === CHAPTER_PROTAGONIST_ID;
+        const validWearer = protagonist ? includeProtagonist && bonus?.signature === undefined && bonus?.stars === undefined : !!getHero(id);
+        return validWearer && !!bonus && [bonus.attack, bonus.defense, bonus.maxHp].every(n => nonnegative(n))
             && (bonus.signature === undefined || bonus.signature === id)
             && (bonus.stars === undefined || (nonnegative(bonus.stars, MAX_STARS) && bonus.stars > 0))
             && [bonus.openingShield, bonus.openingAttack].every(n => n === undefined || n === .12 || n === .22);
@@ -157,10 +195,10 @@ export class ProgressStore {
                 const level = data.heroLevel === undefined ? 1 : data.heroLevel;
                 if (data.version !== 1 || !nonnegative(data.coins) || !nonnegative(data.highestCleared, MAX_STAGE)
                     || !Array.isArray(data.settled) || !data.settled.every(id => typeof id === 'string')
-                    || !Number.isInteger(level) || level < 1 || level > MAX_LEVEL) return;
+                    || !Number.isInteger(level) || level < 1 || level > LEGACY_MAX_LEVEL) return;
                 const inventory: Equipment[] = [];
                 if (Array.isArray(data.inventory)) data.inventory.forEach(item => {
-                    if (inventory.length < this.inventoryCapacity && validEquipment(item) && !inventory.some(old => old.id === item.id)) inventory.push(item.exclusive ? { ...signatureFor(item.exclusive), chapter: item.chapter, polish: item.polish, rune: item.rune, stamped: item.stamped } : { ...item });
+                    if (inventory.length < this.inventoryCapacity && validEquipment(item) && !inventory.some(old => old.id === item.id)) inventory.push(item.exclusive ? { ...signatureFor(item.exclusive), chapter: item.chapter, polish: item.polish, polishEnergy: item.polishEnergy, polishSpend: item.polishSpend, rune: item.rune, stamped: item.stamped } : { ...item });
                 });
                 const legacy = data.metaVersion !== 2;
                 const owned = legacy ? [...STARTER_PARTY, ...LEGACY_PARTY] : Array.isArray(data.owned)
@@ -176,8 +214,9 @@ export class ProgressStore {
                     Array.isArray(ids) && !validateParty(ids, owned, mode) ? [...ids] : [...fallback];
                 const d = data.daily;
                 const daily = d && nonnegative(d.day) && nonnegative(d.cityUsed, 3) && nonnegative(d.boatUsed, 2)
-                    && nonnegative(d.bossBest) && nonnegative(d.bossDaibi, 1000) && nonnegative(d.bossPoints, 120) ? { ...dailyState(d.day), ...d, medalEarned: nonnegative(d.medalEarned, MEDAL_DAILY_CAP) ? d.medalEarned : 0, xpUsedMs: nonnegative(d.xpUsedMs, XP_DAILY_MS) ? d.xpUsedMs : 0, soulEarned: nonnegative(d.soulEarned, 20) ? d.soulEarned : 0, delveEarned: nonnegative(d.delveEarned, DELVE_TICKET_CAP) ? d.delveEarned : 0, modes: Array.isArray(d.modes) ? d.modes.filter(m => ['city','boss','trial','boat'].indexOf(m) >= 0) : [], bonusClaimed: !!d.bonusClaimed, bossBand: nonnegative(d.bossBand,20) && d.bossBand > 0 ? d.bossBand : 1 } : dailyState(chinaDay(now));
-                this.state = { ...emptyProgress(now), coins: data.coins, highestCleared: data.highestCleared, heroLevel: level,
+                    && nonnegative(d.bossBest) && nonnegative(d.bossDaibi, 1000) && nonnegative(d.bossPoints, 120) ? { ...dailyState(d.day), ...d, medalEarned: nonnegative(d.medalEarned, MEDAL_DAILY_CAP) ? d.medalEarned : 0, xpUsedMs: nonnegative(d.xpUsedMs, XP_DAILY_MS) ? d.xpUsedMs : 0, soulEarned: nonnegative(d.soulEarned, 20) ? d.soulEarned : 0, delveEarned: nonnegative(d.delveEarned, delveTicketCap(MAX_LEVEL)) ? d.delveEarned : 0, modes: Array.isArray(d.modes) ? d.modes.filter(m => ['city','boss','trial','boat'].indexOf(m) >= 0) : [], bonusClaimed: !!d.bonusClaimed, bossBand: nonnegative(d.bossBand,20) && d.bossBand > 0 ? d.bossBand : 1 } : dailyState(chinaDay(now));
+                daily.assaultDelveEarned = nonnegative(daily.assaultDelveEarned, Math.min(assaultTicketCap(MAX_LEVEL), daily.delveEarned)) ? daily.assaultDelveEarned : 0;
+                this.state = { ...emptyProgress(now), coins: data.coins, highestCleared: data.highestCleared, heroLevel: Math.min(level, MAX_LEVEL),
                     settled: data.settled.slice(-128), inventory, equipped, owned,
                     formation: party(data.formation, 'main', legacy ? LEGACY_PARTY : STARTER_PARTY),
                     trialParty: party(data.trialParty, 'trial', STARTER_PARTY.slice(0, 3)),
@@ -197,17 +236,19 @@ export class ProgressStore {
                 this.state.xpRemainder = nonnegative(data.xpRemainder, 1199999) ? data.xpRemainder : 0;
                 this.state.souls = nonnegative(data.souls) ? data.souls : 0;
                 const used = new Set<string>();
-                HERO_IDS.forEach(hero => {
-                    if (owned.indexOf(hero) < 0) return;
-                    this.state.stars[hero] = data.stars && nonnegative(data.stars[hero], MAX_STARS) && data.stars[hero]! >= 1 ? data.stars[hero] : 1;
-                    this.state.fragments[hero] = data.fragments && nonnegative(data.fragments[hero]) ? data.fragments[hero] : 0;
+                EQUIPMENT_WEARERS.forEach(hero => {
+                    if (hero !== CHAPTER_PROTAGONIST_ID) {
+                        if (owned.indexOf(hero) < 0) return;
+                        this.state.stars[hero] = data.stars && nonnegative(data.stars[hero], MAX_STARS) && data.stars[hero]! >= 1 ? data.stars[hero] : 1;
+                        this.state.fragments[hero] = data.fragments && nonnegative(data.fragments[hero]) ? data.fragments[hero] : 0;
+                    }
                     const slots: Partial<Record<EquipmentSlot, string>> = {};
                     SLOT_ORDER.forEach(slot => {
-                        const id = data.loadouts?.[hero]?.[slot] || (slot === 'weapon' ? equipped[hero] : undefined);
+                        const id = data.loadouts?.[hero]?.[slot] || (slot === 'weapon' && hero !== CHAPTER_PROTAGONIST_ID ? equipped[hero] : undefined);
                         const item = inventory.find(i => i.id === id && slotOf(i) === slot && canWear(hero, i));
                         if (item && !used.has(item.id)) { slots[slot] = item.id; used.add(item.id); }
                     });
-                    this.state.loadouts[hero] = slots;
+                    if (hero !== CHAPTER_PROTAGONIST_ID || Object.keys(slots).length) this.state.loadouts[hero] = slots;
                 });
                 this.syncWeapons();
                 const w = data.wallHeroes;
@@ -236,6 +277,7 @@ export class ProgressStore {
         if (staminaDay > supply.day) {
             supply.day = staminaDay;
             supply.spent = 0;
+            supply.attempts = emptyChallengeAttempts();
             supply.rage.bought = 0;
             supply.speed.bought = 0;
         }
@@ -250,7 +292,7 @@ export class ProgressStore {
             && Number.isInteger(run.stage) && run.stage > 0 && run.stage <= 99 && nonnegative(run.day)
             && (run.worldBoss===undefined||WORLD_BOSSES.some(b=>b.id===run.worldBoss)) && (run.bossWeek===undefined||Number.isSafeInteger(run.bossWeek))
             && (run.band === undefined || (nonnegative(run.band,20) && run.band > 0))
-            && Number.isInteger(run.level) && run.level > 0 && run.level <= MAX_LEVEL && Array.isArray(run.party)
+            && Number.isInteger(run.level) && run.level > 0 && run.level <= LEGACY_MAX_LEVEL && Array.isArray(run.party)
             && (run.layout ? !validateFormation(run.layout, this.state.owned, run.mode === 'trial' ? 'trial' : 'main') : !validateParty(run.party, this.state.owned, run.mode === 'trial' ? 'trial' : 'main'))
             && validBonuses(run.equipment)
             && (run.troopType === undefined || ['mixed', 'sword', 'spear', 'bow'].indexOf(run.troopType) >= 0)
@@ -268,6 +310,15 @@ export class ProgressStore {
         if (this.state.heroLevel >= MAX_LEVEL || this.state.coins < cost || this.state.experience < this.experienceCost) return { upgraded: false, cost, level: this.state.heroLevel, saved: this.storageAvailable };
         this.state.coins -= cost; this.state.experience -= this.experienceCost; this.state.heroLevel += 1;
         return { upgraded: true, cost, level: this.state.heroLevel, saved: this.save() };
+    }
+
+    private advanceCampaignLevel(): boolean {
+        const before = this.state.heroLevel;
+        while (this.state.heroLevel < MAX_LEVEL && this.state.experience >= this.experienceCost) {
+            this.state.experience -= this.experienceCost;
+            this.state.heroLevel++;
+        }
+        return this.state.heroLevel > before;
     }
     setParty(ids: HeroId[], mode: 'main' | 'trial' | 'defense'): string | null {
         const error = validateParty(ids, this.state.owned, mode);
@@ -304,36 +355,118 @@ export class ProgressStore {
         this.state.equipped = {};
         HERO_IDS.forEach(h => { if (this.state.loadouts[h]?.weapon) this.state.equipped[h] = this.state.loadouts[h]!.weapon; });
     }
-    equip(hero: HeroId, equipmentId: string): boolean {
+    equipmentOwner(item: Equipment): EquipmentWearer | undefined {
+        return EQUIPMENT_WEARERS.find(id => this.state.loadouts[id]?.[slotOf(item)] === item.id);
+    }
+    equip(hero: EquipmentWearer, equipmentId: string): boolean {
         const item = this.state.inventory.find(i => i.id === equipmentId);
-        if (!getHero(hero) || this.state.owned.indexOf(hero) < 0 || !item || !canWear(hero, item)) return false;
+        if (!item || !canWear(hero, item) || (hero !== CHAPTER_PROTAGONIST_ID && this.state.owned.indexOf(hero) < 0)) return false;
         const slot = slotOf(item);
-        HERO_IDS.forEach(id => { if (this.state.loadouts[id]?.[slot] === equipmentId) delete this.state.loadouts[id]![slot]; });
+        const owner = this.equipmentOwner(item);
+        if (owner) delete this.state.loadouts[owner]![slot];
         const loadout = this.state.loadouts[hero] || (this.state.loadouts[hero] = {});
         loadout[slot] = equipmentId; this.syncWeapons(); this.save(); return true;
     }
-    unequip(hero: HeroId, slot: EquipmentSlot = 'weapon'): boolean {
-        if (!getHero(hero) || !this.state.loadouts[hero]?.[slot]) return false;
+    unequip(hero: EquipmentWearer, slot: EquipmentSlot = 'weapon'): boolean {
+        if (EQUIPMENT_WEARERS.indexOf(hero) < 0 || !this.state.loadouts[hero]?.[slot]) return false;
         delete this.state.loadouts[hero]![slot]; this.syncWeapons(); this.save(); return true;
     }
-    equipBest(hero: HeroId, slot: EquipmentSlot = 'weapon'): boolean {
-        const available = this.state.inventory.filter(item => slotOf(item) === slot && canWear(hero, item)
-            && !HERO_IDS.some(id => id !== hero && SLOT_ORDER.map(slot => this.state.loadouts[id]?.[slot]).indexOf(item.id) >= 0));
+    equipBest(hero: EquipmentWearer, slot: EquipmentSlot = 'weapon'): boolean {
+        const available = this.state.inventory.filter(item => {
+            if (slotOf(item) !== slot || !canWear(hero, item)) return false;
+            const owner = this.equipmentOwner(item);
+            return !owner || owner === hero;
+        });
         available.sort((a, b) => equipmentScore(b) - equipmentScore(a) || a.id.localeCompare(b.id));
         return available.length > 0 ? this.equip(hero, available[0].id) : false;
     }
+
+    equipChapterTeam(): number | null {
+        const { protagonistSpot, companions } = this.chapterFormation;
+        const lead = chapterProtagonist(1, protagonistSpot);
+        const team = [
+            { id: CHAPTER_PROTAGONIST_ID, stats: lead, spot: protagonistSpot } as const,
+            ...companions.filter(entry => entry.hero).map(entry => ({
+                id: entry.hero!, stats: getHero(entry.hero!)!, spot: entry.spot,
+            })),
+        ];
+        const before = this.state.loadouts;
+        const next = { ...before };
+        const available = new Set(this.state.inventory.filter(item => !this.equipmentOwner(item)).map(item => item.id));
+        const inventory = new Map(this.state.inventory.map(item => [item.id, item]));
+        const changed = new Set<EquipmentWearer>();
+        for (const slot of SLOT_ORDER) {
+            const weapon = slot === 'weapon';
+            const stat = weapon ? 'attack' : slot === 'armor' ? 'defense' : 'maxHp';
+            const compareGear = (a: Equipment, b: Equipment) => Number(!!b.exclusive) - Number(!!a.exclusive)
+                || equipmentStats(b)[stat] - equipmentStats(a)[stat] || equipmentScore(b) - equipmentScore(a);
+            const ranked = this.state.inventory.filter(item => slotOf(item) === slot)
+                .sort((a, b) => compareGear(a, b) || a.id.localeCompare(b.id));
+            const wearers = team.slice().sort((a, b) => (b.stats.heroTier ?? 1) - (a.stats.heroTier ?? 1)
+                || (weapon ? b.stats.attack - a.stats.attack
+                    : a.stats.priority - b.stats.priority || Number(b.spot[3]) - Number(a.spot[3])
+                        || b.stats.defense - a.stats.defense || b.stats.maxHp - a.stats.maxHp)
+                || a.id.localeCompare(b.id));
+            const equipSpare = (id: EquipmentWearer, exclusiveOnly = false) => {
+                const current = inventory.get(next[id]?.[slot] ?? '');
+                const best = ranked.find(item => available.has(item.id) && canWear(id, item) && (!exclusiveOnly || item.exclusive));
+                if (!best || (current && compareGear(best, current) >= 0)) return;
+                if (current) available.add(current.id);
+                available.delete(best.id);
+                next[id] = { ...next[id], [slot]: best.id };
+                changed.add(id);
+            };
+            // Reserve dedicated weapons before handing out weapons everyone can use.
+            if (weapon) for (const { id } of wearers) {
+                if (!next[id]?.[slot]) equipSpare(id, true);
+            }
+            for (const { id } of wearers) if (!next[id]?.[slot]) equipSpare(id);
+            for (const { id } of wearers) if (next[id]?.[slot]) equipSpare(id);
+            // An upgrade can return a usable piece to the bag.
+            for (const { id } of wearers) if (!next[id]?.[slot]) equipSpare(id);
+        }
+        if (!changed.size) return 0;
+        this.state.loadouts = next;
+        this.syncWeapons();
+        if (this.save()) return changed.size;
+        this.state.loadouts = before;
+        this.syncWeapons();
+        return null;
+    }
+
     recycleEquipment(id: string): string | null {
         const item = this.state.inventory.find(i => i.id === id);
         if (!item) return '装备不存在';
-        if (item.exclusive) return '专属武器保留，不可分解';
-        if (HERO_IDS.some(h => SLOT_ORDER.map(slot => this.state.loadouts[h]?.[slot]).indexOf(id) >= 0)) return '请先卸下装备';
-        this.state.inventory = this.state.inventory.filter(i => i.id !== id); this.state.coins += Math.max(10, Math.floor(equipmentScore(item) / 10)); this.save(); return null;
+        if (this.equipmentOwner(item)) return '请先卸下装备';
+        return this.recycleItems([item]);
     }
-    getEquipmentBonuses(): Record<string, CombatBonus> {
+    recycleSpareEquipment(ids: readonly string[]): string | null {
+        const selected = new Set(ids);
+        const items = this.state.inventory.filter(item => selected.has(item.id));
+        if (!items.length || items.length !== selected.size || items.some(item => this.equipmentOwner(item))) {
+            return '装备状态已变化，请重新选择';
+        }
+        return this.recycleItems(items);
+    }
+    private recycleItems(items: Equipment[]): string | null {
+        const before = this.state.inventory;
+        const ids = new Set(items.map(item => item.id));
+        const { coins, sand } = equipmentRecycleTotal(items);
+        this.state.inventory = before.filter(item => !ids.has(item.id));
+        this.state.coins += coins;
+        this.state.chapter.materials[0] += sand;
+        if (this.save()) return null;
+        this.state.inventory = before;
+        this.state.coins -= coins;
+        this.state.chapter.materials[0] -= sand;
+        return '存档失败，请重试';
+    }
+    getEquipmentBonuses(includeProtagonist = false): Record<string, CombatBonus> {
         const result: Record<string, CombatBonus> = {};
-        this.state.owned.forEach(hero => {
+        const wearers = includeProtagonist ? [...this.state.owned, CHAPTER_PROTAGONIST_ID] as const : this.state.owned;
+        wearers.forEach(hero => {
             const items = SLOT_ORDER.map(slot => this.state.loadouts[hero]?.[slot]).map(id => this.state.inventory.find(i => i.id === id)!).filter(Boolean);
-            const stars = this.state.stars[hero] || 1;
+            const stars = hero === CHAPTER_PROTAGONIST_ID ? 1 : this.state.stars[hero] || 1;
             if (!items.length && stars === 1) return;
             const bonus: CombatBonus = { attack: 0, defense: 0, maxHp: 0 };
             items.forEach(item => {
@@ -361,17 +494,12 @@ export class ProgressStore {
         const star = this.state.stars[hero] || 1;
         if (star >= MAX_STARS) return '已达6星';
         const cost = STAR_COSTS[star - 1]; const own = this.state.fragments[hero] || 0;
-        if (own + this.state.souls < cost) return `需要${cost}碎片（专属碎片优先，不足用通用脑力）`;
+        if (own + this.state.souls < cost) return `升星需要 ${cost} 枚碎片，缺少的部分可用脑力补足`;
         const paid = Math.min(own, cost); this.state.fragments[hero] = own - paid; this.state.souls -= cost - paid;
         this.state.stars[hero] = star + 1; this.save(); return null;
     }
     get experienceStage(): number {
-        let highest = this.state.highestCleared;
-        CHAPTER_MAPS.forEach(map => {
-            const flags = this.state.chapter.clears[map.id] || 0;
-            if (flags) highest = Math.max(highest, 3 * chapterMapRank(map.id) + (flags & 4 ? 3 : flags & 2 ? 2 : 1));
-        });
-        return highest;
+        return this.state.highestCleared;
     }
 
     experiencePreview(): { amount: number; minutes: number; remainingMinutes: number; rate: number } {
@@ -461,15 +589,15 @@ export class ProgressStore {
         for (let i = 0; i < count; i += 1) {
             const roll = this.random(); const choice = this.random();
             if (![roll, choice].every(n => Number.isFinite(n) && n >= 0 && n < 1)) throw new Error('招募随机源无效');
-            let tier = pity >= DIVINE_PITY - 1 ? 4 : roll < 0.6 ? 1 : roll < 0.9 ? 2 : roll < 0.99 ? 3 : 4;
+            let tier = pity >= DIVINE_PITY - 1 ? 5 : roll < 0.6 ? 1 : roll < 0.9 ? 2 : roll < 0.965 ? 3 : roll < 0.99 ? 4 : 5;
             const tenGuarantee = tier === 1 && count === 10 && i === 9 && results.every(r => getHero(r.hero)!.tier === 1);
             const guaranteed = pity >= DIVINE_PITY - 1 || tenGuarantee;
             if (tenGuarantee) tier = 2;
             const pool = HERO_CATALOG.filter(h => h.tier === tier);
             const hero = pool[Math.floor(choice * pool.length)].id;
-            pity = tier === 4 ? 0 : pity + 1;
+            pity = tier === 5 ? 0 : pity + 1;
             const duplicate = owned.indexOf(hero) >= 0;
-            const converted = duplicate ? [200, 500, 2000, 6000][tier - 1] : 0;
+            const converted = duplicate ? [200, 500, 2000, 3500, 6000][tier - 1] : 0;
             if (!duplicate) owned.push(hero);
             coins += converted;
             results.push({ hero, duplicate, coins: converted, fragments: duplicate ? 20 : 0, guaranteed });
@@ -480,7 +608,7 @@ export class ProgressStore {
     }
     exchange(hero: HeroId): string | null {
         const h = getHero(hero);
-        if (!h || (h.tier !== 3 && h.tier !== 4)) return '仅可兑换名将或神将';
+        if (!h || (h.tier === 1 || h.tier === 2)) return '仅可兑换名将、传奇或神将';
         if (this.state.owned.indexOf(hero) >= 0) return '已拥有这名武将，不重复扣积分';
         const cost = EXCHANGE_COST[h.tier];
         if (this.state.points < cost) return `脑勋不足，需要${cost}`;
@@ -493,12 +621,15 @@ export class ProgressStore {
         if (supply && nonnegative(supply.day) && nonnegative(supply.spent, DAILY_STAMINA)) {
             const stock = (entry?: TonicStock) => entry && nonnegative(entry.bought, TONIC_LIMIT)
                 && nonnegative(entry.bottles) && nonnegative(entry.runs, TONIC_RUNS) ? { ...entry } : emptyTonicStock();
-            chapter.supply = { day: supply.day, spent: supply.spent, rage: stock(supply.rage), speed: stock(supply.speed) };
+            const attempts = (map: DailyChallenge) => nonnegative(supply.attempts?.[map], DAILY_CHALLENGE_LIMIT) ? supply.attempts[map] : 0;
+            chapter.supply = { day: supply.day, spent: supply.spent, rage: stock(supply.rage), speed: stock(supply.speed),
+                attempts: { workshop: attempts('workshop'), assault: attempts('assault'), duel: attempts('duel') } };
         }
-        if (nonnegative(data.introSeen, 1023)) chapter.introSeen = data.introSeen;
+        if (nonnegative(data.introSeen, 2 ** CHAPTERS.length - 1)) chapter.introSeen = data.introSeen;
         chapter.longbanTrial = data.longbanTrial === true || (data.longbanTrial === undefined &&
             (!!data.clears?.road || data.pending?.map === 'road'));
         if (nonnegative(data.delveTickets)) chapter.delveTickets = data.delveTickets;
+        if (nonnegative(data.transferSeals)) chapter.transferSeals = data.transferSeals;
         if (FORMATION_SPOTS.some(spot => spot.id === data.protagonistSpot)) {
             chapter.protagonistSpot = data.protagonistSpot;
             const formation = { protagonistSpot: data.protagonistSpot!, companions: data.companions! };
@@ -513,14 +644,23 @@ export class ProgressStore {
         for (const { id } of WORLD_BOSSES) {
             const score = data.duelBest?.[id];
             if (nonnegative(score)) chapter.duelBest[id] = score;
+            const rewardTier = data.duelRewardTier?.[id];
+            if (nonnegative(rewardTier, DUEL_MILESTONES.length)) chapter.duelRewardTier[id] = rewardTier;
+            const claimed = data.duelGradesClaimed?.[id];
+            if (nonnegative(claimed, DUEL_GRADE_COUNT)) chapter.duelGradesClaimed[id] = claimed;
+            const rating = data.duelRating?.[id];
+            if (typeof rating === 'number' && Number.isFinite(rating) && rating >= 0) chapter.duelRating[id] = rating;
         }
         chapter.materials = [0, 1, 2].map(i => nonnegative(data.materials?.[i]) ? data.materials[i] : 0) as ChapterProgress['materials'];
         if (Number.isSafeInteger(data.lastWorkshopWin)) chapter.lastWorkshopWin = data.lastWorkshopWin;
-        if (data.reserve && validEquipment(data.reserve)) chapter.reserve = { ...data.reserve };
+        if (data.reserve && validEquipment(data.reserve)) {
+            chapter.reserve = { ...data.reserve };
+            if (Array.isArray(data.reserveQueue)) chapter.reserveQueue = data.reserveQueue.filter(validEquipment).slice(0, CAMPAIGN_BATCH_SIZE - 1).map(item => ({ ...item }));
+        }
         chapter.pending = this.restoreChapterRun(data.pending);
         const offline = data.offline;
         const run = this.restoreChapterRun(offline?.run);
-        if (offline && nonnegative(offline.since) && run && this.canFarmOffline(run)) chapter.offline = { run, since: offline.since, enemyExperience: nonnegative(offline.enemyExperience) ? offline.enemyExperience : undefined };
+        if (offline && nonnegative(offline.since) && run && !run.extraRolls && this.canFarmOffline(run)) chapter.offline = { run, since: offline.since };
     }
 
     private restoreChapterRun(run?: ChapterRun | null): ChapterRun | null {
@@ -529,18 +669,26 @@ export class ProgressStore {
             && Number.isInteger(run.difficulty) && DIFFICULTIES[run.difficulty] !== undefined
             && !chapterLock(this.state.chapter.clears, run.map, run.difficulty, this.state.chapter.longbanTrial)
             && (run.map === 'duel' ? WORLD_BOSSES.some(boss => boss.id === run.bossId) : run.bossId === undefined)
+            && (run.assaultTickets === undefined || (run.assaultTickets === true && run.map === 'assault'))
             && (!isSideDungeon(run.map) || run.difficulty === 0)
             && (run.map === 'workshop' ? run.difficulty === 0 && Number.isSafeInteger(run.window) : run.window === undefined)
-            && (isChapterRift(run.map) ? run.difficulty === 2 && (run.target === 'officer' || run.target === 'spear')
-                && (run.targetHero === undefined || chapterRiftPool(run.map).indexOf(run.targetHero) >= 0)
+            && (isChapterRift(run.map) ? run.difficulty === 2 &&
+                (run.target === undefined ? run.targetHero === undefined : (run.target === 'officer' || run.target === 'spear')
+                    && (run.targetHero === undefined || chapterRiftPool(run.map).indexOf(run.targetHero) >= 0))
                 : run.target === undefined && run.targetHero === undefined)
-            && nonnegative(run.level, MAX_LEVEL) && run.level > 0 && nonnegative(run.seed, 0xffffffff)
-            && Number.isFinite(run.roll) && run.roll >= 0 && run.roll < 1
+            && (run.lootVersion === undefined || run.lootVersion === 2)
+            && nonnegative(run.level, LEGACY_MAX_LEVEL) && run.level > 0 && nonnegative(run.seed, 0xffffffff)
+            && validLootRoll(run.roll)
+            && (run.extraRolls === undefined || ((run.dynamicRift || run.monsterWaves) && Array.isArray(run.extraRolls)
+                && run.extraRolls.length === CAMPAIGN_BATCH_SIZE - 1 && run.extraRolls.every(validLootRoll)))
+            && (run.dynamicRift === undefined || (run.dynamicRift === true && run.monsterWaves === undefined
+                && chapterIndex(run.map) >= 0 && !isChapterRift(run.map)))
             && (run.monsterWaves === undefined || (chapterIndex(run.map) >= 0 && !isChapterRift(run.map) &&
                 (run.monsterWaves === 1 || run.monsterWaves === 2 || run.monsterWaves === 3)))
             && (run.rageTonic === undefined || run.rageTonic === true)
             && (run.speedTonic === undefined || (run.speedTonic === true && run.map !== 'duel'))
-            && validBonuses(run.equipment);
+            && (run.duelPractice === undefined || (run.duelPractice === true && run.map === 'duel'))
+            && validBonuses(run.equipment, true);
         if (!valid || !Array.isArray(run.layout)) return null;
         // Older snapshots contained five legacy units, including the spot replaced by the protagonist.
         const legacy = run.layout.length === 5 && !validateFormation(run.layout, this.state.owned, 'main')
@@ -563,11 +711,20 @@ export class ProgressStore {
         if (error) return error;
         const chapter = this.state.chapter;
         const { protagonistSpot, companions } = chapter;
+        const loadouts = this.state.loadouts;
+        const deployed = new Set(formationHeroes(formation.companions));
+        this.state.loadouts = { ...loadouts };
+        this.state.owned.forEach(id => {
+            if (!deployed.has(id) && this.state.loadouts[id]) delete this.state.loadouts[id];
+        });
+        this.syncWeapons();
         chapter.protagonistSpot = formation.protagonistSpot;
         chapter.companions = copy(formation.companions);
         if (this.save()) return null;
         chapter.protagonistSpot = protagonistSpot;
         chapter.companions = companions;
+        this.state.loadouts = loadouts;
+        this.syncWeapons();
         return '存档失败，请重试';
     }
 
@@ -577,6 +734,11 @@ export class ProgressStore {
         this.refreshDay();
         const { spent, rage, speed } = this.state.chapter.supply;
         return { stamina: DAILY_STAMINA - spent, rage: { ...rage }, speed: { ...speed } };
+    }
+
+    challengeAttemptsLeft(map: DailyChallenge): number {
+        this.refreshDay();
+        return DAILY_CHALLENGE_LIMIT - this.state.chapter.supply.attempts[map];
     }
 
     buyTonic(kind: Tonic): string | null {
@@ -611,28 +773,34 @@ export class ProgressStore {
         const chapter = this.state.chapter;
         const route = chapterLock(chapter.clears, map, difficulty, chapter.longbanTrial);
         if (route) return route;
+        if ((map === 'workshop' || map === 'assault') && !this.challengeAttemptsLeft(map)) return '今日次数已用完 · 早7点恢复';
         if (((chapter.clears[map] || 0) & (1 << difficulty)) || (chapter.longbanTrial && chapterIndex(map) === 4)) return null;
         return chapterLevelLock(map, this.state.heroLevel);
     }
 
-    chapterEntryCost(map: ChapterRun['map'], difficulty: Difficulty): number {
-        const delve = isChapterRift(map);
-        return chapterStaminaCost(this.chapterRun(map, difficulty, this.state.runSerial + 1, delve ? 'officer' : undefined,
-            delve ? chapterRiftPool(map)[0] : undefined, 0));
+    get campaignStoryChapter(): number {
+        const firstUnfinished = CHAPTERS.findIndex(chapter => !((this.state.chapter.clears[chapter.maps[7]] || 0) & 1));
+        return firstUnfinished < 0 ? CHAPTERS.length : firstUnfinished;
+    }
+
+    canStartChapterStory(index: number): boolean {
+        return !!CHAPTERS[index] && this.state.chapter.pendingEnding === null
+            && index === this.campaignStoryChapter && !this.hasChapterIntro(index);
     }
 
     hasChapterIntro(index: number): boolean {
-        return !!((this.state.chapter.introSeen & (1 << index)) || this.state.chapter.clears[CHAPTERS[index].maps[0]]);
+        return !!CHAPTERS[index] && (Math.floor(this.state.chapter.introSeen / 2 ** index) % 2 === 1 || !!this.state.chapter.clears[CHAPTERS[index].maps[0]]);
     }
 
     get pendingChapterEnding(): number | null { return this.state.chapter.pendingEnding; }
 
     completeChapterIntro(index: number): boolean {
         const chapter = this.state.chapter;
-        if (!CHAPTERS[index] || this.chapterEntryLock(CHAPTERS[index].maps[0], 0)) return false;
+        if (!CHAPTERS[index]) return false;
         if (this.hasChapterIntro(index)) return true;
+        if (!this.canStartChapterStory(index)) return false;
         const before = chapter.introSeen;
-        chapter.introSeen |= 1 << index;
+        chapter.introSeen += 2 ** index;
         if (this.save()) return true;
         chapter.introSeen = before;
         return false;
@@ -647,39 +815,46 @@ export class ProgressStore {
         return false;
     }
 
-    startChapter(map: ChapterRun['map'], difficulty: Difficulty, target?: LootTarget, targetHero?: HeroId): ChapterRun {
+    startChapter(map: ChapterRun['map'], difficulty: Difficulty, fivefold = false): ChapterRun {
         this.refreshDay();
         const chapter = this.state.chapter;
         if (chapter.pending) throw new Error('先继续或放弃未完战图');
         if (chapter.reserve) throw new Error('先从战图领取寄存装备');
         if (!DIFFICULTIES[difficulty] || (map !== 'workshop' && !isSideDungeon(map) && !CHAPTER_MAPS.some(m => m.id === map))) throw new Error('战图无效');
-        if (isChapterRift(map) && (difficulty !== 2 || (target !== 'officer' && target !== 'spear'))) throw new Error('请选择赤门追求目标');
+        const delve = isChapterRift(map);
+        if (delve && difficulty !== 2) throw new Error('赤门使用翻天难度');
         if ((map === 'workshop' || isSideDungeon(map)) && difficulty !== 0) throw new Error('此副本使用固定难度');
         const error = this.chapterEntryLock(map, difficulty) || validateChapterFormation(this.chapterFormation, this.state.owned);
         if (error) throw new Error(error);
-        const delve = isChapterRift(map);
-        if (delve) {
-            const pool = chapterRiftPool(map);
-            targetHero ??= pool[0];
-            if (pool.indexOf(targetHero) < 0) throw new Error('目标不属于本章赤门');
-            if (!chapter.delveTickets) throw new Error(`需要1枚${DELVE_TICKET}，战图胜利可获得`);
-        }
-        const cost = this.chapterEntryCost(map, difficulty);
-        const supply = chapter.supply;
-        if (supply.spent + cost > DAILY_STAMINA) throw new Error(`体力不足 · 本场需要 ${cost} 点`);
+        if (!delve && chapter.pendingEnding !== null && chapterIndex(map) > chapter.pendingEnding) throw new Error('请先看完上一章收尾漫画');
+        if (delve && !chapter.delveTickets) throw new Error(`需要1枚${DELVE_TICKET}，攻城和战图均可获得`);
+        if (fivefold && (delve || map === 'workshop' || isSideDungeon(map))) throw new Error('五倍结算仅用于主线战图');
+        const count = fivefold ? CAMPAIGN_BATCH_SIZE : 1;
         const serial = this.state.runSerial + 1;
-        const run = this.chapterRun(map, difficulty, serial, target, delve ? targetHero : undefined);
+        const run = this.chapterRun(map, difficulty, serial);
+        const cost = chapterStaminaCost(run) * count;
+        const supply = chapter.supply;
+        if (supply.spent + cost > DAILY_STAMINA) throw new Error('体力不足，恢复后可再出战');
+        if (fivefold) {
+            const rolls = Array.from({ length: count - 1 }, () => this.random());
+            if (!rolls.every(validLootRoll)) throw new Error('掉落随机源无效，请重试');
+            run.extraRolls = rolls;
+        }
         if (supply.rage.runs) run.rageTonic = true;
         if (supply.speed.runs && map !== 'duel') run.speedTonic = true;
         const before = copy(this.state);
         supply.spent += cost;
+        if (map === 'workshop' || isSideDungeon(map)) {
+            if (supply.attempts[map] < DAILY_CHALLENGE_LIMIT) supply.attempts[map]++;
+            else if (map === 'duel') run.duelPractice = true;
+        }
         if (run.rageTonic) supply.rage.runs--;
         if (run.speedTonic) supply.speed.runs--;
         const story = chapterStoryIndex(map, 'intro');
-        if (story >= 0) chapter.introSeen |= 1 << story;
+        if (this.canStartChapterStory(story)) chapter.introSeen += 2 ** story;
         if (delve) chapter.delveTickets -= 1;
         chapter.pending = run;
-        this.state.runSerial = serial;
+        this.state.runSerial = serial + count - 1;
         if (!this.save()) {
             this.state = before;
             throw new Error('存档不可用，请重试');
@@ -687,23 +862,30 @@ export class ProgressStore {
         return copy(run);
     }
 
-    private chapterRun(map: ChapterRun['map'], difficulty: Difficulty, serial: number, target?: LootTarget, targetHero?: HeroId, roll = this.random()): ChapterRun {
+    private chapterRun(map: ChapterRun['map'], difficulty: Difficulty, serial: number, roll = this.random()): ChapterRun {
         const formation = this.chapterFormation;
-        if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new Error('掉落随机源无效，请重试');
+        if (!validLootRoll(roll)) throw new Error('掉落随机源无效，请重试');
         const seed = chapterSeed(serial);
         return {
-            id: `chapter-${this.now()}-${serial}`, map, difficulty, target: isChapterRift(map) ? target : undefined, targetHero,
+            id: `chapter-${this.now()}-${serial}`, map, difficulty,
             window: map === 'workshop' ? this.currentWorkshop.window : undefined,
             bossId: map === 'duel' ? this.currentBoss.boss.id : undefined, level: this.state.heroLevel,
-            layout: formation.companions, protagonistSpot: formation.protagonistSpot, equipment: this.getEquipmentBonuses(), seed, roll,
-            monsterWaves: chapterIndex(map) >= 0 && !isChapterRift(map) ? chapterMonsterWaves(seed) : undefined,
+            assaultTickets: map === 'assault' ? true : undefined, lootVersion: 2,
+            layout: formation.companions, protagonistSpot: formation.protagonistSpot, equipment: this.getEquipmentBonuses(true), seed, roll,
+            dynamicRift: chapterIndex(map) >= 0 && !isChapterRift(map) ? true : undefined,
         };
     }
 
     private canFarmOffline(run: Pick<ChapterRun, 'map' | 'difficulty'>): boolean {
         const { map, difficulty } = run;
-        return !isChapterRift(map) && map !== 'workshop' && !isSideDungeon(map) && difficulty < 2
+        return !isChapterRift(map) && map !== 'workshop' && !isSideDungeon(map) && DIFFICULTIES[difficulty] !== undefined
             && !!((this.state.chapter.clears[map] || 0) & (1 << difficulty));
+    }
+
+    private simulateChapter(run: ChapterRun): BattleEngine {
+        const battle = new BattleEngine(createChapterOptions(run));
+        while (battle.status === 'fighting') battle.advance(.25);
+        return battle;
     }
 
     get chapterOffline() {
@@ -714,20 +896,28 @@ export class ProgressStore {
     }
 
     assignChapterOffline(map: ChapterRun['map'], difficulty: Difficulty): string | null {
-        if (!this.canFarmOffline({ map, difficulty })) return '先通关该图的探路或硬仗';
+        if (!this.canFarmOffline({ map, difficulty })) return '先通关该主线地图与难度';
         const chapter = this.state.chapter;
         if (chapter.pending || chapter.reserve) return '请先结束挑战或领取寄存';
         const now = this.now();
         const previous = this.chapterOffline;
         if (previous && (previous.ready || now < previous.since)) return '请先结算原挂机任务';
         const run = this.chapterRun(map, difficulty, this.state.runSerial + 1);
-        const battle = new BattleEngine(createChapterOptions(run));
-        while (battle.status === 'fighting') battle.advance(.25);
+        const battle = this.simulateChapter(run);
         if (battle.status !== 'won') return '当前行装与阵容未通过自动试战';
-        chapter.offline = { run, since: now, enemyExperience: battle.enemyExperience };
+        chapter.offline = { run, since: now };
         if (this.save()) return null;
-        chapter.offline = previous && { run: previous.run, since: previous.since, enemyExperience: previous.enemyExperience };
+        chapter.offline = previous && { run: previous.run, since: previous.since };
         return '存档失败，请重试';
+    }
+
+    stopChapterOffline(): boolean {
+        const chapter = this.state.chapter;
+        const job = chapter.offline;
+        chapter.offline = null;
+        if (this.save()) return true;
+        chapter.offline = job;
+        return false;
     }
 
     claimChapterOffline(): ChapterSettlement {
@@ -736,46 +926,53 @@ export class ProgressStore {
         const chapter = this.state.chapter;
         if (chapter.pending || chapter.reserve) return { saved: true, lines: ['请先结束挑战或领取寄存'] };
         if (!job?.ready) return { saved: true, lines: ['未攒满一场，挂机每20分钟一场'] };
-        const cost = chapterStaminaCost(job.run);
-        const limit = Math.min(job.ready, Math.floor(this.campaignSupply.stamina / cost));
-        if (!limit) return { saved: true, lines: [`体力不足 · 每场需 ${cost} 点，已完成场次保留`] };
-        let enemyExperience = job.enemyExperience;
-        if (enemyExperience === undefined) {
-            const trial = new BattleEngine(createChapterOptions(job.run));
-            while (trial.status === 'fighting') trial.advance(.25);
-            enemyExperience = trial.enemyExperience;
-        }
-        // Prepare all rolls before touching inventory or time. Failed saves restore the full batch.
         const now = this.now();
-        const runs = Array.from({ length: limit }, (_, i) => {
+        const runs: { run: ChapterRun; cost: number; battle: BattleEngine }[] = [];
+        let stamina = this.campaignSupply.stamina;
+        for (let i = 0; i < job.ready; i++) {
             const serial = this.state.runSerial + 1 + i;
+            const seed = chapterSeed(serial);
+            const run: ChapterRun = { ...job.run, id: `chapter-idle-${now}-${serial}`, seed, dynamicRift: true, monsterWaves: undefined, lootVersion: 2 };
+            const cost = chapterStaminaCost(run);
+            if (cost > stamina) break;
             const roll = this.random();
-            if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new Error('掉落随机源无效，请重试');
-            return { ...job.run, id: `chapter-idle-${now}-${serial}`, seed: chapterSeed(serial), roll };
-        });
+            if (!validLootRoll(roll)) throw new Error('掉落随机源无效，请重试');
+            run.roll = roll;
+            const battle = this.simulateChapter(run);
+            runs.push({ run, cost, battle });
+            stamina -= cost;
+            if (battle.status !== 'won') break;
+        }
+        if (!runs.length) return { saved: true, lines: ['体力不足 · 待结算场次已保留'] };
         const before = copy(this.state);
         const totals = new Map<string, number>();
         const details = new Map<string, ChapterRewardDetail>();
         let finished = 0;
         let experience = 0;
-        for (const run of runs) {
+        let lost = false;
+        for (const { run, cost, battle } of runs) {
+            const won = battle.status === 'won';
             const previews: ChapterRewardPreview[] = [];
-            const lines = this.applyChapterWin(run, previews);
+            const lines = won ? this.applyChapterWin(run, previews) : [];
             lines.forEach(line => totals.set(line, (totals.get(line) || 0) + 1));
             previews.forEach(({ index, detail }) => details.set(lines[index], detail));
             chapter.supply.spent += cost;
-            experience += chapterBattleExperience(run, true, enemyExperience) * this.experienceMultiplier;
+            experience += chapterBattleExperience(run, won, battle.enemyExperience) * this.experienceMultiplier;
             finished += 1;
+            lost = !won;
             if (chapter.reserve) break;
         }
         this.state.runSerial += finished;
         this.state.experience += experience;
-        chapter.offline!.since = Math.max(job.since, now - XP_DAILY_MS) + finished * OFFLINE_CHAPTER_RUN_MS;
+        const leveled = this.advanceCampaignLevel();
+        if (lost) chapter.offline = null;
+        else chapter.offline!.since = Math.max(job.since, now - XP_DAILY_MS) + finished * OFFLINE_CHAPTER_RUN_MS;
         if (!this.save()) {
             this.state = before;
             return { saved: false, lines: ['挂机结算未保存，请重试'] };
         }
-        const lines = [`已结算 ${finished} 场 · 剩余 ${job.ready - finished} 场 · 经验 +${experience}`];
+        const lines = [`已结算 ${finished} 场 · ${lost ? '战败停止挂机' : `剩余 ${job.ready - finished} 场`} · 经验 +${experience}`];
+        if (leveled) lines.push(`主公与随将升至 Lv.${this.state.heroLevel}`);
         const previews: ChapterRewardPreview[] = [];
         totals.forEach((count, line) => {
             const detail = details.get(line);
@@ -799,34 +996,68 @@ export class ProgressStore {
         const run = chapter.pending;
         if (!run || run.id !== id) return { saved: true, lines: ['本场已结算或已放弃'] };
         if (!nonnegative(score) || !nonnegative(enemyExperience, 10000)) throw new Error('战报数据无效');
-        const story = won && run.difficulty === 0 && !(chapter.clears[run.map] || 0) ? chapterStoryIndex(run.map, 'outro') : -1;
+        const ending = won && run.difficulty === 0 ? chapterStoryIndex(run.map, 'outro') : -1;
+        const story = ending === this.campaignStoryChapter && chapter.pendingEnding === null ? ending : -1;
         const before = copy(this.state);
         const previews: ChapterRewardPreview[] = [];
-        const lines = won ? this.applyChapterWin(run, previews) : [];
-        if (won && run.map === 'duel') {
-            const boss = run.bossId!;
-            const best = chapter.duelBest[boss] || 0;
-            chapter.duelBest[boss] = Math.max(best, score);
-            lines.push(score > best ? '刷新个人纪录' : '个人纪录已保留');
+        const lines = won ? this.applyChapterWin(run, previews, score) : [];
+        const count = run.extraRolls ? CAMPAIGN_BATCH_SIZE : 1;
+        if (won && run.extraRolls) {
+            run.extraRolls.forEach((roll, index) => {
+                const extraPreviews: ChapterRewardPreview[] = [];
+                const extra = { ...run, id: `${id}-extra-${index + 1}`, roll, seed: (run.seed + index + 1) >>> 0 };
+                const extraLines = this.applyChapterWin(extra, extraPreviews);
+                const offset = lines.length;
+                previews.push(...extraPreviews.map(preview => ({ ...preview, index: preview.index + offset })));
+                lines.push(...extraLines);
+            });
         }
-        if (won) {
+        const paidClear = won && !run.duelPractice;
+        if (paidClear) {
             const daily = this.state.daily;
-            const souls = Math.min(2, 20 - daily.soulEarned);
+            const souls = Math.min(count * CHAPTER_CLEAR_SOULS, DAILY_SOUL_CAP - daily.soulEarned);
             daily.soulEarned += souls;
             this.state.souls += souls;
             if (souls) lines.push(`脑力 +${souls}`);
         }
-        const combat = chapterBattleExperience(run, false, enemyExperience) * this.experienceMultiplier;
-        const clear = chapterBattleExperience(run, won, 0) * this.experienceMultiplier;
+        const combat = run.duelPractice ? 0 : chapterBattleExperience(run, false, enemyExperience) * this.experienceMultiplier * count;
+        const clear = chapterBattleExperience(run, paidClear, 0) * this.experienceMultiplier * count;
         this.state.experience += combat + clear;
+        if (this.advanceCampaignLevel()) lines.push(`主公与随将升至 Lv.${this.state.heroLevel}`);
         if (story >= 0) chapter.pendingEnding = story;
         chapter.pending = null;
-        if (this.save()) return { saved: true, lines, previews, storyChapter: story >= 0 ? story : undefined, experience: { combat, clear } };
+        if (this.save()) {
+            if (run.extraRolls && won) {
+                const byIndex = new Map(previews.map(preview => [preview.index, preview.detail]));
+                const totals = new Map<string, number>();
+                const loot: { line: string; detail: ChapterRewardDetail }[] = [];
+                lines.forEach((line, index) => {
+                    const detail = byIndex.get(index);
+                    if (detail) loot.push({ line, detail });
+                    else totals.set(line, (totals.get(line) || 0) + 1);
+                });
+                lines.length = 0;
+                previews.length = 0;
+                totals.forEach((number, line) => lines.push(number > 1 ? `${line}（${number}场）` : line));
+                loot.forEach(({ line, detail }) => { previews.push({ index: lines.length, detail }); lines.push(line); });
+            }
+            return { saved: true, lines, previews, storyChapter: story >= 0 ? story : undefined, experience: { combat, clear } };
+        }
         this.state = before;
         return { saved: false, lines: ['存档失败，战利品未结算'] };
     }
 
-    private applyChapterWin(run: ChapterRun, previews?: ChapterRewardPreview[]): string[] {
+    private grantDelveTickets(source: 'campaign' | 'assault', lines: string[], level: number): void {
+        const daily = this.state.daily;
+        const amount = delveTicketsForWin(source, daily.delveEarned, daily.assaultDelveEarned, level);
+        if (!amount) return;
+        daily.delveEarned += amount;
+        if (source === 'assault') daily.assaultDelveEarned += amount;
+        this.state.chapter.delveTickets += amount;
+        lines.push(`${DELVE_TICKET} +${amount}`);
+    }
+
+    private applyChapterWin(run: ChapterRun, previews?: ChapterRewardPreview[], score = 0): string[] {
         const chapter = this.state.chapter;
         const id = run.id;
         const lines: string[] = [];
@@ -842,62 +1073,91 @@ export class ProgressStore {
                 lines.push(`${getHero(hero)!.name}将帖 · 已入队`);
             }
         };
-        const coins = run.map === 'assault' ? 210 : [120, 180, 280][difficulty];
-        this.state.coins += coins;
-        lines.push(`脑铢 +${coins}`);
+        if (!run.duelPractice) {
+            const coins = chapterCoinReward(run);
+            this.state.coins += coins;
+            lines.push(`脑铢 +${coins}`);
+        }
         if (run.map === 'assault') {
-            chapter.materials[0] += 2;
-            lines.push('炉砂 +2');
+            if (run.assaultTickets) this.grantDelveTickets('assault', lines, run.lootVersion ? run.level : 1);
+            if (run.lootVersion && run.roll < TRANSFER_SEAL_RATE) {
+                chapter.transferSeals++;
+                lines.push(`${TRANSFER_SEAL} +1`);
+            }
+            else if (!run.assaultTickets && run.roll < ASSAULT_ARMOR_DROP.rate) item = { id: `loot-${id}`, ...ASSAULT_ARMOR_DROP.item };
+        } else if (run.map === 'duel') {
+            const boss = run.bossId!;
+            const best = chapter.duelBest[boss] || 0;
+            const highest = chapter.duelBest[boss] = Math.max(best, score);
+            if (run.lootVersion) {
+                const rating = chapter.duelRating[boss] = Math.max(chapter.duelRating[boss] || 0, duelPerformance(score, run.level));
+                const grades = duelGrades(boss, run.level);
+                const claimed = chapter.duelGradesClaimed[boss] || 0;
+                const earned = grades.filter(tier => rating >= tier.normalized);
+                for (const tier of earned.slice(claimed)) {
+                    this.state.coins += tier.coins;
+                    this.state.souls += tier.brain;
+                    chapter.materials[tier.material] += tier.quantity;
+                    if (tier.item) item = tier.item;
+                    lines.push(`${tier.name} · 脑铢 +${tier.coins} · ${WORKSHOPS[tier.material].material} +${tier.quantity}${tier.brain ? ` · 脑力 +${tier.brain}` : ''}`);
+                }
+                chapter.duelGradesClaimed[boss] = Math.max(claimed, earned.length);
+                if (earned.length <= claimed) lines.push(score > best ? '刷新个人纪录' : '个人纪录已保留');
+            } else {
+                const claimed = chapter.duelRewardTier[boss] || 0;
+                const earned = DUEL_MILESTONES.filter(tier => highest >= tier.damage);
+                if (earned.length > claimed) {
+                    const bonus = earned.slice(claimed).reduce((sum, tier) => sum + tier.coins, 0);
+                    this.state.coins += bonus;
+                    chapter.duelRewardTier[boss] = earned.length;
+                    if (earned.length === DUEL_MILESTONES.length) item = { id: `loot-${id}`, ...DUEL_CHARM };
+                    lines.push(`${earned[earned.length - 1].name}首次达成${bonus ? ` · 额外脑铢 +${bonus}` : ''}`);
+                } else lines.push(score > best ? '刷新个人纪录' : '个人纪录已保留');
+            }
         } else if (run.map === 'workshop') {
             const window = run.window!;
             const index = workshopIndex(window);
             const first = chapter.lastWorkshopWin === null || window > chapter.lastWorkshopWin;
-            const amount = first ? 9 : 3;
+            const bonus = run.lootVersion && run.roll < workshopBonusRate(run.level) ? workshopBonusMaterial(run.level) : 0;
+            const amount = (run.lootVersion ? workshopMaterialReward(run.level, first) : (first ? 9 : 3) + Math.min(3, Math.floor(run.level / 10))) + bonus;
             chapter.materials[index] += amount;
             if (first) chapter.lastWorkshopWin = window;
-            lines.push(`${WORKSHOPS[index].material} +${amount}${first ? ' · 换班首胜' : ''}`);
-        } else if (run.map !== 'duel') {
+            lines.push(`${WORKSHOPS[index].material} +${amount}${first ? ' · 换班首胜' : ''}${bonus ? ` · 追加掉落 +${bonus}` : ''}`);
+        } else {
             const delve = isChapterRift(run.map);
-            const rank = chapterMapRank(run.map);
             const flags = chapter.clears[run.map] || 0;
             if (!(flags & (1 << difficulty))) {
-                if (this.experienceStage) this.accrueExperience();
-                else this.state.xpAt = this.now();
                 chapter.clears[run.map] = flags | (1 << difficulty);
             }
             if (!delve) {
-                if (this.state.daily.delveEarned < DELVE_TICKET_CAP) {
-                    this.state.daily.delveEarned += 1;
-                    chapter.delveTickets += 1;
-                    lines.push(`${DELVE_TICKET} +1`);
-                }
+                this.grantDelveTickets('campaign', lines, run.level);
                 const story = difficulty === 0 && !(flags & 1) ? chapterStoryHero(run.map) : undefined;
                 if (story) grantHero(story);
                 const loot = chapterLoot(run.map);
                 item = story ? chapterFirstEquipment(run.map, `loot-${id}`) : undefined;
-                if (!item && run.roll < MAP_DROP_RATES[loot][difficulty]) {
-                    item = chapterEquipment(run.map, difficulty, `loot-${id}`);
-                    if (loot === 'officer') {
+                if (!item) {
+                    const drop = chapterGearPool(run.map, difficulty, run.lootVersion === 2).find(({ rate, end }) => run.roll >= (end - rate) / 100 && run.roll < end / 100);
+                    if (drop) item = chapterDropEquipment(run.map, difficulty, `loot-${id}`, drop);
+                    if (loot === 'officer' && run.roll < MAP_DROP_RATES.officer[difficulty]) {
                         const officer = chapterMapOfficer(run.map);
                         if (officer) grantHero(officer);
                     }
                 }
-                if (rank === 7 || rank === 5) {
+                const amount = campaignMaterialReward(run.map, difficulty);
+                if (amount) {
                     const material = ((run.seed % 3) as WorkshopIndex);
-                    const amount = difficulty + 1;
                     chapter.materials[material] += amount;
                     lines.push(`${WORKSHOPS[material].material} +${amount}`);
                 }
             }
-            if (isChapterRift(run.map)) {
-                const target = chapterTarget(run.map, run.target!, run.targetHero);
-                if (run.roll < target.rate) {
-                    if (run.target === 'officer') grantHero(target.hero);
-                    else if (this.state.inventory.some(gear => gear.id === `signature-${target.hero}`)) {
-                        chapter.materials[2] += 8;
-                        lines.push(`已有${target.name} · 压阵印 +8`);
-                    } else item = { ...signatureFor(target.hero), chapter: true };
-                } else lines.push(`未掉落${target.name}`);
+            if (delve) {
+                const drop = chapterDelveDrop(run, `loot-${id}`);
+                if (!drop) lines.push('本场未掉落战利品');
+                else if (drop.kind === 'officer') grantHero(drop.hero);
+                else if (drop.kind === 'signature' && this.state.inventory.some(gear => gear.id === drop.item.id)) {
+                    chapter.materials[2] += 8;
+                    lines.push(`已有${drop.item.name} · 压阵印 +8`);
+                } else item = drop.item;
             }
         }
         if (item) {
@@ -906,7 +1166,8 @@ export class ProgressStore {
                 this.state.inventory.push(item);
                 lines.push(item.name);
             } else {
-                chapter.reserve = item;
+                if (chapter.reserve) chapter.reserveQueue.push(item);
+                else chapter.reserve = item;
                 lines.push(`${item.name}已寄存 · 背包满`);
             }
         }
@@ -921,10 +1182,12 @@ export class ProgressStore {
         const duplicate = this.state.inventory.some(gear => gear.id === item.id);
         if (duplicate) chapter.materials[2] += 8;
         else this.state.inventory.push(item);
-        chapter.reserve = null;
+        const next = chapter.reserveQueue.shift();
+        chapter.reserve = next ?? null;
         if (this.save()) return duplicate ? '已有这件专武，寄存奖励转为压阵印 ×8' : null;
         if (duplicate) chapter.materials[2] -= 8;
         else this.state.inventory.pop();
+        if (next) chapter.reserveQueue.unshift(next);
         chapter.reserve = item;
         return '存档失败，请重试';
     }
@@ -934,20 +1197,63 @@ export class ProgressStore {
         const item = this.state.inventory.find(gear => gear.id === id);
         const work = WORKSHOPS[action];
         if (!item || !work) return '请选择装备';
-        if (action === 0 && (item.polish || 0) >= 3) return '已打磨至上限 +3';
+        if (action === 0 && (item.polish || 0) >= MAX_POLISH) return `已打磨至上限 +${MAX_POLISH}`;
         if (action === 1 && (rune !== 'shield' && rune !== 'attack')) return '请选择护身或抢攻';
         if (action === 1 && item.rune === rune) return '已刻上这个阵纹';
-        if (action === 2 && (item.rarity !== 3 || !item.rune || item.stamped)) return '镇军装备或专武须先刻阵，每件只可压阵一次';
-        if (chapter.materials[action] < work.cost) return `${work.material}不足，需要${work.cost}份`;
+        if (action === 2 && (item.rarity < 3 || !item.rune || item.stamped)) return '巧作及以上装备须先刻阵，每件只可压阵一次';
+        const material = tuningMaterialCost(item, action);
+        if (chapter.materials[action] < material) return `${work.material}不足，需要${material}份`;
+        const coins = tuningCoinCost(item, action);
+        if (this.state.coins < coins) return `脑铢不足，需要${coins}枚`;
         const before = { ...item };
-        chapter.materials[action] -= work.cost;
-        if (action === 0) item.polish = (item.polish || 0) + 1;
+        let failed = false;
+        chapter.materials[action] -= material;
+        this.state.coins -= coins;
+        if (action === 0) {
+            const paid = polishInvestment(item);
+            item.polishSpend = { sand: paid.sand + material, coins: paid.coins + coins };
+            const needed = polishEnergyNeeded(item);
+            const rate = polishRate(item);
+            const energy = item.polishEnergy || 0;
+            failed = energy < needed && rate < 100 && this.random() * 100 >= rate;
+            if (failed) item.polishEnergy = Math.min(needed, energy + Math.ceil(needed * .2));
+            else {
+                item.polish = (item.polish || 0) + 1;
+                item.polishEnergy = 0;
+            }
+        }
         if (action === 1) item.rune = rune;
         if (action === 2) item.stamped = true;
-        if (this.save()) return null;
+        if (this.save()) return failed ? `打磨未成功 · 能量 ${item.polishEnergy}/${polishEnergyNeeded(item)}${item.polishEnergy === polishEnergyNeeded(item) ? ' · 下次必成' : ''}` : null;
         this.state.inventory[this.state.inventory.indexOf(item)] = before;
-        chapter.materials[action] += work.cost;
+        chapter.materials[action] += material;
+        this.state.coins += coins;
         return '存档失败，请重试';
+    }
+
+    transferPolish(sourceId: string, targetId: string, confirmedOverflow?: number): string | null {
+        const source = this.state.inventory.find(item => item.id === sourceId);
+        const target = this.state.inventory.find(item => item.id === targetId);
+        if (!source || !target || source === target || slotOf(source) !== slotOf(target)) return '请选择另一件同部位装备';
+        if (!totalPolishEnergy(source)) return '原装备没有可转移的能量';
+        if ((target.polish || 0) >= MAX_POLISH) return '目标已达打磨上限';
+        const chapter = this.state.chapter;
+        if (!chapter.transferSeals) return `需要一张${TRANSFER_SEAL}`;
+        const result = polishTransfer(source, target);
+        if (result.overflow && result.overflow !== confirmedOverflow) return `会溢出 ${result.overflow} 点能量，请确认后转移`;
+        const before = copy(this.state);
+        const paid = polishInvestment(source);
+        const targetPaid = polishInvestment(target);
+        source.polish = 0;
+        source.polishEnergy = 0;
+        delete source.polishSpend;
+        target.polish = result.level;
+        target.polishEnergy = result.energy;
+        target.polishSpend = { sand: paid.sand + targetPaid.sand, coins: paid.coins + targetPaid.coins };
+        chapter.transferSeals--;
+        if (this.save()) return null;
+        this.state = before;
+        return '存档失败，能量与续火券已保留';
     }
 
     startActivity(mode: ActivityMode, choices: BoatChoice[] = [],bossOverride?:WorldBossId): ActivityRun {

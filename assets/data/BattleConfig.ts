@@ -1,7 +1,7 @@
 import { mainlineMob } from './EnemyCatalog';
 import { mainlineTheme } from './MainlineThemes';
 import { applyBonds } from './BondConfig';
-import { MAX_STAGE, MAX_LEVEL, levelFactor, stageFactor, starFactor } from './GrowthConfig';
+import { MAX_STAGE, LEGACY_MAX_LEVEL, levelFactor, stageFactor, starFactor } from './GrowthConfig';
 import type { CombatBonus } from '../battle/BattleEngine';
 import type { BattleOptions, UnitConfig } from '../battle/BattleEngine';
 
@@ -17,7 +17,7 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
     equipment: Record<string, CombatBonus> = {},
     party: readonly HeroId[] = LEGACY_PARTY): BattleOptions {
     if (!Number.isInteger(stage) || stage < 1 || stage > MAX_STAGE) throw new Error('主线关卡范围为 1–999');
-    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > MAX_LEVEL) throw new Error('全队等级范围为1–300');
+    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > LEGACY_MAX_LEVEL) throw new Error('全队等级范围为1–300');
     const factor = stageFactor(stage);
 
     const waves: UnitConfig[][] = [];
@@ -46,7 +46,7 @@ export function createBattleOptions(stage: number, seed = 20261030, heroLevel = 
 export function createHeroes(party: readonly HeroId[], heroLevel = 1,
     equipment: Record<string, CombatBonus> = {}): UnitConfig[] {
     if (party.length > 5 || new Set(party).size !== party.length || party.some(id => !getHero(id))) throw new Error('阵容无效');
-    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > MAX_LEVEL) throw new Error('全队等级范围为1–300');
+    if (!Number.isInteger(heroLevel) || heroLevel < 1 || heroLevel > LEGACY_MAX_LEVEL) throw new Error('全队等级范围为1–300');
     const factor = levelFactor(heroLevel);
     return party.map(id => {
         const hero = getHero(id)!;

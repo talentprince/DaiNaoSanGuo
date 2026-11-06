@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.19.0 r19a — Fifty chapters and equipment progression
+
+- Expand the campaign to 50 chapters, 400 encounters, and 50 Crimson Gates. Add a chapter picker, cap character progression at level 150, and reduce early experience gains.
+- Add five matching officer and equipment rarities. Promote Zhang Fei and six other officers to Legendary, require compatible equipment types for pink and orange items, and reserve high-end pink and orange drops for Crimson Gate.
+- Scale Siege and Workshop encounters and rewards with the protagonist's level. Add eight personal damage milestones and distinct rewards for each rotating world boss.
+- Extend polishing to +12 with declining success rates and guaranteed progress through failure energy. Add rare transfer seals that move energy between same-slot items across rarities and show overflow before confirmation.
+- Incorporate the friends-beta fixes for Crimson Gate transitions, restrained camera shake, one-click team equipment, and rarity-filtered dismantling.
+
+## 0.18.1 r18m — Friends beta
+
+- Add a three-page field guide for the campaign, party growth, and the four Challenge Camp encounters. Open it on a fresh beta profile or revisit it from camp.
+- Trigger chapter comics in story order. Generate campaign enemies in packs and summon the boss when the meter fills. Show remaining stamina before entry, and keep existing runs on their saved rules.
+- Give the protagonist weapon, armor, and charm slots. Share inventory with companions and apply gear and rune bonuses to new encounters. Collapse empty inventory rows and show upgrade effects, costs, and materials.
+- Set beta experience to 2×. Keep gear, officers, materials, and tickets tied to gameplay. Keep background music off in local testing and on by default on phones.
+- Add extra Crimson Gate tickets to siege victories and show reward sources. Scale workshop materials and polishing costs, and return part of the recorded polishing investment when dismantling gear.
+
 ## 0.18.0 r18f — Variable campaign wave counts
 
 - Roll two, three, or four total campaign waves at 20%, 60%, and 20%, including the boss.

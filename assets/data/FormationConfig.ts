@@ -65,8 +65,8 @@ export function validateFormation(entries: readonly FormationEntry[], owned: rea
         } else if (!isTroop(entry.troop)) return '小兵兵种无效';
     }
     if (mode === 'trial') {
-        if (entries.filter(e => e.hero && getHero(e.hero)!.tier === 4).length > 1) return '三将最多1名神将';
-        if (entries.filter(e => e.hero && getHero(e.hero)!.tier === 3).length > 2) return '三将最多2名名将';
+        if (entries.filter(e => e.hero && getHero(e.hero)!.tier === 5).length > 1) return '三将最多1名神将';
+        if (entries.filter(e => e.hero && [3, 4].indexOf(getHero(e.hero)!.tier) >= 0).length > 2) return '名将与传奇合计最多上阵2名';
     }
     if (complete && mode === 'defense' && (!occupied.has('tower-left') || !occupied.has('tower-right'))) return '守城需要2人站城上，另外3人可在城下布置';
     return null;
@@ -127,8 +127,8 @@ export function autoFormation(owned: readonly HeroId[], mode: FormationMode): Fo
         if (chosen.indexOf(id) >= 0 || chosen.length >= capacity(mode)) return false;
         if (mode === 'trial') {
             const tier = getHero(id)!.tier;
-            if (tier === 4 && chosen.some(h => getHero(h)!.tier === 4)) return false;
-            if (tier === 3 && chosen.filter(h => getHero(h)!.tier === 3).length >= 2) return false;
+            if (tier === 5 && chosen.some(h => getHero(h)!.tier === 5)) return false;
+            if ((tier === 3 || tier === 4) && chosen.filter(h => [3, 4].indexOf(getHero(h)!.tier) >= 0).length >= 2) return false;
         }
         chosen.push(id); return true;
     };

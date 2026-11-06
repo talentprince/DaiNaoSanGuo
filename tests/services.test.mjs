@@ -11,18 +11,18 @@ test('默认本地，本机测试档与常规档资源完全隔离，模式选�
     const disk = storage(), session = new LocalSession(disk, '127.0.0.1', false, standard);
     assert.equal(RUNTIME_CONFIG.serviceMode, 'local');
     assert.equal(session.initial().developerMode, true);
-    assert.equal(session.initial().progress.heroLevel, 300);
+    assert.equal(session.initial().progress.heroLevel, 150);
     session.remember('normal');
     const normal = new LocalSession(disk, '127.0.0.1', false, standard).initial();
     assert.equal(normal.developerMode, false); assert.equal(normal.progress.heroLevel, 1); assert.equal(normal.progress.daibi, 0);
     session.test(true); assert.equal(session.normal().progress.heroLevel, 1);
-    assert.equal(session.test().progress.heroLevel, 300);
+    assert.equal(session.test().progress.heroLevel, 150);
 });
 test('远程/真机不能被已存测试标记提升；云端未接入时阻止启动且零读写，不回落本地发奖', () => {
     const disk = storage(), local = new LocalSession(disk, 'localhost'); local.remember('test');
     const phone = new LocalSession(disk, 'game.example.com');
     assert.equal(phone.initial().developerMode, false);
-    assert.throws(() => phone.test(), /仅限/); assert.throws(() => phone.configure({ level: 300, stars: 6, stage: 999 }), /仅限/);
+    assert.throws(() => phone.test(), /仅限/); assert.throws(() => phone.configure({ level: 150, stars: 6, stage: 999 }), /仅限/);
     let touched = false;
     assert.throws(() => new LocalSession({ getItem() { touched = true; return null; }, setItem() { touched = true; } }, 'localhost', false, { serviceMode: 'cloud' }), BackendNotReadyError);
     assert.equal(touched, false);

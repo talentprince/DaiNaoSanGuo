@@ -14,12 +14,12 @@ const engine = (caster, friends = [], foes = 5) => {
 test('44武将ID唯一，普通无治疗，神将无剧情赠送节点，新初始均为普通', () => {
     assert.equal(HERO_CATALOG.length, 44); assert.equal(new Set(HERO_IDS).size, 44);
     assert.ok(HERO_CATALOG.filter(h => h.tier === 1).every(h => h.tactic !== 'heal'));
-    assert.ok(HERO_CATALOG.filter(h => h.tier === 4).every(h => !h.storyStage));
+    assert.ok(HERO_CATALOG.filter(h => h.tier === 5).every(h => !h.storyStage));
     assert.ok(STARTER_PARTY.every(id => getHero(id).tier === 1));
-    assert.equal(getHero('guanyu').tier, 4); assert.equal(getHero('liubei').tier, 3); assert.equal(getHero('mizhu').tier, 2);
+    assert.equal(getHero('guanyu').tier, 5); assert.equal(getHero('zhangfei').tier, 4); assert.equal(getHero('liubei').tier, 3); assert.equal(getHero('mizhu').tier, 2);
 });
-test('普通/骁将/名将攻击技能分别最多1/2/3目标，神将才命中全场', () => {
-    for (const [tier, limit] of [[1, 1], [2, 2], [3, 3], [4, 5]]) {
+test('普通/骁将/名将攻击技能与传奇分别最多1/2/3/4目标，神将才命中全场', () => {
+    for (const [tier, limit] of [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]) {
         for (const tactic of ['cleave', 'pierce', 'volley', 'guard']) {
             const e = engine(unit('caster', { heroTier: tier, tactic }));
             assert.equal(e.castSkill(), true);
@@ -27,7 +27,7 @@ test('普通/骁将/名将攻击技能分别最多1/2/3目标，神将才命中�
             assert.equal(e.enemies.filter(u => u.hp < u.maxHp).length, limit);
         }
     }
-    assert.equal(skillTargetLimit({ heroTier: 4 }), Infinity);
+    assert.equal(skillTargetLimit({ heroTier: 5 }), Infinity);
 });
 test('无品级的普通单位不能偷用全场技能，治疗技能不损伤敌方', () => {
     const ordinary = engine(unit('ordinary', { heroTier: undefined })); ordinary.castSkill();
@@ -51,7 +51,7 @@ test('名将治疗全部存活队友，不超上限、不复活、不附神将�
     assert.ok(e.heroes.every(u => !u.shield && !u.attackBuff));
 });
 test('华佗全体治疗并加护盾，护盾吸收伤害且到期消失，不无限叠加', () => {
-    const e = engine(unit('huatuo', { heroTier: 4, tactic: 'heal', visualId: 'huatuo' }), [unit('a')], 1);
+    const e = engine(unit('huatuo', { heroTier: 5, tactic: 'heal', visualId: 'huatuo' }), [unit('a')], 1);
     e.heroes[1].hp = 100; e.castSkill(); assert.equal(e.heroes[1].hp, 300);
     assert.ok(e.heroes.every(u => u.shield === 120));
     e.heroes[0].energy = 100; e.castSkill(); assert.ok(e.heroes.every(u => u.shield === 120));
@@ -60,7 +60,7 @@ test('华佗全体治疗并加护盾，护盾吸收伤害且到期消失，不�
     e.advance(6.1); assert.ok(e.heroes.every(u => u.shield === 0));
 });
 test('司马懿全体治疗并加20%攻击，暂停冻结状态时间，到期恢复', () => {
-    const e = engine(unit('simayi', { heroTier: 4, tactic: 'heal', visualId: 'simayi' }), [unit('a')], 1);
+    const e = engine(unit('simayi', { heroTier: 5, tactic: 'heal', visualId: 'simayi' }), [unit('a')], 1);
     e.heroes[1].hp = 100; e.castSkill(); assert.equal(e.heroes[1].hp, 260);
     assert.ok(e.heroes.every(u => u.attackBuff === 0.2));
     e.heroes[0].energy = 100; e.castSkill(); assert.ok(e.heroes.every(u => u.attackBuff === 0.2));

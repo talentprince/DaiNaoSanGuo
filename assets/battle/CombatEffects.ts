@@ -109,8 +109,8 @@ export class CombatEffects {
         this.globalNodes = [];
         const tactic = source.unit.tactic || 'cleave';source.attack(targets[0]?.impactPoint.x,targets[0]?.impactPoint.y,true);
         const x = source.impactPoint.x; const y = source.impactPoint.y;
-        const color = source.unit.team === 'enemy' ? '#DF9A8A' : tactic === 'heal' || tactic === 'guard' ? '#A5DAB6' : source.unit.heroTier === 4 ? '#F0CD81' : '#BADFD8';
-        const fullField = source.unit.kind === 'boss' || source.unit.heroTier === 4 || (tactic === 'heal' && (source.unit.heroTier || 1) >= 3);
+        const color = source.unit.team === 'enemy' ? '#DF9A8A' : tactic === 'heal' || tactic === 'guard' ? '#A5DAB6' : source.unit.heroTier === 5 ? '#F0CD81' : '#BADFD8';
+        const fullField = source.unit.kind === 'boss' || source.unit.heroTier === 5 || (tactic === 'heal' && (source.unit.heroTier || 1) >= 3);
         if(fullField&&tactic!=='heal'&&tactic!=='guard')this.weather.cast(source.unit.element==='slash'||!source.unit.element?'wind':source.unit.element);
         const title = panel(this.parent, 'SkillBanner', 0, 380, 390, 56, '#14263EF2', 12);
         text(title, 'SkillTitle', `${source.unit.signature?'【专武】':''}${source.unit.name} · ${name}`, 0, 0, 23, '#FFE4A2', 360);
@@ -163,8 +163,30 @@ export class CombatEffects {
         const g=effect.graphics;g.strokeColor=new Color(actor.unit.element==='fire'?'#FFD26E':actor.unit.element==='lightning'?'#C4EDFF':'#DBC996');g.lineWidth=8;g.circle(0,0,100);g.circle(0,0,125);g.stroke();for(let i=0;i<8;i++){const a=i*Math.PI/4;g.moveTo(Math.cos(a)*88,Math.sin(a)*88);g.lineTo(Math.cos(a)*140,Math.sin(a)*140);g.stroke();}
     }
     finaleImpact():void{
-        const {graphics:g}=this.add('FinaleImpactFlash',0,0,.5);g.fillColor=new Color('#FFF3C8D0');g.rect(-this.width / 2, -this.height / 2, this.width, this.height);g.fill();
+        const {graphics:g}=this.add('FinaleImpactFlash',0,0,.32);g.fillColor=new Color('#FFF3C848');g.rect(-this.width / 2, -this.height / 2, this.width, this.height);g.fill();
         let wave:Node;const effect=this.add('FinaleShockwave',0,-50,.95,p=>wave.setScale(1+p*9,1+p*9,1));wave=effect.node;effect.graphics.strokeColor=new Color('#FFF0B2');effect.graphics.lineWidth=10;effect.graphics.circle(0,0,65);effect.graphics.stroke();
+    }
+    sealBurst(x: number, y: number): void {
+        const flash = this.add('DelveSealFlash', x, y, .52, p => flash.node.setScale(1 + p * .55, 1 + p * .55, 1));
+        const g = flash.graphics;
+        g.fillColor = new Color('#F8855360'); g.ellipse(0, 0, 99, 79); g.fill();
+        g.fillColor = new Color('#FFE8B5E8');
+        for (let i = 0; i < 16; i++) {
+            const angle = i * Math.PI / 8;
+            const length = i % 2 ? 54 : 119;
+            const dx = Math.cos(angle) * length, dy = Math.sin(angle) * length;
+            if (i === 0) g.moveTo(dx, dy);
+            else g.lineTo(dx, dy);
+        }
+        g.close(); g.fill();
+        this.wallBreak(x, y);
+    }
+    delveLanding(x: number, y: number, giant: boolean): void {
+        this.ring(x, y, '#F9BE86', .38, giant ? 78 : 43);
+        const dust = this.add('DelveLandingDust', x, y, .48, p => dust.node.setScale(1 + p * .7, 1, 1));
+        const g = dust.graphics;
+        g.fillColor = new Color('#D9A8879A');
+        for (let i = -2; i <= 2; i++) { g.ellipse(i * 22, Math.abs(i) * 3, 15, 7); g.fill(); }
     }
     wallBreak(x: number, y: number): void {
         for (let i = 0; i < 16; i++) {

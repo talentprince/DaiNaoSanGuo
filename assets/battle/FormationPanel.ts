@@ -75,7 +75,7 @@ export class FormationPanel {
             this.bindDrag(cell, { troop });
         });
         const bench = panel(this.node, 'BenchDrop', 0, -478, 590, 48, '#3D4146', 8);
-        text(bench, 'BenchHint', '↓ 拖随从到这里撤下', 0, 0, 20, '#F4CFA2', 560);
+        text(bench, 'BenchHint', '↓ 拖随从到这里撤下 · 保存时装备归还背包', 0, 0, 20, '#F4CFA2', 560);
         text(this.node, 'FormationNote', this.note, 0, -520, 17, '#BFD2B5', 650);
         button(this.node, 'AutoArrange', '自动布阵', -215, -572, 196, 60, '#5E704F', () => {
             this.formation.companions = autoFormation(owned, 'main').filter(entry => entry.hero && entry.spot !== this.formation.protagonistSpot).slice(0, COMPANION_CAPACITY);
@@ -85,7 +85,7 @@ export class FormationPanel {
             this.formation.companions = []; this.note = '主公独自上阵，可以继续加入随从'; this.render();
         });
         button(this.node, 'SaveArrange', '保存阵型', 215, -572, 196, 60, '#6C6545', () => {
-            this.note = this.store.saveChapterFormation(this.formation) || '阵型已保存 · 下一场生效';
+            this.note = this.store.saveChapterFormation(this.formation) || '阵型已保存 · 未上阵随将的装备已归还背包';
             this.render();
         });
     }
