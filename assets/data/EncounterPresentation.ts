@@ -9,3 +9,15 @@ export function encounterPresentation(mode: 'main' | 'city' | 'other', approach:
 
 /** Shared side-on camera, no perspective scaling. */
 export {siegeCamera as cityFortressPresentation} from './SiegeLayout';
+
+/** Keep melee units spread across the formation while both sides close on the same lane. */
+export function meleeContactX(siege: boolean, ally: boolean, start: number): number {
+    if (siege) return ally ? -116 + (start + 215) * .88 : Math.min(start, 142 + Math.max(0, start - 142) * .24);
+    return ally ? -148 + (start + 215) * .88 : 72 + Math.max(0, start - 50) * .27;
+}
+
+export function approachX(start: number, contact: number, remaining: number, duration: number): number {
+    if (remaining <= 0 || duration <= 0) return contact;
+    const fraction = 1 - Math.min(1, remaining / duration);
+    return start + (contact - start) * fraction;
+}

@@ -8,6 +8,44 @@ export interface FormationMember { hero?: HeroId; troop?: Troop; }
 export interface FormationEntry extends FormationMember { spot: string; }
 export interface FormationSpot { id: string; x: number; y: number; tower?: boolean; }
 export const FORMATION_SPOTS: FormationSpot[] = Array.from({ length: 9 }, (_, i) => ({ id: `r${Math.floor(i / 3)}c${i % 3}`, x: (i % 3 - 1) * 200, y: 310 - Math.floor(i / 3) * 150 }));
+export const COMPANION_CAPACITY = 4;
+export type ChapterMember = FormationMember | { protagonist: true };
+export interface ChapterFormation { protagonistSpot: string; companions: FormationEntry[]; }
+
+export function chapterFormationFromLegacy(entries: readonly FormationEntry[], preferred?: string | null): ChapterFormation {
+    const protagonistSpot = (entries.find(entry => entry.spot === preferred)
+        || entries.find(entry => entry.spot === 'r1c2') || entries.find(entry => entry.spot.endsWith('c2')) || entries[0])?.spot ?? 'r1c2';
+    return { protagonistSpot, companions: entries.filter(entry => entry.spot !== protagonistSpot).slice(0, COMPANION_CAPACITY).map(entry => ({ ...entry })) };
+}
+
+export function validateChapterFormation(formation: ChapterFormation, owned: readonly HeroId[]): string | null {
+    if (!FORMATION_SPOTS.some(spot => spot.id === formation.protagonistSpot)) return '主公必须在一个有效阵位';
+    const companions = formation.companions;
+    if (!Array.isArray(companions) || companions.length > COMPANION_CAPACITY) return '最多上阵4名随从，武将和小兵共用席位';
+    return validateFormation(companions, owned, 'main', false)
+        || (companions.some(entry => entry.spot === formation.protagonistSpot) ? '主公阵位已被占用' : null);
+}
+
+export function moveChapterMember(formation: ChapterFormation, member: ChapterMember, destination: string | null, source?: string): ChapterFormation {
+    const { protagonistSpot, companions } = formation;
+    if (destination && !FORMATION_SPOTS.some(spot => spot.id === destination)) throw new Error('请放入一个有效阵位');
+    if ('protagonist' in member) {
+        if (!destination) throw new Error('主公必须上场，可以换位');
+        return { protagonistSpot: destination, companions: companions.map(entry => entry.spot === destination ? { ...entry, spot: protagonistSpot } : entry) };
+    }
+    const from = source ?? (member.hero ? companions.find(entry => entry.hero === member.hero)?.spot : undefined);
+    if (!destination) return { protagonistSpot, companions: companions.filter(entry => entry.spot !== from) };
+    if (destination === protagonistSpot) {
+        if (!from) throw new Error('主公必须上场，请选其他阵位');
+        return { protagonistSpot: from, companions: companions.map(entry => entry.spot === from ? { ...entry, spot: destination } : entry) };
+    }
+    const displaced = companions.find(entry => entry.spot === destination);
+    const placed = companions.filter(entry => entry.spot !== from && entry.spot !== destination);
+    if (displaced && from && from !== destination) placed.push({ ...displaced, spot: from });
+    placed.push({ ...member, spot: destination });
+    return { protagonistSpot, companions: placed };
+}
+
 export const DEFENSE_SPOTS: FormationSpot[] = ['tower-left','tower-right',...Array.from({length:6},(_,i)=>`ground-${i}`)].map(id=>({id,...defenseBoardPosition(id),tower:id.startsWith('tower-')}));
 export const capacity = (mode: FormationMode): number => mode === 'trial' ? 3 : 5;
 export const spotsFor = (mode: FormationMode): FormationSpot[] => mode === 'defense' ? DEFENSE_SPOTS : FORMATION_SPOTS;
@@ -108,6 +146,13 @@ export function battlePosition(spot: string, mode: 'main' | 'trial' | 'boss' | '
     const row = match ? Number(match[1]) : 1; const col = match ? Number(match[2]) : 1;
     if (mode === 'boss') return { x: (col - 1) * 160, y: -105 - row * 104 };
     return { x: enemy ? 215 - col * 76 : -215 + col * 76, y: 150 - row * 160 };
+}
+
+export function chapterAllyPosition(spot: string, mode: 'main' | 'boss' | 'city'): { x: number; y: number } {
+    const position = battlePosition(spot, mode);
+    const column = /^r[0-2]c([0-2])$/.exec(spot)?.[1];
+    if (mode !== 'boss' && column !== undefined) position.y += (Number(column) - 1) * 58;
+    return position;
 }
 
 /** Preserve saved positions when tier changes invalidate an old trial lineup. Excess elite heroes become troops. */

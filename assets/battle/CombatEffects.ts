@@ -1,3 +1,4 @@
+import { isRangedWeapon } from './BattleEngine';
 import { WeatherEffects } from './WeatherEffects';
 import { formatAmount } from '../data/GrowthConfig';
 import { isValid,Color, Graphics, Node, UIOpacity, Label } from 'cc';
@@ -42,7 +43,7 @@ export class CombatEffects {
     number(actor: UnitActor, amount: number, heal: boolean, critical: boolean): void {
         const x = actor.impactPoint.x; const y = actor.impactPoint.y + (actor.unit.kind === 'boss' ? 90 : 61);
         const node = text(this.parent, 'FloatingNumber', `${heal ? '+' : '−'}${formatAmount(Math.ceil(amount))}${critical ? '!' : ''}`, x, y,
-            critical ? 38 : 25, heal ? '#9CE7B0' : critical ? '#FFE3A1' : '#F4C4B6', 180).node;
+            critical ? 38 : 25, heal ? '#9CE7B0' : actor.unit.team === 'hero' ? '#FF9B89' : critical ? '#FFE3A1' : '#F4C4B6', 180).node;
         const label=node.getComponent(Label)!;label.enableOutline=true;label.outlineWidth=3;label.outlineColor=new Color('#19202D');
         const opacity = node.addComponent(UIOpacity);
         this.effects.push({ node, opacity, total: .72, left: .72, frame: p => {node.setPosition(x,y+p*63,0);const k=1+Math.max(0,1-p*7)*(critical?.45:.2);node.setScale(k,k,1);} });
@@ -50,14 +51,27 @@ export class CombatEffects {
     }
     attack(source: UnitActor, target: UnitActor): void {
         const a = source.impactPoint; const b = target.impactPoint;
-        source.attack(b.x,b.y);
-        if (['bow', 'fan', 'staff', 'ribbon', 'qin'].indexOf(source.weapon) >= 0) {
-            this.projectile(a.x, a.y + 15, b.x, b.y + 15, source.weapon === 'bow' ? '#EDD9A0' : '#A5D9DD', source.weapon === 'bow');
-        } else this.slash(b.x, b.y + 12, ['spear', 'serpent', 'halberd', 'glaive'].indexOf(source.weapon) >= 0 ? '#B8DEE5' : '#F0D39B', ['spear', 'serpent', 'halberd', 'glaive'].indexOf(source.weapon) >= 0);
+        const hostile = source.unit.team === 'enemy';
+        source.attack(b.x, b.y, hostile);
+        if (hostile) {
+            const { node, graphics: flash } = this.add('EnemyStrike', a.x, a.y + 20, .46);
+            node.angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+            flash.fillColor = new Color('#FF9C80E8');
+            flash.moveTo(-19, -13); flash.lineTo(34, 0); flash.lineTo(-19, 13); flash.lineTo(-3, 0);
+            flash.close(); flash.fill();
+            flash.strokeColor = new Color('#FFE4B8'); flash.lineWidth = 3;
+            flash.moveTo(0, 0); flash.lineTo(25, 0); flash.stroke();
+        }
+        if (isRangedWeapon(source.weapon)) {
+            this.projectile(a.x, a.y + 15, b.x, b.y + 15, hostile ? '#FF8F76' : source.weapon === 'bow' ? '#EDD9A0' : '#A5D9DD', source.weapon === 'bow', hostile ? .42 : .32);
+        } else {
+            const thrust = ['spear', 'serpent', 'halberd', 'glaive'].indexOf(source.weapon) >= 0;
+            this.slash(b.x, b.y + 12, hostile ? '#FF987F' : thrust ? '#B8DEE5' : '#F0D39B', thrust, hostile ? 1.14 : 1, hostile ? .44 : .3);
+        }
     }
-    private projectile(x: number, y: number, tx: number, ty: number, color: string, arrow: boolean): void {
+    private projectile(x: number, y: number, tx: number, ty: number, color: string, arrow: boolean, duration = .32): void {
         let node: Node;
-        const effect = this.add('Projectile', x, y, 0.32, p => {
+        const effect = this.add('Projectile', x, y, duration, p => {
             node.setPosition(x + (tx - x) * p, y + (ty - y) * p + Math.sin(p * Math.PI) * (arrow ? 24 : 0), 0);
         });
         node = effect.node; node.angle = Math.atan2(ty - y, tx - x) * 180 / Math.PI;
@@ -66,8 +80,8 @@ export class CombatEffects {
         if (arrow) { g.moveTo(16, 0); g.lineTo(6, 5); g.lineTo(6, -5); g.close(); g.fill(); }
         else { g.circle(12, 0, 6); g.fill(); }
     }
-    private slash(x: number, y: number, color: string, thrust = false, scale = 1): void {
-        const { node, graphics: g } = this.add('WeaponImpact', x, y, .3);
+    private slash(x: number, y: number, color: string, thrust = false, scale = 1, duration = .3): void {
+        const { node, graphics: g } = this.add('WeaponImpact', x, y, duration);
         node.setScale(scale, scale, 1);node.angle=-13;
         for(const [ink,width] of [['#1B2230',16],[color,11],['#FFF6DB',4]] as [string,number][]){
             g.strokeColor=new Color(ink);g.lineWidth=width;

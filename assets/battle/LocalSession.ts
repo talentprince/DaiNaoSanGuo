@@ -19,9 +19,10 @@ export class LocalSession {
         this.testAllowed = isLocalDevelopment(host, simulator);
     }
     initial(): ProgressStore {
-        let normal = false;
-        try { normal = this.storage.getItem(MODE_KEY) === 'normal'; } catch (_) {}
-        return this.testAllowed && !normal ? createDeveloperStore(this.storage) : this.normal();
+        let mode: string | null = null;
+        try { mode = this.storage.getItem(MODE_KEY); } catch (_) {}
+        return this.testAllowed && (mode === 'test' || (!this.experienceMode && mode !== 'normal'))
+            ? createDeveloperStore(this.storage) : this.normal();
     }
     normal(): ProgressStore {
         if (!this.experienceMode) return new ProgressStore(this.storage);

@@ -1,17 +1,36 @@
 import { showSignature } from './SignaturePanel';
 import { Color,Graphics,Node,UIOpacity } from 'cc';
-import { getHero,TIER_COLORS,TIER_NAMES,EXCHANGE_COST } from '../data/HeroCatalog';
-import type { HeroId } from '../data/HeroCatalog';
+import { getHero,TIER_COLORS,TIER_NAMES } from '../data/HeroCatalog';
+import type { HeroId, HeroTier } from '../data/HeroCatalog';
 import { createHeroes } from '../data/BattleConfig';
-import { bondProgress,BONDS } from '../data/BondConfig';
+import { bondProgress } from '../data/BondConfig';
 import { ELEMENT_NAMES } from '../data/HeroIdentity';
-import { formatAmount,STAR_COSTS,SIGNATURE_COST } from '../data/GrowthConfig';
-import { acquisition } from '../data/ActivityConfig';
+import { formatAmount,STAR_COSTS } from '../data/GrowthConfig';
+import { chapterOfficerSource } from '../data/ChapterConfig';
 import { signatureFor,signatureEffect } from '../data/EquipmentConfig';
 import { UnitActor } from './UnitActor';
 import { previewUnit } from './UnitPreview';
 import { button,makeNode,panel,text } from './BattleUI';
 import type { ProgressStore } from './ProgressStore';
+export type HeroTierFilter = 'all' | HeroTier;
+export function heroTierLabel(filter: HeroTierFilter): string {
+    return filter === 'all' ? '全部品级' : TIER_NAMES[filter - 1];
+}
+export function showHeroTierFilter(parent: Node, selected: HeroTierFilter, choose: (filter: HeroTierFilter) => void): void {
+    const overlay = panel(parent, 'HeroTierDialog', 0, 0, 720, 1280, '#080F1CCC', 0);
+    overlay.on(Node.EventType.TOUCH_END, () => {});
+    const sheet = panel(overlay, 'HeroTierSheet', 0, 20, 552, 382, '#17283D', 20);
+    text(sheet, 'HeroTierHeading', '按武将品级筛选', -22, 135, 29, '#F0D29D', 410);
+    button(sheet, 'CloseHeroTier', '×', 226, 136, 57, 51, '#344B62', () => overlay.destroy());
+    (['all', 1, 2, 3, 4] as const).forEach((filter, i) => {
+        const y = 61 - Math.floor(i / 2) * 79;
+        const x = i === 4 ? 0 : (i % 2 ? 1 : -1) * 124;
+        const control = button(sheet, `HeroTier-${filter}`, heroTierLabel(filter), x, y, 231, 59,
+            selected === filter ? '#77603D' : '#354D63', () => { overlay.destroy(); choose(filter); });
+        if (filter !== 'all') control.label.color = new Color(TIER_COLORS[filter - 1]);
+    });
+}
+
 export function heroArtwork(parent:Node,id:HeroId,x:number,y:number,scale:number,signature=false):Node{
     const h=getHero(id)!;const root=makeNode(`Artwork-${id}`,parent,x,y);const actor=new UnitActor(root,previewUnit({...h,signature:signature?id:undefined}),0,0,0,0,scale,1);
     actor.hp.node.active=false;actor.hpText.node.active=false;actor.node.getChildByName('Name')!.active=false;return root;
@@ -28,12 +47,13 @@ export function heroCard(parent:Node,store:ProgressStore,id:HeroId,x:number,y:nu
     text(node,'CardFooter',footer,0,-height/2+24,15,'#BDD2DF',width-14);
     node.on(Node.EventType.TOUCH_END,onClick);return node;
 }
-export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,mode:'roster'|'exchange'|'result',onChanged:()=>void,onFormation?:()=>void,onRecruit?:()=>void):void{
+export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,onChanged:()=>void,loot?: { source: string; onClose?: () => void }):void{
     const overlay=panel(parent,'HeroDetails',0,0,720,1280,'#101725FC',0);overlay.on(Node.EventType.TOUCH_END,()=>{});
-    const p=store.progress,h=getHero(id)!,owned=p.owned.indexOf(id)>=0,stars=owned?p.stars[id]||1:1;
+    const close = () => { overlay.destroy(); loot?.onClose?.(); };
+    const p=store.progress,h=getHero(id)!,owned=!loot&&p.owned.indexOf(id)>=0,stars=owned?p.stars[id]||1:1;
     const config=createHeroes([id],p.heroLevel,owned?store.getEquipmentBonuses():{})[0];
     text(overlay,'HeroDetailTitle',`${h.name} · ${TIER_NAMES[h.tier-1]}`,0,552,38,TIER_COLORS[h.tier-1]);
-    button(overlay,'CloseDetail','×',306,553,60,54,'#35445A',()=>overlay.destroy());
+    button(overlay,'CloseDetail','×',306,553,60,54,'#35445A',close);
     const art=panel(overlay,'DetailArt',0,315,626,365,'#233449',20);heroArtwork(art,id,-10,-86,1.5,!!config.signature);
     text(art,'ArtStars','★'.repeat(stars),0,-151,24,'#F0CC77');
     text(overlay,'PreviewLevel',`Lv.${p.heroLevel} · ${owned?'当前穿戴与星级':'1星属性预览'}`,0,92,21,'#AAC4D5');
@@ -44,32 +64,30 @@ export function heroDetails(parent:Node,store:ProgressStore,id:HeroId,mode:'rost
     const rule=h.tactic==='heal'?h.tier===2?'单体治疗22%生命':h.tier===3?'全体治疗12%生命':h.id==='huatuo'?'全体治疗20%并附护盾':'全体治疗16%并附战意':`攻击技能${attackLimit}${h.element==='fire'?'，附4秒灼烧':h.element==='blizzard'?'，减速25%持续4秒':h.element==='poison'?'，4秒中毒并抑疗25%':''}`;
     text(overlay,'SkillRule',rule,0,-101,19,'#B4CADD',640);
     const signature=signatureFor(id);text(overlay,'Exclusive',`${signature.name}：${signatureEffect(id)}`,0,-147,18,'#CDBA93',640);
-    button(overlay,'GetHeroSignature',`获取专武 · ${SIGNATURE_COST}脑勋 / 查看造型`,0,-193,600,47,'#6C553D',()=>showSignature(overlay,store,id,onChanged));
-    if (id === 'zhaoyun') text(overlay, 'ChapterSignatureSource', '奇阵夺宝也可定向刷龙胆亮银枪', 0, -224, 16, '#B9A2EB', 650);
-    text(overlay,'BondTitle','羁绊 · 按当前主线阵容',0,-249,22,'#E0C99D');
-    const related=bondProgress(p.formation).filter(b=>b.bond.members.indexOf(id)>=0);
+    if (loot) {
+        text(overlay, 'LootOfficerSource', loot.source, 0, -239, 23, '#E2CF9B', 620);
+        text(overlay, 'LootOfficerRule', '首次获得将帖即入队 · 重复获得转为专属碎片 ×20', 0, -299, 19, '#B8CCDA', 630);
+        button(overlay, 'CloseHeroDetails', '返回战利品', 0, -500, 540, 65, '#3E5C70', close);
+        return;
+    }
+    button(overlay,'GetHeroSignature','查看专武造型与来源',0,-193,600,47,'#6C553D',()=>showSignature(overlay,store,id,onChanged));
+    text(overlay,'BondTitle','羁绊 · 按当前出战随将',0,-249,22,'#E0C99D');
+    const companions = store.chapterFormation.companions.filter(entry => entry.hero).map(entry => entry.hero!);
+    const related = bondProgress(companions).filter(b => b.bond.members.indexOf(id) >= 0);
     related.slice(0,3).forEach((b,i)=>text(overlay,`Bond-${b.bond.id}`,`${b.active?'已激活':'未激活'} · ${b.bond.name} ${b.count}/${b.bond.need} · ${b.bond.desc}`,0,-285-i*35,18,b.active?'#9CDEB0':'#9BB2C8',650));
     if(!related.length)text(overlay,'NoBond','暂无特定羁绊，后续持续扩展',0,-299,19,'#92ACC2');
-    const note=text(overlay,'DetailNote',owned?`专属碎片${p.fragments[id]||0} · 通用脑力${p.souls}`:acquisition(id),0,-399,18,'#AAC6BB',640);
-    if(mode==='exchange')button(overlay,'ConfirmExchange',owned?'已拥有此将':`兑换 · ${EXCHANGE_COST[h.tier as 3|4]}脑勋`,0,-477,570,72,owned?'#3A4B5C':'#8A6B3D',()=>{
-        const error=store.exchange(id);if(error){note.string=error;return;}onChanged();
+    const note=text(overlay,'DetailNote',owned?`专属碎片${p.fragments[id]||0} · 通用脑力${p.souls}`:chapterOfficerSource(id),0,-399,18,'#AAC6BB',640);
+    if (owned) button(overlay,'ConfirmStar',stars>=6?'已满6星':`升星 · 本将${Math.min(p.fragments[id]||0,STAR_COSTS[stars-1])} + 脑力${Math.max(0,STAR_COSTS[stars-1]-(p.fragments[id]||0))}`,0,-477,570,72,'#79643E',()=>{
+        const error=store.starUp(id);if(error){note.string=error;return;}onChanged();
     });
-    else if(owned&&mode==='roster')button(overlay,'ConfirmStar',stars>=6?'已满6星':`升星 · 本将${Math.min(p.fragments[id]||0,STAR_COSTS[stars-1])} + 脑力${Math.max(0,STAR_COSTS[stars-1]-(p.fragments[id]||0))}`,0,-477,570,72,'#79643E',()=>{const error=store.starUp(id);if(error){note.string=error;return;}onChanged();});
-    else button(overlay,'ViewFormation',owned?'前往布阵':'了解此将',0,-477,570,72,'#496C5B',()=>{if(owned&&onFormation){overlay.destroy();onFormation();}});
     button(overlay,'FragmentSources','碎片 / 脑力来源',-149,-571,284,60,'#425C69',()=>{
         const info=panel(overlay,'FragmentSourcesOverlay',0,0,720,1280,'#152436',0);info.on(Node.EventType.TOUCH_END,()=>{});
         text(info,'SourcesTitle',`${h.name} · 升星材料`,0,465,36,'#F0D39A');
         text(info,'OwnedFragments',`本将碎片 ${p.fragments[id]||0} · 通用脑力 ${p.souls}`,0,350,24,'#BBD4C8',650);
-        text(info,'SourceRecruit','重复招募同一武将 → 本将碎片 ×20',0,220,26,'#E7CFA5',650);
-        text(info,'SourceRecruitNote','首次结识武将不发碎片；招募不能指定结果。',0,165,20,'#A9C1D1',650);
-        text(info,'SourceDungeon','副本结算 → 通用脑力，每日合计最多20',0,50,25,'#D2D6AD',650);
+        text(info,'SourceChapter',chapterOfficerSource(id),0,220,25,'#E7CFA5',650);
+        text(info,'SourceDuplicate','重复获得同一将帖 → 本将碎片 ×20',0,165,21,'#A9C1D1',650);
+        text(info,'SourceDungeon','前台战图胜利 → 通用脑力，每日最多20',0,50,24,'#D2D6AD',650);
         text(info,'SourceRule','升星优先使用本将碎片，不足部分才消耗脑力。',0,-20,21,'#B8CDDA',650);
-        if (id === 'zhaoyun' || id === 'liaohua' || id === 'zhangfei') {
-            const source = id === 'zhaoyun' ? '奇阵夺宝' : id === 'liaohua' ? '小桥口' : '长坂路首通';
-            text(info, 'SourceChapter', `${source} · 重复将帖也可换为本将碎片 ×20`, 0, 107, 19, '#D6BAEE', 650);
-        }
-        text(info,'SourceTest','内测赠送的脑力属于独立体验资源。',0,-90,20,'#A5BDCC',650);
-        if(onRecruit)button(info,'GetFragmentsRecruit','前往招募 · 收集本将碎片',0,-275,590,76,'#846B3F',onRecruit);
         button(info,'CloseFragmentSources','返回武将',0,-478,590,64,'#3B556B',()=>info.destroy());
     });
     button(overlay,'CloseHeroDetails','返回',149,-571,284,60,'#344B60',()=>overlay.destroy());

@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.18.0 r18f — Variable campaign wave counts
+
+- Roll two, three, or four total campaign waves at 20%, 60%, and 20%, including the boss.
+- Vary elite density and reveal the boss when kill progress fills. Show the planned stamina cost before entry and preserve it on resume.
+
+## 0.18.0 r18e — Next encounter shortcut
+
+- Add a next-encounter button beside replay on campaign victory reports. Open the next encounter preview and stop repeats on the previous encounter.
+
+## 0.18.0 r18d — Story replay layout
+
+- Place the opening and ending replay controls below the chapter map cards and label them as replays.
+
+## 0.18.0 r18c — Loot name links
+
+- Open reward details directly from item and officer names in drop previews, the Crimson Gate selector, and reward summaries.
+
+## 0.18.0 r18b — Campaign story triggers
+
+- Play chapter openings automatically in camp and on the map when chapters unlock. Lead players to the first encounter preview.
+- Guide players from the first chapter-ending clear to the next chapter. Preserve unfinished endings across reloads and show level requirements before travel.
+
+## 0.18.0 r18a — Campaign comics and marching supplies
+
+- Add rarity filters to the officer catalog, formation roster, equipment roster, and inventory.
+- Add opening and closing comics for every chapter and level requirements for new campaign progress.
+- Reset 300 stamina at 07:00 Shanghai time, charge by encounter wave, and report kill and clear experience separately.
+- Award more rage for elite kills and harder encounters. Add separate rage and speed tonics, and keep ordinary battle speed capped at 2×.
+
+## 0.17.0 r17b — Challenge Camp and loot details
+
+- Rename the camp dungeon entrance and page to Challenge Camp.
+- Show tappable equipment and officer drops before battle, after settlement, and in offline claims.
+- Use the same equipment definitions for drop previews and rewards. Pause automatic repeats while the player reads a reward.
+
+## 0.17.0 r17a — Ten-chapter campaign and Crimson Gate
+
+- Open all ten chapters with eight maps each, three difficulty tiers, branching encounters, and distinct enemy tactics.
+- Replace the experience grant with a separate test profile that earns five times the idle experience at normal drop and currency rates.
+- Add a five-room Crimson Gate route with horizontal fights, an uphill encounter, a breakable urn, and rotating giant-officer squads.
+- Add tickets earned from campaign victories, capped at ten per Shanghai calendar day, and targeted drops for all 44 officers and their signature weapons.
+
+## 0.16.0 r16f — Yellow Turban chapter and shared formation board
+
+- Put the required protagonist and up to four optional companions on one drag-and-drop board. Keep empty slots when saving and preserve legacy encounter snapshots.
+- Stagger friendly units during side-view combat. Give women officers visible alternating steps while the party marches.
+- Add Yellow Turban maps, chapter switching, and a second treasure encounter with independent drops for Hua Tuo and his signature weapon.
+- Rotate fortified guards, faster archers, and enemy regeneration across treasure encounters.
+
+## 0.16.0 r16e — Map dialogs and approach combat
+
+- Open map and equipment details in focused dialogs, cycle difficulty with arrows, and offer only cleared maps for offline assignment.
+- Move opposing melee formations toward the center before striking. Keep ranged units on their lines and allow them to fire near the end of the approach.
+- Let chapter bosses finish their opening swing before skills can resolve. Make hostile attacks easier to see and report their count in the battle summary.
+
+## 0.16.0 r16d — Camp, illustrated maps, and solo dungeons
+
+- Open at the protagonist's camp and separate chapter maps from solo dungeons. Show terrain and boss portraits on map cards, with darker colors at higher difficulties.
+- Restore face-to-face boss encounters and fixed-gate siege battles as local challenges.
+- Give chapter enemies an earlier opening attack and clearer hostile hit effects. Roll each treasure drop independently.
+- Draw distinct hairstyles and accessories for eight officers and a dedicated helmet and armor for the protagonist.
+
+## 0.16.0 r16c — Single-player campaign home
+
+- Open directly on the Longban campaign and route formation, growth, gear, and dungeon entry through it.
+- Replace legacy matchmaking-style activities, recruitment, and exchange entry points with chapter drops and workshop battles.
+- Add a story healer, armor and charm drops, and capped ascension resources so a fresh profile can reach the chapter treasure encounter through Longban alone.
+- Leave the read-only WeChat document title untouched and retain the build caption on screen.
+
 ## 0.16.0 — Longban idle loot prototype
 
 - Add four Longban maps and three difficulties to the existing marching battle flow. Reuse formations, officer cards, inventory, and signature weapon effects.

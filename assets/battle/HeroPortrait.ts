@@ -14,7 +14,7 @@ export function portrait(parent:Node,member:FormationMember|{protagonist:true},s
     const bg=node.addComponent(Graphics);bg.fillColor=new Color('#152439');bg.circle(0,0,43);bg.fill();
     const crop=makeNode('PortraitCrop',node);crop.addComponent(UITransform).setContentSize(78,78);crop.addComponent(Mask).type=Mask.Type.GRAPHICS_ELLIPSE;
     const shoulders=makeNode('Shoulders',crop,0,-29).addComponent(Graphics);shoulders.fillColor=new Color(color);shoulders.roundRect(-32,-20,64,30,8);shoulders.fill();
-    const head=comicHead(crop,id,color,hero?.tier||1);head.setPosition(0,-4);head.setScale(1,1,1);
+    const head=comicHead(crop,id,color,hero?.tier||1);const scale=protagonist?.82:1;head.setPosition(0,-4);head.setScale(scale,scale,1);
     const rim=makeNode('PortraitRim',node).addComponent(Graphics);rim.strokeColor=new Color(protagonist?'#EBC36F':hero?TIER_COLORS[hero.tier-1]:'#9CAEB7');rim.lineWidth=3;rim.circle(0,0,42);rim.stroke();
     if(!hero&&!protagonist){rim.strokeColor=new Color('#EEE0AB');rim.lineWidth=3;if(member.troop==='bow'){rim.arc(25,-10,15,-1.2,1.2,false);rim.stroke();}else{rim.moveTo(28,-30);rim.lineTo(28,15);rim.stroke();}}
     return node;

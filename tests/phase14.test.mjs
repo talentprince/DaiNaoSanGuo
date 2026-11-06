@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {BattleEngine} from '../assets/battle/BattleEngine.ts';import {BattlePreferences} from '../assets/data/BattlePreferences.ts';import {AudioDirector} from '../assets/battle/AudioDirector.ts';
-import {ProgressStore} from '../assets/battle/ProgressStore.ts';import {DUNGEON_CARDS,dungeonCardPosition} from '../assets/data/DungeonPresentation.ts';import {buildCaption} from '../assets/data/BuildInfo.ts';
+import {ProgressStore} from '../assets/battle/ProgressStore.ts';import {DUNGEON_CARDS,dungeonCardPosition} from '../assets/data/DungeonPresentation.ts';import {buildCaption,setBrowserBuildTitle} from '../assets/data/BuildInfo.ts';
 const unit=(id,more={})=>({id,name:id,role:'将',kind:'hero',heroTier:3,tactic:'cleave',maxHp:1e6,attack:10,defense:0,interval:100,priority:0,color:'#FFFFFF',...more});
 const engine=(extra={})=>new BattleEngine({heroes:['a','b','c'].map(id=>unit(id)),waves:[[unit('foe',{kind:'soldier',maxHp:1e8,attack:0})]],seed:42,energyRate:0,...extra});
 const memory=()=>{const values=new Map();return{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)};};
@@ -26,4 +26,15 @@ test('切换副本校验失败保留原未完挑战及次数，成功只扣目�
 });
 test('副本四张卡片严格2x2对称且有各自原画，所有入口保持显示；版本号明确区分源码/构建',()=>{
  assert.equal(new Set(DUNGEON_CARDS.map(c=>c.art)).size,4);const p=DUNGEON_CARDS.map((_,i)=>dungeonCardPosition(i));assert.equal(p[0].x,-p[1].x);assert.equal(p[2].x,-p[3].x);assert.equal(p[0].y,p[1].y);assert.equal(p[2].y,p[3].y);assert.equal(p[0].width,p[3].width);assert.ok(buildCaption(true,false).includes('Cocos源码'));assert.ok(buildCaption(false,true).includes('微信构建'));assert.ok(buildCaption(false,false).includes('Web构建'));
+});
+
+test('微信模拟器文档标题只读，浏览器仍显示构建版本', () => {
+    const simulator = Object.freeze({ title: 'WeChat Game' });
+    setBrowserBuildTitle(simulator, buildCaption(false, true), true);
+    assert.equal(simulator.title, 'WeChat Game');
+    const browser = { title: '' };
+    const caption = buildCaption(true, false);
+    setBrowserBuildTitle(browser, caption, false);
+    assert.equal(browser.title, `呆脑三国 · ${caption}`);
+    setBrowserBuildTitle(undefined, caption, false);
 });

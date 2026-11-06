@@ -37,11 +37,13 @@ export class UnitActor {
     private rubble = false;private rubbleArt:Node|null=null;
     private rear: boolean;
     private compact: boolean;
+    private readonly female: boolean;
     private fallSpeed = 0;private walkBlend=0;
     private cape:Node|null=null;private motionInk!:Graphics;private attackX=1;private attackY=0;private strong=false;private headBase=1;
 
     constructor(parent: Node, unit: Unit, x: number, y: number, fromX: number, fromY: number, scale = 1, face = 1, rear = false, compact = false) {
         this.rear = rear; this.compact = compact;
+        this.female = isFemaleHero(unit.visualId || unit.id);
         this.unit = unit; this.goalX = x; this.goalY = y; this.scale = scale; this.face = face;
         this.node = makeNode(unit.id, parent, fromX, fromY);
         this.node.addComponent(UITransform).setContentSize(100, 116);
@@ -52,7 +54,9 @@ export class UnitActor {
         this.statusAura=makeNode('StatusAura',this.node,0,-35*scale).addComponent(Graphics);
         this.body = makeNode('JointedBody', this.node);
         this.body.setScale(unit.kind==='wall'?1:face * scale, scale, 1);
-        if (unit.kind === 'wall') this.wallModel(); else this.personModel();
+        if (unit.visualId === 'delve-jar') this.jarModel();
+        else if (unit.kind === 'wall') this.wallModel();
+        else this.personModel();
         this.motionInk=makeNode('ComicMotionInk',this.node).addComponent(Graphics);
         this.buffIcons = makeNode('BuffIcons', this.node, 37, 20).addComponent(Graphics);
         const health = makeNode('Health', this.node, 0, unit.kind === 'boss' ? -125 : compact ? scale >= 0.95 ? -68 : -55 : scale >= 1.05 ? -82 : -69);
@@ -60,14 +64,18 @@ export class UnitActor {
         this.hpText = text(this.node, 'HpText', '', 0, unit.kind === 'boss' ? -143 : compact ? scale >= 0.95 ? -82 : -70 : scale >= 1.05 ? -97 : -84, unit.formationSpot ? 11 : 13, '#B1C4D6', unit.kind === 'boss' ? 220 : unit.formationSpot ? 74 : 110);
         text(this.node, 'Name', unit.name, 0, unit.kind === 'boss' ? 196 : compact ? scale >= 0.95 ? -54 : -40 : scale >= 1.05 ? -66 : -53, unit.kind === 'boss' ? 26 : unit.formationSpot ? 16 : 18,
             unit.kind === 'soldier' ? '#B4C3CE' : unit.heroTier === 4 ? '#F4D27E' : unit.heroTier === 3 ? '#DDC3EF' : '#F3DFC0', unit.kind === 'boss' ? 250 : unit.formationSpot ? 80 : 118);
-        if (unit.kind === 'wall') { health.active = false; this.hpText.node.active = false; this.node.getChildByName('Name')!.active = false; }
+        if (unit.kind === 'wall' && unit.visualId !== 'delve-jar') { health.active = false; this.hpText.node.active = false; this.node.getChildByName('Name')!.active = false; }
     }
 
     get impactPoint(): {x:number;y:number} {
-        let x=this.node.position.x+this.body.position.x-(this.unit.kind==='wall'?65:0),y=this.node.position.y+this.body.position.y-(this.unit.kind==='wall'?25:0);
+        let x=this.node.position.x+this.body.position.x-(this.unit.kind==='wall'&&this.unit.visualId!=='delve-jar'?65:0),y=this.node.position.y+this.body.position.y-(this.unit.kind==='wall'&&this.unit.visualId!=='delve-jar'?25:0);
         let parent=this.node.parent;
         while(parent&&parent.name!=='Units'){x=x*parent.scale.x+parent.position.x;y=y*parent.scale.y+parent.position.y;parent=parent.parent;}
         return{x,y};
+    }
+    placeOnLane(x: number, y = this.node.position.y): void {
+        this.goalX = x; this.goalY = y;
+        this.node.setPosition(x, y, 0);
     }
     setGoal(x: number, y: number): void { this.goalX = x; this.goalY = y; }
     fallTo(x: number, y: number): void { this.goalX = x; this.goalY = y; this.fallSpeed = 20; }
@@ -80,6 +88,12 @@ export class UnitActor {
         if(this.rubble)return;this.rubble=true;this.body.active=false;
         const debris=this.rubbleArt=makeNode('BrokenMasonry',this.node),g=debris.addComponent(Graphics);
         const stone=(points:number[][],fill:string)=>{g.fillColor=new Color(fill);g.strokeColor=new Color('#493C38');g.lineWidth=3;g.moveTo(points[0][0],points[0][1]);points.slice(1).forEach(([x,y])=>g.lineTo(x,y));g.close();g.fill();g.stroke();};
+        if (this.unit.visualId === 'delve-jar') {
+            const shards = [[-61,-30],[-27,-37],[9,-39],[53,-28],[-12,-22]];
+            shards.forEach(([x,y],i) => stone([[x-11,y-7],[x-6,y+13+i*2],[x+12,y+2],[x+13,y-9]], i%2 ? '#E99460' : '#9D383A'));
+            this.shadow.active = false;
+            return;
+        }
         // Irregular wall stumps and scattered material, never a compressed intact gate.
         stone([[-118,-275],[-118,-190],[-103,-190],[-103,-213],[-85,-213],[-85,-242],[-64,-242],[-64,-275]],'#B5A188');
         stone([[4,-275],[4,-214],[17,-214],[17,-176],[36,-176],[36,-198],[51,-198],[51,-275]],'#968570');
@@ -111,7 +125,8 @@ export class UnitActor {
             if (nextY === this.goalY) this.fallSpeed = 0;
         } else if (distance > 0.1) this.node.setPosition(p.x + dx / distance * step, p.y + dy / distance * step, 0);
         if (this.unit.kind === 'wall') {
-            this.body.setScale(1,1,1);this.body.setPosition(0,0,0);
+            this.body.setScale(1,1,1);
+            this.body.setPosition(this.unit.visualId === 'delve-jar' ? Math.sin(this.hit * 75) * this.hit * 33 : 0,0,0);
             this.opacity.opacity=255;
             return;
         }
@@ -130,6 +145,11 @@ export class UnitActor {
         const power=this.strong?1.45:1;
         this.leftLeg.angle = stride*38*walk-strike*13;
         this.rightLeg.angle = -stride*38*walk+strike*18;
+        if (this.female) {
+            const step = stride * walk;
+            this.leftLeg.setPosition(-13 + step * 9, -23 + Math.max(0, step) * 8);
+            this.rightLeg.setPosition(13 - step * 9, -23 + Math.max(0, -step) * 8);
+        }
         this.leftArm.angle = -stride*27*walk+strike*28+Math.sin(this.clock*2)*4*(1-walk);
         this.rightArm.angle = this.weapon === 'bow' ? strike*49 : -strike*142+(stride*22*walk-15*(1-walk));
         this.weaponNode.angle = (this.rear&&this.weapon==='bow'?90:0)+(this.weapon==='fan'?strike*72:['spear','glaive','serpent','halberd'].indexOf(this.weapon)>=0?-strike*57:0);
@@ -191,10 +211,17 @@ export class UnitActor {
         }
         const limb = (name: string, x: number, y: number, leg: boolean): Node => {
             const node = makeNode(name, this.body, x, y); const g = node.addComponent(Graphics);
+            if (leg && this.female) {
+                polygon(g, [[-6,4],[7,4],[7,-25],[-7,-25]], new Color('#424A66'));
+                polygon(g, [[-8,-20],[8,-20],[15,-33],[-9,-33]], new Color('#23263C'));
+                g.strokeColor = new Color('#E9C989'); g.lineWidth = 3;
+                g.moveTo(-5,-21); g.lineTo(6,-21); g.stroke();
+                return node;
+            }
             polygon(g,[[-7,3],[8,0],[9,-23],[-9,-25]],leg ? new Color(uniform?.lining || '#334058') : armor);
             polygon(g,[[-9,-19],[9,-20],[17,-31],[-11,-31]],leg ? new Color('#1B2034') : new Color(uniform?.trim || '#EDB77D'));return node;
         };
-        this.leftLeg = limb('LeftLeg', -10, -13, true); this.rightLeg = limb('RightLeg', 10, -13, true);
+        this.leftLeg = limb('LeftLeg', -10, this.female ? -23 : -13, true); this.rightLeg = limb('RightLeg', 10, this.female ? -23 : -13, true);
         this.torso = makeNode('ArmoredTorso', this.body); const g = this.torso.addComponent(Graphics);
         polygon(g,[[-26,29],[-35,13],[-22,-10],[-20,-28],[21,-28],[23,-9],[35,13],[26,29]],armor);
         polygon(g, [[-19, 20], [0, 27], [20, 19], [14, -12], [0, -21], [-14, -12]],
@@ -242,8 +269,14 @@ export class UnitActor {
             polygon(g,[[18,25],[32,35],[45,23],[41,7],[23,12]],shoulder);
             if(tier>=3){polygon(g,[[-34,33],[-41,47],[-45,23]],shoulder);polygon(g,[[34,33],[41,47],[45,23]],shoulder);}
         }
+        if (id === 'chapter-protagonist') {
+            polygon(g, [[-44,18],[-34,37],[-17,36],[-20,8],[-39,3]],new Color('#D99058'));
+            polygon(g, [[16,26],[31,38],[48,22],[43,9],[24,10]],new Color('#62A9B0'));
+            polygon(g, [[-14,16],[1,24],[15,16],[14,-5],[1,-14],[-13,-6]],new Color('#F1C770'));
+            polygon(g, [[-6,10],[1,15],[8,10],[1,0]],new Color('#34758E'));
+        }
         this.leftArm = limb('LeftArm', -25, 19, false); this.rightArm = limb('RightArm', 25, 19, false);
-        if (['caohong', 'chengpu', 'huanggai', 'zhoucang'].indexOf(id) >= 0 || uniform?.style === 'plates' || (soldier && this.weapon === 'sword')) {
+        if (['chapter-protagonist', 'caohong', 'chengpu', 'huanggai', 'zhoucang'].indexOf(id) >= 0 || uniform?.style === 'plates' || (soldier && this.weapon === 'sword')) {
             const shield = makeNode('Shield', this.leftArm, -2, -17).addComponent(Graphics);
             shield.fillColor = new Color('#4D6774'); shield.roundRect(-12, -16, 24, 32, 9); shield.fill();
             shield.strokeColor = new Color('#D6BC83'); shield.lineWidth = 3; shield.roundRect(-12, -16, 24, 32, 9); shield.stroke();
@@ -252,7 +285,7 @@ export class UnitActor {
         if(id==='world-zhangjiao'){g.fillColor=new Color('#D6B74E');g.moveTo(0,24);g.lineTo(-18,-22);g.lineTo(18,-22);g.close();g.fill();g.strokeColor=new Color('#574579');g.lineWidth=3;g.moveTo(0,13);g.lineTo(-7,-2);g.lineTo(5,-5);g.lineTo(-2,-20);g.stroke();}
         if(id==='world-menghuo'){g.fillColor=new Color('#E7D6A9');for(let i=0;i<5;i++){g.moveTo(-22+i*11,17);g.lineTo(-18+i*11,5);g.lineTo(-14+i*11,17);g.close();g.fill();}}
         this.head = comicHead(this.body, id, uniform?.color || this.unit.color, tier, this.rear, boss);this.headBase=soldier?1.06:boss?1.2:tier>=3?1.22:1.16;this.head.setScale(this.headBase,this.headBase,1);
-        if(isFemaleHero(id)){this.torso.setScale(.86,1,1);}
+        if(this.female){this.torso.setScale(.86,1,1);}
         if(boss){this.torso.setScale(id==='world-zhangjiao'?1.08:1.4,id==='world-zhangjiao'?1.3:1.15,1);this.leftArm.setScale(1.25,1.15,1);this.rightArm.setScale(1.25,1.15,1);}
         this.weaponNode = makeNode('SignatureWeapon', this.rightArm, 0, -23);
         const presentation=weaponPresentation(this.unit);this.weaponNode.setScale(presentation.scale,presentation.scale,1);
@@ -321,6 +354,16 @@ export class UnitActor {
             detail.fillColor=new Color('#E5BA61');detail.circle(3,1,7);detail.fill();detail.fillColor=new Color('#5AA8B6');detail.circle(3,1,3.5);detail.fill();
             this.weaponNode.getChildByName('ExclusiveBladeCore')!.setSiblingIndex(this.weaponNode.children.length-1);
         }
+    }
+
+    private jarModel(): void {
+        const g = this.body.addComponent(Graphics);
+        g.strokeColor = new Color('#341F34'); g.lineWidth = 6; g.fillColor = new Color('#A34A4B');
+        g.moveTo(-27,47); g.bezierCurveTo(-26,31,-64,23,-60,-9); g.bezierCurveTo(-55,-64,55,-64,60,-9);
+        g.bezierCurveTo(64,23,26,31,27,47); g.close(); g.fill(); g.stroke();
+        g.fillColor = new Color('#D98758'); g.ellipse(0,48,35,11); g.fill(); g.stroke();
+        g.fillColor = new Color('#F4C86A'); g.moveTo(0,31); g.lineTo(24,3); g.lineTo(0,-27); g.lineTo(-24,3); g.close(); g.fill(); g.stroke();
+        g.strokeColor = new Color('#9B333C'); g.lineWidth = 4; g.moveTo(-8,10); g.lineTo(8,10); g.lineTo(8,-7); g.lineTo(-8,-7); g.close(); g.stroke();
     }
 
     private wallModel(): void {

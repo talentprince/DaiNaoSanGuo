@@ -7,33 +7,50 @@ import type { Equipment, EquipmentRune, EquipmentSlot } from '../data/EquipmentC
 import { BattleEngine } from './BattleEngine';
 import type { CombatBonus } from './BattleEngine';
 export type { Equipment } from '../data/EquipmentConfig';
-import { arrangeParty, validateFormation, formationHeroes, autoFormation, repairFormation } from '../data/FormationConfig';
-import type { FormationEntry, FormationMode } from '../data/FormationConfig';
+import { arrangeParty, chapterFormationFromLegacy, validateChapterFormation, validateFormation, formationHeroes, autoFormation, repairFormation, FORMATION_SPOTS } from '../data/FormationConfig';
+import type { ChapterFormation, FormationEntry, FormationMode } from '../data/FormationConfig';
 import { DRAW_COST, DIVINE_PITY, EXCHANGE_COST, getHero, HERO_CATALOG, HERO_IDS, LEGACY_PARTY, STARTER_PARTY, validateParty } from '../data/HeroCatalog';
 import type { HeroId } from '../data/HeroCatalog';
 import type { SoldierType } from '../data/BattleConfig';
 import type { ActivityMode, ActivityRun, BoatChoice } from '../data/ActivityConfig';
-import { CHAPTER_MAPS, chapterLock, chapterProtagonistSpot, createChapterOptions, DIFFICULTIES, MAP_DROP_RATES, TARGETS, WORKSHOPS, workshopIndex, workshopRotation } from '../data/ChapterConfig';
-import type { ChapterClears, ChapterRun, Difficulty, LootTarget, WorkshopIndex } from '../data/ChapterConfig';
+import { CHAPTERS, CHAPTER_MAPS, chapterBattleExperience, chapterEquipment, chapterFirstEquipment, chapterIndex, chapterLevelLock, chapterLock, chapterLoot, chapterMapOfficer, chapterMapRank, chapterMonsterWaves, chapterRiftPool, chapterSeed, chapterStaminaCost, chapterStoryHero, chapterStoryIndex, chapterTarget, createChapterOptions, DAILY_STAMINA, DELVE_TICKET, DELVE_TICKET_CAP, DIFFICULTIES, isChapterRift, isSideDungeon, MAP_DROP_RATES, RAGE_TONIC, SPEED_TONIC, TONIC_LIMIT, TONIC_RUNS, WORKSHOPS, workshopIndex, workshopRotation } from '../data/ChapterConfig';
+import type { ChapterClears, ChapterRun, Difficulty, LootTarget, Tonic, WorkshopIndex } from '../data/ChapterConfig';
 export { HERO_IDS } from '../data/HeroCatalog';
 export type { HeroId } from '../data/HeroCatalog';
 
 export interface StorageAdapter { getItem(key: string): string | null; setItem(key: string, value: string): void; }
-export interface DailyState { day: number; cityUsed: number; boatUsed: number; bossBest: number; bossDaibi: number; bossPoints: number; medalEarned: number; xpUsedMs: number; soulEarned: number; modes: string[]; bonusClaimed: boolean; bossBand: number; }
+export interface DailyState { day: number; cityUsed: number; boatUsed: number; bossBest: number; bossDaibi: number; bossPoints: number; medalEarned: number; xpUsedMs: number; soulEarned: number; delveEarned: number; modes: string[]; bonusClaimed: boolean; bossBand: number; }
+interface TonicStock { bought: number; bottles: number; runs: number; }
+interface CampaignSupply { day: number; spent: number; rage: TonicStock; speed: TonicStock; }
+const emptyTonicStock = (): TonicStock => ({ bought: 0, bottles: 0, runs: 0 });
 interface ChapterProgress {
+    supply: CampaignSupply;
+    introSeen: number;
+    pendingEnding: number | null;
+    longbanTrial: boolean;
     protagonistSpot: string | null;
+    companions: FormationEntry[] | null;
     clears: ChapterClears;
-    pity: Record<LootTarget, number>;
+    delveTickets: number;
+    duelBest: Partial<Record<WorldBossId, number>>;
     materials: [number, number, number];
     lastWorkshopWin: number | null;
     pending: ChapterRun | null;
     reserve: Equipment | null;
-    offline: { run: ChapterRun; since: number } | null;
+    offline: { run: ChapterRun; since: number; enemyExperience?: number } | null;
 }
 const OFFLINE_CHAPTER_RUN_MS = 20 * 60 * 1000;
+export type ChapterRewardDetail = { item: Equipment; hero?: never } | { hero: HeroId; item?: never };
+export interface ChapterRewardPreview {
+    index: number;
+    detail: ChapterRewardDetail;
+}
 export interface ChapterSettlement {
     saved: boolean;
     lines: string[];
+    previews?: ChapterRewardPreview[];
+    storyChapter?: number;
+    experience?: { combat: number; clear: number };
 }
 export interface Progress {
     chapter: ChapterProgress;
@@ -57,13 +74,16 @@ const KEY = 'dainaosanguo.demo.progress.v1';
 export const DAY_MS = 86400000;
 export const IDLE_DAILY_DAIBI = 1000;
 export function chinaDay(now: number): number { return Math.floor((now + 8 * 3600000) / DAY_MS); }
-const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0, bossBest: 0, bossDaibi: 0, bossPoints: 0, medalEarned: 0, xpUsedMs: 0, soulEarned: 0, modes: [], bonusClaimed: false, bossBand: 1 });
+const dailyState = (day: number): DailyState => ({ day, cityUsed: 0, boatUsed: 0, bossBest: 0, bossDaibi: 0, bossPoints: 0, medalEarned: 0, xpUsedMs: 0, soulEarned: 0, delveEarned: 0, modes: [], bonusClaimed: false, bossBand: 1 });
 const nonnegative = (v: unknown, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= max;
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const emptyChapter = (): ChapterProgress => ({
-    protagonistSpot: null, clears: {}, pity: { officer: 0, spear: 0 }, materials: [0, 0, 0], lastWorkshopWin: null, pending: null, reserve: null, offline: null,
+export function supplyDay(now: number): number { return Math.floor((now + 3600000) / DAY_MS); }
+const emptyChapter = (now: number): ChapterProgress => ({
+    supply: { day: supplyDay(now), spent: 0, rage: emptyTonicStock(), speed: emptyTonicStock() },
+    introSeen: 0, pendingEnding: null, longbanTrial: false,
+    protagonistSpot: null, companions: null, clears: {}, delveTickets: 0, duelBest: {}, materials: [0, 0, 0], lastWorkshopWin: null, pending: null, reserve: null, offline: null,
 });
-const emptyProgress = (now: number): Progress => ({ chapter: emptyChapter(), trialEnergy:null,mainlineEnergy:null,growthVersion: 1, experience: 0, xpAt: now, xpRemainder: 0, stars: {}, fragments: {}, souls: 0, loadouts: {}, version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
+const emptyProgress = (now: number): Progress => ({ chapter: emptyChapter(now), trialEnergy:null,mainlineEnergy:null,growthVersion: 1, experience: 0, xpAt: now, xpRemainder: 0, stars: {}, fragments: {}, souls: 0, loadouts: {}, version: 1, coins: 0, highestCleared: 0, heroLevel: 1,
     settled: [], inventory: [], equipped: {}, formations: { main: arrangeParty(STARTER_PARTY, 'main'), trial: arrangeParty(STARTER_PARTY.slice(0, 3), 'trial'), defense: arrangeParty(STARTER_PARTY, 'defense', 'mixed', STARTER_PARTY.slice(0, 2)) }, troopType: 'mixed', wallHeroes: STARTER_PARTY.slice(0, 2), metaVersion: 2, daibi: 0, points: 0, owned: [...STARTER_PARTY], formation: [...STARTER_PARTY],
     trialParty: STARTER_PARTY.slice(0, 3), defense: [...STARTER_PARTY], firstCleared: [], trialHighest: 0,
     pity: 0, drawCount: 0, idleAt: now, idleRemainder: 0, daily: dailyState(chinaDay(now)), runSerial: 0, pending: null });
@@ -121,10 +141,12 @@ export class ProgressStore {
     private random: () => number;
     storageAvailable = true;
     readonly developerMode:boolean;
+    readonly experienceMultiplier: number;
     get inventoryCapacity():number{return this.developerMode?160:40;}
 
-    constructor(storage: StorageAdapter, clock: () => number = Date.now, random: () => number = Math.random, options:{developer?:boolean}={}) {
+    constructor(storage: StorageAdapter, clock: () => number = Date.now, random: () => number = Math.random, options:{developer?:boolean; experienceMultiplier?: number}={}) {
         this.developerMode=!!options.developer;
+        this.experienceMultiplier = options.experienceMultiplier ?? 1;
         this.storage = storage; this.clock = clock; this.random = random;
         const now = this.now();
         this.state = emptyProgress(now);
@@ -154,7 +176,7 @@ export class ProgressStore {
                     Array.isArray(ids) && !validateParty(ids, owned, mode) ? [...ids] : [...fallback];
                 const d = data.daily;
                 const daily = d && nonnegative(d.day) && nonnegative(d.cityUsed, 3) && nonnegative(d.boatUsed, 2)
-                    && nonnegative(d.bossBest) && nonnegative(d.bossDaibi, 1000) && nonnegative(d.bossPoints, 120) ? { ...dailyState(d.day), ...d, medalEarned: nonnegative(d.medalEarned, MEDAL_DAILY_CAP) ? d.medalEarned : 0, xpUsedMs: nonnegative(d.xpUsedMs, XP_DAILY_MS) ? d.xpUsedMs : 0, soulEarned: nonnegative(d.soulEarned, 20) ? d.soulEarned : 0, modes: Array.isArray(d.modes) ? d.modes.filter(m => ['city','boss','trial','boat'].indexOf(m) >= 0) : [], bonusClaimed: !!d.bonusClaimed, bossBand: nonnegative(d.bossBand,20) && d.bossBand > 0 ? d.bossBand : 1 } : dailyState(chinaDay(now));
+                    && nonnegative(d.bossBest) && nonnegative(d.bossDaibi, 1000) && nonnegative(d.bossPoints, 120) ? { ...dailyState(d.day), ...d, medalEarned: nonnegative(d.medalEarned, MEDAL_DAILY_CAP) ? d.medalEarned : 0, xpUsedMs: nonnegative(d.xpUsedMs, XP_DAILY_MS) ? d.xpUsedMs : 0, soulEarned: nonnegative(d.soulEarned, 20) ? d.soulEarned : 0, delveEarned: nonnegative(d.delveEarned, DELVE_TICKET_CAP) ? d.delveEarned : 0, modes: Array.isArray(d.modes) ? d.modes.filter(m => ['city','boss','trial','boat'].indexOf(m) >= 0) : [], bonusClaimed: !!d.bonusClaimed, bossBand: nonnegative(d.bossBand,20) && d.bossBand > 0 ? d.bossBand : 1 } : dailyState(chinaDay(now));
                 this.state = { ...emptyProgress(now), coins: data.coins, highestCleared: data.highestCleared, heroLevel: level,
                     settled: data.settled.slice(-128), inventory, equipped, owned,
                     formation: party(data.formation, 'main', legacy ? LEGACY_PARTY : STARTER_PARTY),
@@ -209,6 +231,14 @@ export class ProgressStore {
 
     private now(): number { const value = Math.floor(this.clock()); if (!nonnegative(value)) throw new Error('本机时间无效'); return value; }
     private refreshDay(): void {
+        const supply = this.state.chapter.supply;
+        const staminaDay = supplyDay(this.now());
+        if (staminaDay > supply.day) {
+            supply.day = staminaDay;
+            supply.spent = 0;
+            supply.rage.bought = 0;
+            supply.speed.bought = 0;
+        }
         const day = chinaDay(this.now());
         if (day > this.state.daily.day) {
             this.state.daily = dailyState(day);
@@ -337,9 +367,9 @@ export class ProgressStore {
     }
     get experienceStage(): number {
         let highest = this.state.highestCleared;
-        CHAPTER_MAPS.forEach((map, i) => {
+        CHAPTER_MAPS.forEach(map => {
             const flags = this.state.chapter.clears[map.id] || 0;
-            if (flags) highest = Math.max(highest, 3 * i + (flags & 4 ? 3 : flags & 2 ? 2 : 1));
+            if (flags) highest = Math.max(highest, 3 * chapterMapRank(map.id) + (flags & 4 ? 3 : flags & 2 ? 2 : 1));
         });
         return highest;
     }
@@ -348,8 +378,8 @@ export class ProgressStore {
         this.refreshDay();
         const stage = this.experienceStage;
         const ms = stage ? Math.min(XP_DAILY_MS, Math.max(0, this.now() - this.state.xpAt), XP_DAILY_MS - this.state.daily.xpUsedMs) : 0;
-        const amount = Math.floor((ms * (240 + stage * 7) + this.state.xpRemainder) / 1200000);
-        return { amount: stage ? amount : 0, minutes: Math.floor(ms / 60000), remainingMinutes: Math.ceil((XP_DAILY_MS - this.state.daily.xpUsedMs) / 60000), rate: xpPerMinute(stage) };
+        const amount = Math.floor((ms * (240 + stage * 7) * this.experienceMultiplier + this.state.xpRemainder) / 1200000);
+        return { amount: stage ? amount : 0, minutes: Math.floor(ms / 60000), remainingMinutes: Math.ceil((XP_DAILY_MS - this.state.daily.xpUsedMs) / 60000), rate: xpPerMinute(stage) * this.experienceMultiplier };
     }
 
     claimExperience(): number {
@@ -365,7 +395,7 @@ export class ProgressStore {
         const stage = this.experienceStage;
         if (!stage || now < this.state.xpAt) return 0;
         const ms = Math.min(XP_DAILY_MS, now - this.state.xpAt, XP_DAILY_MS - this.state.daily.xpUsedMs);
-        const numerator = ms * (240 + stage * 7) + this.state.xpRemainder;
+        const numerator = ms * (240 + stage * 7) * this.experienceMultiplier + this.state.xpRemainder;
         const amount = Math.floor(numerator / 1200000);
         this.state.xpRemainder = numerator % 1200000;
         this.state.xpAt = now;
@@ -381,7 +411,7 @@ export class ProgressStore {
         const party = this.state.formation;
         if (party.some(h => SLOT_ORDER.some(slot => !this.state.loadouts[h]?.[slot]))) return '有武将装备槽空着，穿戴战甲与兵符能帮助破关';
         if (party.some(h => (this.state.fragments[h] || 0) + this.state.souls >= (STAR_COSTS[(this.state.stars[h] || 1) - 1] || Infinity))) return '有武将可以升星，前往武将页提升';
-        return this.state.daily.xpUsedMs >= XP_DAILY_MS ? '今日经验已满4小时，挑战副本攒脑勋，明日再突破' : '暂遇瓶颈：换阵型/治疗将，或等待挂机经验';
+        return this.state.daily.xpUsedMs >= XP_DAILY_MS ? '今日经验已满4小时，可刷行装或赤门令' : '暂遇瓶颈：换阵型/治疗将，或等待挂机经验';
     }
     trialEnergyFor(stage:number):Record<string,number>{return this.state.trialEnergy?.stage===stage?cleanEnergy(this.state.trialEnergy.heroes):{};}
     clearTrialEnergy():void{if(this.state.trialEnergy){this.state.trialEnergy=null;this.save();}}
@@ -459,88 +489,220 @@ export class ProgressStore {
     private restoreChapter(data?: ChapterProgress): void {
         if (!data) return;
         const chapter = this.state.chapter;
-        if (this.state.formations.main.some(entry => entry.spot === data.protagonistSpot)) chapter.protagonistSpot = data.protagonistSpot;
+        const supply = data.supply;
+        if (supply && nonnegative(supply.day) && nonnegative(supply.spent, DAILY_STAMINA)) {
+            const stock = (entry?: TonicStock) => entry && nonnegative(entry.bought, TONIC_LIMIT)
+                && nonnegative(entry.bottles) && nonnegative(entry.runs, TONIC_RUNS) ? { ...entry } : emptyTonicStock();
+            chapter.supply = { day: supply.day, spent: supply.spent, rage: stock(supply.rage), speed: stock(supply.speed) };
+        }
+        if (nonnegative(data.introSeen, 1023)) chapter.introSeen = data.introSeen;
+        chapter.longbanTrial = data.longbanTrial === true || (data.longbanTrial === undefined &&
+            (!!data.clears?.road || data.pending?.map === 'road'));
+        if (nonnegative(data.delveTickets)) chapter.delveTickets = data.delveTickets;
+        if (FORMATION_SPOTS.some(spot => spot.id === data.protagonistSpot)) {
+            chapter.protagonistSpot = data.protagonistSpot;
+            const formation = { protagonistSpot: data.protagonistSpot!, companions: data.companions! };
+            if (!validateChapterFormation(formation, this.state.owned)) chapter.companions = copy(formation.companions);
+        }
         for (const { id } of CHAPTER_MAPS) {
             const flags = data.clears?.[id];
             if (nonnegative(flags, 7)) chapter.clears[id] = flags;
         }
-        for (const id of ['officer', 'spear'] as const) {
-            const value = data.pity?.[id];
-            if (nonnegative(value, TARGETS[id].guarantee - 1)) chapter.pity[id] = value;
+        const ending = data.pendingEnding;
+        if (nonnegative(ending, CHAPTERS.length - 1) && ((chapter.clears[CHAPTERS[ending].maps[7]] || 0) & 1)) chapter.pendingEnding = ending;
+        for (const { id } of WORLD_BOSSES) {
+            const score = data.duelBest?.[id];
+            if (nonnegative(score)) chapter.duelBest[id] = score;
         }
         chapter.materials = [0, 1, 2].map(i => nonnegative(data.materials?.[i]) ? data.materials[i] : 0) as ChapterProgress['materials'];
         if (Number.isSafeInteger(data.lastWorkshopWin)) chapter.lastWorkshopWin = data.lastWorkshopWin;
         if (data.reserve && validEquipment(data.reserve)) chapter.reserve = { ...data.reserve };
-        if (this.validChapterRun(data.pending)) chapter.pending = copy(data.pending);
+        chapter.pending = this.restoreChapterRun(data.pending);
         const offline = data.offline;
-        if (offline && nonnegative(offline.since) && this.validChapterRun(offline.run) && this.canFarmOffline(offline.run)) {
-            chapter.offline = copy(offline);
-        }
+        const run = this.restoreChapterRun(offline?.run);
+        if (offline && nonnegative(offline.since) && run && this.canFarmOffline(run)) chapter.offline = { run, since: offline.since, enemyExperience: nonnegative(offline.enemyExperience) ? offline.enemyExperience : undefined };
     }
 
-    private validChapterRun(run?: ChapterRun | null): run is ChapterRun {
-        return !!run && typeof run.id === 'string' && run.id.length > 0
-            && (run.map === 'workshop' || CHAPTER_MAPS.some(map => map.id === run.map))
+    private restoreChapterRun(run?: ChapterRun | null): ChapterRun | null {
+        const valid = !!run && typeof run.id === 'string' && run.id.length > 0
+            && (run.map === 'workshop' || isSideDungeon(run.map) || CHAPTER_MAPS.some(map => map.id === run.map))
             && Number.isInteger(run.difficulty) && DIFFICULTIES[run.difficulty] !== undefined
-            && !chapterLock(this.state.chapter.clears, run.map, run.difficulty)
+            && !chapterLock(this.state.chapter.clears, run.map, run.difficulty, this.state.chapter.longbanTrial)
+            && (run.map === 'duel' ? WORLD_BOSSES.some(boss => boss.id === run.bossId) : run.bossId === undefined)
+            && (!isSideDungeon(run.map) || run.difficulty === 0)
             && (run.map === 'workshop' ? run.difficulty === 0 && Number.isSafeInteger(run.window) : run.window === undefined)
-            && (run.map === 'rift' ? run.difficulty === 2 && (run.target === 'officer' || run.target === 'spear') : run.target === undefined)
+            && (isChapterRift(run.map) ? run.difficulty === 2 && (run.target === 'officer' || run.target === 'spear')
+                && (run.targetHero === undefined || chapterRiftPool(run.map).indexOf(run.targetHero) >= 0)
+                : run.target === undefined && run.targetHero === undefined)
             && nonnegative(run.level, MAX_LEVEL) && run.level > 0 && nonnegative(run.seed, 0xffffffff)
             && Number.isFinite(run.roll) && run.roll >= 0 && run.roll < 1
-            && Array.isArray(run.layout) && !validateFormation(run.layout, this.state.owned, 'main')
-            && run.layout.some(entry => entry.spot === run.protagonistSpot)
+            && (run.monsterWaves === undefined || (chapterIndex(run.map) >= 0 && !isChapterRift(run.map) &&
+                (run.monsterWaves === 1 || run.monsterWaves === 2 || run.monsterWaves === 3)))
+            && (run.rageTonic === undefined || run.rageTonic === true)
+            && (run.speedTonic === undefined || (run.speedTonic === true && run.map !== 'duel'))
             && validBonuses(run.equipment);
+        if (!valid || !Array.isArray(run.layout)) return null;
+        // Older snapshots contained five legacy units, including the spot replaced by the protagonist.
+        const legacy = run.layout.length === 5 && !validateFormation(run.layout, this.state.owned, 'main')
+            && run.layout.some(entry => entry.spot === run.protagonistSpot);
+        const companions = legacy ? run.layout.filter(entry => entry.spot !== run.protagonistSpot) : run.layout;
+        return validateChapterFormation({ protagonistSpot: run.protagonistSpot, companions }, this.state.owned)
+            ? null : copy({ ...run, layout: companions });
     }
 
-    get protagonistSpot(): string {
-        return chapterProtagonistSpot(this.state.formations.main, this.state.chapter.protagonistSpot);
+    get chapterFormation(): ChapterFormation {
+        const { protagonistSpot, companions } = this.state.chapter;
+        return companions === null ? chapterFormationFromLegacy(this.state.formations.main, protagonistSpot)
+            : copy({ protagonistSpot: protagonistSpot!, companions });
     }
 
-    setProtagonistSpot(spot: string): string | null {
-        if (!this.state.formations.main.some(entry => entry.spot === spot)) return '请点选一个已排好的阵位';
-        const before = this.state.chapter.protagonistSpot;
-        this.state.chapter.protagonistSpot = spot;
+    get protagonistSpot(): string { return this.chapterFormation.protagonistSpot; }
+
+    saveChapterFormation(formation: ChapterFormation): string | null {
+        const error = validateChapterFormation(formation, this.state.owned);
+        if (error) return error;
+        const chapter = this.state.chapter;
+        const { protagonistSpot, companions } = chapter;
+        chapter.protagonistSpot = formation.protagonistSpot;
+        chapter.companions = copy(formation.companions);
         if (this.save()) return null;
-        this.state.chapter.protagonistSpot = before;
+        chapter.protagonistSpot = protagonistSpot;
+        chapter.companions = companions;
         return '存档失败，请重试';
     }
 
     get currentWorkshop() { return workshopRotation(chinaDay(this.now())); }
 
-    startChapter(map: ChapterRun['map'], difficulty: Difficulty, target?: LootTarget): ChapterRun {
+    get campaignSupply() {
+        this.refreshDay();
+        const { spent, rage, speed } = this.state.chapter.supply;
+        return { stamina: DAILY_STAMINA - spent, rage: { ...rage }, speed: { ...speed } };
+    }
+
+    buyTonic(kind: Tonic): string | null {
+        this.refreshDay();
+        const stock = this.state.chapter.supply[kind];
+        const cost = kind === 'rage' ? RAGE_TONIC.cost : SPEED_TONIC.cost;
+        if (stock.bought >= TONIC_LIMIT) return '今日已买满4瓶 · 明早7点补货';
+        if (this.state.coins < cost) return '脑铢不足';
+        stock.bought++;
+        stock.bottles++;
+        this.state.coins -= cost;
+        if (this.save()) return null;
+        stock.bought--;
+        stock.bottles--;
+        this.state.coins += cost;
+        return '购买未保存，请重试';
+    }
+
+    useTonic(kind: Tonic): string | null {
+        const stock = this.state.chapter.supply[kind];
+        if (stock.runs) return '当前药效仍在生效';
+        if (!stock.bottles) return '行囊里没有这瓶汤';
+        stock.bottles--;
+        stock.runs = TONIC_RUNS;
+        if (this.save()) return null;
+        stock.bottles++;
+        stock.runs = 0;
+        return '使用未保存，请重试';
+    }
+
+    chapterEntryLock(map: ChapterRun['map'], difficulty: Difficulty): string | null {
+        const chapter = this.state.chapter;
+        const route = chapterLock(chapter.clears, map, difficulty, chapter.longbanTrial);
+        if (route) return route;
+        if (((chapter.clears[map] || 0) & (1 << difficulty)) || (chapter.longbanTrial && chapterIndex(map) === 4)) return null;
+        return chapterLevelLock(map, this.state.heroLevel);
+    }
+
+    chapterEntryCost(map: ChapterRun['map'], difficulty: Difficulty): number {
+        const delve = isChapterRift(map);
+        return chapterStaminaCost(this.chapterRun(map, difficulty, this.state.runSerial + 1, delve ? 'officer' : undefined,
+            delve ? chapterRiftPool(map)[0] : undefined, 0));
+    }
+
+    hasChapterIntro(index: number): boolean {
+        return !!((this.state.chapter.introSeen & (1 << index)) || this.state.chapter.clears[CHAPTERS[index].maps[0]]);
+    }
+
+    get pendingChapterEnding(): number | null { return this.state.chapter.pendingEnding; }
+
+    completeChapterIntro(index: number): boolean {
+        const chapter = this.state.chapter;
+        if (!CHAPTERS[index] || this.chapterEntryLock(CHAPTERS[index].maps[0], 0)) return false;
+        if (this.hasChapterIntro(index)) return true;
+        const before = chapter.introSeen;
+        chapter.introSeen |= 1 << index;
+        if (this.save()) return true;
+        chapter.introSeen = before;
+        return false;
+    }
+
+    completeChapterEnding(index: number): boolean {
+        const chapter = this.state.chapter;
+        if (chapter.pendingEnding !== index) return true;
+        chapter.pendingEnding = null;
+        if (this.save()) return true;
+        chapter.pendingEnding = index;
+        return false;
+    }
+
+    startChapter(map: ChapterRun['map'], difficulty: Difficulty, target?: LootTarget, targetHero?: HeroId): ChapterRun {
+        this.refreshDay();
         const chapter = this.state.chapter;
         if (chapter.pending) throw new Error('先继续或放弃未完战图');
         if (chapter.reserve) throw new Error('先从战图领取寄存装备');
-        if (!DIFFICULTIES[difficulty] || (map !== 'workshop' && !CHAPTER_MAPS.some(m => m.id === map))) throw new Error('战图无效');
-        if (map === 'rift' && (difficulty !== 2 || (target !== 'officer' && target !== 'spear'))) throw new Error('请选择奇阵追求目标');
-        if (map === 'workshop' && difficulty !== 0) throw new Error('军器换班使用固定难度');
-        const error = chapterLock(chapter.clears, map, difficulty) || validateFormation(this.state.formations.main, this.state.owned, 'main');
+        if (!DIFFICULTIES[difficulty] || (map !== 'workshop' && !isSideDungeon(map) && !CHAPTER_MAPS.some(m => m.id === map))) throw new Error('战图无效');
+        if (isChapterRift(map) && (difficulty !== 2 || (target !== 'officer' && target !== 'spear'))) throw new Error('请选择赤门追求目标');
+        if ((map === 'workshop' || isSideDungeon(map)) && difficulty !== 0) throw new Error('此副本使用固定难度');
+        const error = this.chapterEntryLock(map, difficulty) || validateChapterFormation(this.chapterFormation, this.state.owned);
         if (error) throw new Error(error);
+        const delve = isChapterRift(map);
+        if (delve) {
+            const pool = chapterRiftPool(map);
+            targetHero ??= pool[0];
+            if (pool.indexOf(targetHero) < 0) throw new Error('目标不属于本章赤门');
+            if (!chapter.delveTickets) throw new Error(`需要1枚${DELVE_TICKET}，战图胜利可获得`);
+        }
+        const cost = this.chapterEntryCost(map, difficulty);
+        const supply = chapter.supply;
+        if (supply.spent + cost > DAILY_STAMINA) throw new Error(`体力不足 · 本场需要 ${cost} 点`);
         const serial = this.state.runSerial + 1;
-        const run = this.chapterRun(map, difficulty, serial, target);
+        const run = this.chapterRun(map, difficulty, serial, target, delve ? targetHero : undefined);
+        if (supply.rage.runs) run.rageTonic = true;
+        if (supply.speed.runs && map !== 'duel') run.speedTonic = true;
+        const before = copy(this.state);
+        supply.spent += cost;
+        if (run.rageTonic) supply.rage.runs--;
+        if (run.speedTonic) supply.speed.runs--;
+        const story = chapterStoryIndex(map, 'intro');
+        if (story >= 0) chapter.introSeen |= 1 << story;
+        if (delve) chapter.delveTickets -= 1;
         chapter.pending = run;
         this.state.runSerial = serial;
         if (!this.save()) {
-            chapter.pending = null;
-            this.state.runSerial -= 1;
+            this.state = before;
             throw new Error('存档不可用，请重试');
         }
         return copy(run);
     }
 
-    private chapterRun(map: ChapterRun['map'], difficulty: Difficulty, serial: number, target?: LootTarget): ChapterRun {
-        const roll = this.random();
+    private chapterRun(map: ChapterRun['map'], difficulty: Difficulty, serial: number, target?: LootTarget, targetHero?: HeroId, roll = this.random()): ChapterRun {
+        const formation = this.chapterFormation;
         if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new Error('掉落随机源无效，请重试');
+        const seed = chapterSeed(serial);
         return {
-            id: `chapter-${this.now()}-${serial}`, map, difficulty, target: map === 'rift' ? target : undefined,
-            window: map === 'workshop' ? this.currentWorkshop.window : undefined, level: this.state.heroLevel,
-            layout: copy(this.state.formations.main), protagonistSpot: this.protagonistSpot, equipment: this.getEquipmentBonuses(), seed: (20261105 + serial) >>> 0, roll,
+            id: `chapter-${this.now()}-${serial}`, map, difficulty, target: isChapterRift(map) ? target : undefined, targetHero,
+            window: map === 'workshop' ? this.currentWorkshop.window : undefined,
+            bossId: map === 'duel' ? this.currentBoss.boss.id : undefined, level: this.state.heroLevel,
+            layout: formation.companions, protagonistSpot: formation.protagonistSpot, equipment: this.getEquipmentBonuses(), seed, roll,
+            monsterWaves: chapterIndex(map) >= 0 && !isChapterRift(map) ? chapterMonsterWaves(seed) : undefined,
         };
     }
 
     private canFarmOffline(run: Pick<ChapterRun, 'map' | 'difficulty'>): boolean {
         const { map, difficulty } = run;
-        return map !== 'rift' && map !== 'workshop' && difficulty < 2
+        return !isChapterRift(map) && map !== 'workshop' && !isSideDungeon(map) && difficulty < 2
             && !!((this.state.chapter.clears[map] || 0) & (1 << difficulty));
     }
 
@@ -562,41 +724,65 @@ export class ProgressStore {
         const battle = new BattleEngine(createChapterOptions(run));
         while (battle.status === 'fighting') battle.advance(.25);
         if (battle.status !== 'won') return '当前行装与阵容未通过自动试战';
-        chapter.offline = { run, since: now };
+        chapter.offline = { run, since: now, enemyExperience: battle.enemyExperience };
         if (this.save()) return null;
-        chapter.offline = previous && { run: previous.run, since: previous.since };
+        chapter.offline = previous && { run: previous.run, since: previous.since, enemyExperience: previous.enemyExperience };
         return '存档失败，请重试';
     }
 
     claimChapterOffline(): ChapterSettlement {
+        this.refreshDay();
         const job = this.chapterOffline;
         const chapter = this.state.chapter;
         if (chapter.pending || chapter.reserve) return { saved: true, lines: ['请先结束挑战或领取寄存'] };
         if (!job?.ready) return { saved: true, lines: ['未攒满一场，挂机每20分钟一场'] };
+        const cost = chapterStaminaCost(job.run);
+        const limit = Math.min(job.ready, Math.floor(this.campaignSupply.stamina / cost));
+        if (!limit) return { saved: true, lines: [`体力不足 · 每场需 ${cost} 点，已完成场次保留`] };
+        let enemyExperience = job.enemyExperience;
+        if (enemyExperience === undefined) {
+            const trial = new BattleEngine(createChapterOptions(job.run));
+            while (trial.status === 'fighting') trial.advance(.25);
+            enemyExperience = trial.enemyExperience;
+        }
         // Prepare all rolls before touching inventory or time. Failed saves restore the full batch.
         const now = this.now();
-        const runs = Array.from({ length: job.ready }, (_, i) => {
+        const runs = Array.from({ length: limit }, (_, i) => {
             const serial = this.state.runSerial + 1 + i;
             const roll = this.random();
             if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new Error('掉落随机源无效，请重试');
-            return { ...job.run, id: `chapter-idle-${now}-${serial}`, seed: (20261105 + serial) >>> 0, roll };
+            return { ...job.run, id: `chapter-idle-${now}-${serial}`, seed: chapterSeed(serial), roll };
         });
         const before = copy(this.state);
         const totals = new Map<string, number>();
+        const details = new Map<string, ChapterRewardDetail>();
         let finished = 0;
+        let experience = 0;
         for (const run of runs) {
-            this.applyChapterWin(run).forEach(line => totals.set(line, (totals.get(line) || 0) + 1));
+            const previews: ChapterRewardPreview[] = [];
+            const lines = this.applyChapterWin(run, previews);
+            lines.forEach(line => totals.set(line, (totals.get(line) || 0) + 1));
+            previews.forEach(({ index, detail }) => details.set(lines[index], detail));
+            chapter.supply.spent += cost;
+            experience += chapterBattleExperience(run, true, enemyExperience) * this.experienceMultiplier;
             finished += 1;
             if (chapter.reserve) break;
         }
         this.state.runSerial += finished;
+        this.state.experience += experience;
         chapter.offline!.since = Math.max(job.since, now - XP_DAILY_MS) + finished * OFFLINE_CHAPTER_RUN_MS;
         if (!this.save()) {
             this.state = before;
             return { saved: false, lines: ['挂机结算未保存，请重试'] };
         }
-        return { saved: true, lines: [`已结算 ${finished} 场 · 剩余 ${job.ready - finished} 场`,
-            ...Array.from(totals, ([line, count]) => count > 1 ? `${line}（${count}场）` : line)] };
+        const lines = [`已结算 ${finished} 场 · 剩余 ${job.ready - finished} 场 · 经验 +${experience}`];
+        const previews: ChapterRewardPreview[] = [];
+        totals.forEach((count, line) => {
+            const detail = details.get(line);
+            if (detail) previews.push({ index: lines.length, detail });
+            lines.push(count > 1 ? `${line}（${count}场）` : line);
+        });
+        return { saved: true, lines, previews };
     }
 
     abandonChapter(): boolean {
@@ -607,25 +793,47 @@ export class ProgressStore {
         return false;
     }
 
-    settleChapter(id: string, won: boolean): ChapterSettlement {
+    settleChapter(id: string, won: boolean, score = 0, enemyExperience = 0): ChapterSettlement {
+        this.refreshDay();
         const chapter = this.state.chapter;
         const run = chapter.pending;
         if (!run || run.id !== id) return { saved: true, lines: ['本场已结算或已放弃'] };
+        if (!nonnegative(score) || !nonnegative(enemyExperience, 10000)) throw new Error('战报数据无效');
+        const story = won && run.difficulty === 0 && !(chapter.clears[run.map] || 0) ? chapterStoryIndex(run.map, 'outro') : -1;
         const before = copy(this.state);
-        const lines = won ? this.applyChapterWin(run) : [];
+        const previews: ChapterRewardPreview[] = [];
+        const lines = won ? this.applyChapterWin(run, previews) : [];
+        if (won && run.map === 'duel') {
+            const boss = run.bossId!;
+            const best = chapter.duelBest[boss] || 0;
+            chapter.duelBest[boss] = Math.max(best, score);
+            lines.push(score > best ? '刷新个人纪录' : '个人纪录已保留');
+        }
+        if (won) {
+            const daily = this.state.daily;
+            const souls = Math.min(2, 20 - daily.soulEarned);
+            daily.soulEarned += souls;
+            this.state.souls += souls;
+            if (souls) lines.push(`脑力 +${souls}`);
+        }
+        const combat = chapterBattleExperience(run, false, enemyExperience) * this.experienceMultiplier;
+        const clear = chapterBattleExperience(run, won, 0) * this.experienceMultiplier;
+        this.state.experience += combat + clear;
+        if (story >= 0) chapter.pendingEnding = story;
         chapter.pending = null;
-        if (this.save()) return { saved: true, lines };
+        if (this.save()) return { saved: true, lines, previews, storyChapter: story >= 0 ? story : undefined, experience: { combat, clear } };
         this.state = before;
         return { saved: false, lines: ['存档失败，战利品未结算'] };
     }
 
-    private applyChapterWin(run: ChapterRun): string[] {
+    private applyChapterWin(run: ChapterRun, previews?: ChapterRewardPreview[]): string[] {
         const chapter = this.state.chapter;
         const id = run.id;
         const lines: string[] = [];
         let item: Equipment | undefined;
         const difficulty = run.difficulty;
         const grantHero = (hero: HeroId) => {
+            previews?.push({ index: lines.length, detail: { hero } });
             if (this.state.owned.indexOf(hero) >= 0) {
                 this.state.fragments[hero] = (this.state.fragments[hero] || 0) + 20;
                 lines.push(`${getHero(hero)!.name}专属碎片 ×20`);
@@ -634,10 +842,13 @@ export class ProgressStore {
                 lines.push(`${getHero(hero)!.name}将帖 · 已入队`);
             }
         };
-        const coins = [120, 180, 280][difficulty];
+        const coins = run.map === 'assault' ? 210 : [120, 180, 280][difficulty];
         this.state.coins += coins;
         lines.push(`脑铢 +${coins}`);
-        if (run.map === 'workshop') {
+        if (run.map === 'assault') {
+            chapter.materials[0] += 2;
+            lines.push('炉砂 +2');
+        } else if (run.map === 'workshop') {
             const window = run.window!;
             const index = workshopIndex(window);
             const first = chapter.lastWorkshopWin === null || window > chapter.lastWorkshopWin;
@@ -645,49 +856,52 @@ export class ProgressStore {
             chapter.materials[index] += amount;
             if (first) chapter.lastWorkshopWin = window;
             lines.push(`${WORKSHOPS[index].material} +${amount}${first ? ' · 换班首胜' : ''}`);
-        } else {
+        } else if (run.map !== 'duel') {
+            const delve = isChapterRift(run.map);
+            const rank = chapterMapRank(run.map);
             const flags = chapter.clears[run.map] || 0;
             if (!(flags & (1 << difficulty))) {
                 if (this.experienceStage) this.accrueExperience();
                 else this.state.xpAt = this.now();
                 chapter.clears[run.map] = flags | (1 << difficulty);
             }
-            if (run.map === 'road' && difficulty === 0 && !(flags & 1)) {
-                grantHero('zhangfei');
-                item = { id: `loot-${id}`, name: '长坂行军枪', rarity: 1, stage: 1, chapter: true,
-                    slot: 'weapon', appearance: 'spear', attack: 32, defense: 4, maxHp: 100 };
-            }
-            if (run.map === 'ridge' && run.roll < MAP_DROP_RATES.equipment[difficulty]) {
-                item = { id: `loot-${id}`, name: ['挑石枪', '翻坡长枪', '铁脊破阵枪'][difficulty],
-                    rarity: ([1, 2, 3] as const)[difficulty], stage: 1, chapter: true, slot: 'weapon', appearance: 'spear',
-                    attack: 34 + difficulty * 16, defense: 5 + difficulty * 5, maxHp: 120 + difficulty * 60 };
-            }
-            if (run.map === 'bridge' && run.roll < MAP_DROP_RATES.officer[difficulty]) grantHero('liaohua');
-            if (run.map === 'siege') {
-                const material = ((run.seed % 3) as WorkshopIndex);
-                const amount = difficulty + 1;
-                chapter.materials[material] += amount;
-                lines.push(`${WORKSHOPS[material].material} +${amount}`);
-            }
-            if (run.map === 'rift') {
-                const target = run.target!;
-                const selected = TARGETS[target];
-                const wonSinceDrop = chapter.pity[target] + 1;
-                if (wonSinceDrop >= selected.guarantee || run.roll < selected.rate) {
-                    chapter.pity[target] = 0;
-                    if (target === 'officer') grantHero('zhaoyun');
-                    else if (this.state.inventory.some(gear => gear.id === 'signature-zhaoyun')) {
-                        chapter.materials[2] += 8;
-                        lines.push('已有龙胆亮银枪 · 压阵印 +8');
-                    } else item = { ...signatureFor('zhaoyun'), chapter: true };
-                    lines.push(wonSinceDrop >= selected.guarantee ? '定向保底达成' : '定向战利品已掉落');
-                } else {
-                    chapter.pity[target] = wonSinceDrop;
-                    lines.push(`${selected.name}保底 ${wonSinceDrop}/${selected.guarantee}`);
+            if (!delve) {
+                if (this.state.daily.delveEarned < DELVE_TICKET_CAP) {
+                    this.state.daily.delveEarned += 1;
+                    chapter.delveTickets += 1;
+                    lines.push(`${DELVE_TICKET} +1`);
                 }
+                const story = difficulty === 0 && !(flags & 1) ? chapterStoryHero(run.map) : undefined;
+                if (story) grantHero(story);
+                const loot = chapterLoot(run.map);
+                item = story ? chapterFirstEquipment(run.map, `loot-${id}`) : undefined;
+                if (!item && run.roll < MAP_DROP_RATES[loot][difficulty]) {
+                    item = chapterEquipment(run.map, difficulty, `loot-${id}`);
+                    if (loot === 'officer') {
+                        const officer = chapterMapOfficer(run.map);
+                        if (officer) grantHero(officer);
+                    }
+                }
+                if (rank === 7 || rank === 5) {
+                    const material = ((run.seed % 3) as WorkshopIndex);
+                    const amount = difficulty + 1;
+                    chapter.materials[material] += amount;
+                    lines.push(`${WORKSHOPS[material].material} +${amount}`);
+                }
+            }
+            if (isChapterRift(run.map)) {
+                const target = chapterTarget(run.map, run.target!, run.targetHero);
+                if (run.roll < target.rate) {
+                    if (run.target === 'officer') grantHero(target.hero);
+                    else if (this.state.inventory.some(gear => gear.id === `signature-${target.hero}`)) {
+                        chapter.materials[2] += 8;
+                        lines.push(`已有${target.name} · 压阵印 +8`);
+                    } else item = { ...signatureFor(target.hero), chapter: true };
+                } else lines.push(`未掉落${target.name}`);
             }
         }
         if (item) {
+            previews?.push({ index: lines.length, detail: { item: { ...item } } });
             if (this.state.inventory.length < this.inventoryCapacity) {
                 this.state.inventory.push(item);
                 lines.push(item.name);
